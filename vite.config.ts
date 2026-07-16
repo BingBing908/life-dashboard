@@ -8,8 +8,8 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  // GitHub Pages 部署在 /PortWritingTool/ 子路径下；本地和 Tauri 用根路径
-  base: process.env.GHPAGES ? "/PortWritingTool/" : "/",
+  // GitHub Pages 部署在 /life-dashboard/ 子路径下；本地和 Tauri 用根路径
+  base: process.env.GHPAGES ? "/life-dashboard/" : "/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
