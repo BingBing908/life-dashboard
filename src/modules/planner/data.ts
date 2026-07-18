@@ -23,6 +23,27 @@ export async function listTasksByDate(date: string): Promise<PlanTask[]> {
   return rows.map((r) => ({ ...r, done: Boolean(r.done) }));
 }
 
+/** [start, end] 闭区间内的所有任务（周视图用） */
+export async function listTasksBetween(start: string, end: string): Promise<PlanTask[]> {
+  const db = await getDb();
+  const rows = await db.select<PlanTaskRaw[]>(
+    "SELECT id, title, date, start_time, end_time, done, note FROM plan_tasks WHERE date >= $1 AND date <= $2 AND deleted_at IS NULL ORDER BY date, start_time IS NULL, start_time, created_at",
+    [start, end],
+  );
+  return rows.map((r) => ({ ...r, done: Boolean(r.done) }));
+}
+
+export async function updateTask(
+  id: string,
+  patch: { title: string; startTime: string | null; endTime: string | null },
+): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE plan_tasks SET title = $1, start_time = $2, end_time = $3, updated_at = $4 WHERE id = $5",
+    [patch.title, patch.startTime, patch.endTime, nowIso(), id],
+  );
+}
+
 export async function addTask(
   title: string,
   date: string,
