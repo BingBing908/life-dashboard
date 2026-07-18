@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ListTodo, Plus, Sun, Trash2, Undo2 } from "lucide-react";
+import { ListTodo, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -57,8 +57,8 @@ function QuadrantTag({ q }: { q: Quadrant }) {
 
 function Card() {
   const [summary, setSummary] = useState<{
-    todayPending: number;
-    backlog: number;
+    today: number;
+    total: number;
     habitsTotal: number;
     habitsDone: number;
   } | null>(null);
@@ -73,24 +73,23 @@ function Card() {
       const today = todayStr();
       const pending = todos.filter((t) => !t.done);
       setSummary({
-        todayPending: pending.filter((t) => t.due_date && t.due_date <= today).length,
-        backlog: pending.filter((t) => !t.due_date || t.due_date > today).length,
+        today: pending.filter((t) => t.due_date && t.due_date <= today).length,
+        total: pending.length,
         habitsTotal: habits.length,
         habitsDone: habits.filter((h) => checkins.get(h.id)?.has(today)).length,
       });
     })().catch(() =>
-      setSummary({ todayPending: 0, backlog: 0, habitsTotal: 0, habitsDone: 0 }),
+      setSummary({ today: 0, total: 0, habitsTotal: 0, habitsDone: 0 }),
     );
   }, []);
 
   if (summary === null)
     return <p className="text-sm text-muted-foreground">加载中…</p>;
-  const { todayPending, backlog, habitsTotal, habitsDone } = summary;
+  const { today, total, habitsTotal, habitsDone } = summary;
   return (
     <p className="text-sm text-muted-foreground">
-      今天 <span className="font-medium text-foreground">{todayPending}</span> 项
-      {" · 待办池 "}
-      <span className="font-medium text-foreground">{backlog}</span>
+      待办 <span className="font-medium text-foreground">{total}</span> 项（今天{" "}
+      <span className="font-medium text-foreground">{today}</span>）
       {habitsTotal > 0 && (
         <>
           {" · 打卡 "}
@@ -107,6 +106,7 @@ function Page() {
   const [newQuadrant, setNewQuadrant] = useState<Quadrant>("in");
   const [newToToday, setNewToToday] = useState(false);
   const [filterQ, setFilterQ] = useState<Quadrant | null>(null);
+  const [filterToday, setFilterToday] = useState(false);
   const today = todayStr();
 
   useEffect(() => {
@@ -116,12 +116,14 @@ function Page() {
   const patch = (id: string, p: Partial<Todo>) =>
     setTodos((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
-  // 今天：到期日 <= 今天（含逾期）；待办池：无到期日或在未来
-  const todayItems = todos.filter((t) => t.due_date && t.due_date <= today);
-  const todayPending = todayItems.filter((t) => !t.done);
-  const todayFinished = todayItems.filter((t) => t.done);
-  const backlog = todos.filter((t) => !t.done && (!t.due_date || t.due_date > today));
-  const backlogShown = filterQ ? backlog.filter((t) => t.quadrant === filterQ) : backlog;
+  const isToday = (t: Todo) => !!t.due_date && t.due_date <= today;
+  const pending = todos.filter((t) => !t.done);
+  const finished = todos.filter((t) => t.done);
+
+  const match = (t: Todo) =>
+    (!filterQ || t.quadrant === filterQ) && (!filterToday || isToday(t));
+  const pendingShown = pending.filter(match);
+  const finishedShown = finished.filter(match);
 
   async function handleCreate() {
     const title = newTitle.trim();
@@ -143,14 +145,10 @@ function Page() {
     await deleteTodo(id);
   }
 
-  async function moveToToday(id: string) {
-    patch(id, { due_date: today });
-    await setTodoDueDate(id, today);
-  }
-
-  async function moveToBacklog(id: string) {
-    patch(id, { due_date: null });
-    await setTodoDueDate(id, null);
+  async function toggleToday(t: Todo) {
+    const next = isToday(t) ? null : today;
+    patch(t.id, { due_date: next });
+    await setTodoDueDate(t.id, next);
   }
 
   async function handleRename(id: string, title: string) {
@@ -163,116 +161,165 @@ function Page() {
     await clearDone();
   }
 
+  const tiles = [
+    ...QUADRANTS.map((q) => ({
+      key: q.key as Quadrant | "today",
+      name: q.name,
+      count: pending.filter((t) => t.quadrant === q.key).length,
+      style: Q_STYLE[q.key],
+      active: filterQ === q.key,
+      onClick: () => setFilterQ(filterQ === q.key ? null : q.key),
+    })),
+    {
+      key: "today" as const,
+      name: "今天",
+      count: pending.filter(isToday).length,
+      style: null,
+      active: filterToday,
+      onClick: () => setFilterToday((v) => !v),
+    },
+  ];
+
   return (
     <div className="p-6">
       <ReviewBanner />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          placeholder="要做什么？回车添加"
-          className="max-w-xs"
-        />
-        <Select value={newQuadrant} onValueChange={(v) => setNewQuadrant(v as Quadrant)}>
-          <SelectTrigger className="w-36">
-            <SelectValue>
-              {(v) => QUADRANTS.find((q) => q.key === v)?.name ?? "选择象限"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {QUADRANTS.map((q) => (
-              <SelectItem key={q.key} value={q.key}>
-                <span className={cn("mr-1 inline-block size-2 rounded-full", Q_STYLE[q.key].dot)} />
-                {q.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
-          <Checkbox checked={newToToday} onCheckedChange={(v) => setNewToToday(!!v)} />
-          今天做
-        </label>
-        <Button onClick={handleCreate}>
-          <Plus className="size-4" /> 添加
-        </Button>
-        <WeeklyReviewDialog
-          trigger={
-            <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground">
-              本周复盘
-            </Button>
-          }
-        />
-      </div>
-
-      <div className="grid items-start gap-6 xl:grid-cols-[1.1fr_1.4fr_240px]">
-        {/* 左：今天 */}
+      <div className="grid items-start gap-6 xl:grid-cols-[1.6fr_260px]">
+        {/* 待办：五个筛选框 + 统一列表 */}
         <section className="rounded-xl border bg-card p-4">
           <div className="mb-3 flex items-baseline gap-2">
-            <h2 className="text-lg font-semibold">To Do List</h2>
-            <span className="text-xs text-muted-foreground">今天要做掉的</span>
-            {todayPending.length > 0 && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                还剩 {todayPending.length} 项
-              </span>
-            )}
+            <h2 className="text-lg font-semibold">待办</h2>
+            <span className="text-xs text-muted-foreground">点小框筛选，点「今天」标记当天要做</span>
+            <WeeklyReviewDialog
+              trigger={
+                <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground">
+                  本周复盘
+                </Button>
+              }
+            />
           </div>
 
-          <div className="space-y-1.5">
-            {todayPending.map((t) => (
-              <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
-                <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-5" />
-                <EditableText
-                  value={t.title}
-                  onSave={(v) => handleRename(t.id, v)}
-                  className="min-w-0 flex-1 truncate text-sm"
-                  inputClassName="flex-1 text-sm"
-                />
-                {t.due_date && t.due_date < today && (
-                  <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-600">
-                    逾期
-                  </span>
+          {/* 五个筛选框 */}
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {tiles.map((tile) => (
+              <button
+                key={tile.key}
+                onClick={tile.onClick}
+                className={cn(
+                  "flex flex-col gap-1 rounded-lg px-3 py-2 text-left transition-all",
+                  tile.style ? tile.style.bg : "border bg-card",
+                  tile.active ? "ring-2 ring-ring" : "hover:opacity-80",
                 )}
-                <QuadrantTag q={t.quadrant} />
-                <button
-                  className="invisible shrink-0 text-muted-foreground hover:text-foreground group-hover:visible"
-                  title="移回待办"
-                  onClick={() => moveToBacklog(t.id)}
+              >
+                <span
+                  className={cn(
+                    "text-xs font-medium",
+                    tile.style ? tile.style.text : "text-muted-foreground",
+                  )}
                 >
-                  <Undo2 className="size-4" />
-                </button>
-                <button
-                  className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                  title="删除"
-                  onClick={() => handleDelete(t.id)}
+                  {tile.name}
+                </span>
+                <span
+                  className={cn(
+                    "text-xl font-semibold",
+                    tile.style ? tile.style.text : "text-foreground",
+                  )}
                 >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
+                  {tile.count}
+                </span>
+              </button>
             ))}
           </div>
 
-          {todayPending.length === 0 && (
+          {/* 添加一条 */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="要做什么？回车添加"
+              className="min-w-40 flex-1"
+            />
+            <Select value={newQuadrant} onValueChange={(v) => setNewQuadrant(v as Quadrant)}>
+              <SelectTrigger className="w-32">
+                <SelectValue>
+                  {(v) => QUADRANTS.find((q) => q.key === v)?.name ?? "选择象限"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {QUADRANTS.map((q) => (
+                  <SelectItem key={q.key} value={q.key}>
+                    <span className={cn("mr-1 inline-block size-2 rounded-full", Q_STYLE[q.key].dot)} />
+                    {q.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
+              <Checkbox checked={newToToday} onCheckedChange={(v) => setNewToToday(!!v)} />
+              今天
+            </label>
+            <Button onClick={handleCreate}>
+              <Plus className="size-4" /> 添加
+            </Button>
+          </div>
+
+          {/* 列表 */}
+          <div className="space-y-1.5">
+            {pendingShown.map((t) => {
+              const today_ = isToday(t);
+              return (
+                <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
+                  <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-5" />
+                  <EditableText
+                    value={t.title}
+                    onSave={(v) => handleRename(t.id, v)}
+                    className="min-w-0 flex-1 truncate text-sm"
+                    inputClassName="flex-1 text-sm"
+                  />
+                  <button
+                    onClick={() => toggleToday(t)}
+                    title={today_ ? "移出今天" : "标记今天做"}
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                      today_
+                        ? "bg-blue-50 text-blue-700"
+                        : "border border-dashed text-muted-foreground opacity-60 hover:opacity-100",
+                    )}
+                  >
+                    今天
+                  </button>
+                  <QuadrantTag q={t.quadrant} />
+                  <button
+                    className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                    title="删除"
+                    onClick={() => handleDelete(t.id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {pendingShown.length === 0 && (
             <p className="py-6 text-sm text-muted-foreground">
-              {todayFinished.length > 0
-                ? "今天的事全部做完了，干得漂亮 ✨"
-                : "还没安排今天的事——去中间待办池点 ☀️ 送进来。"}
+              {filterQ || filterToday ? "这个筛选下没有待办。" : "待办清空啦，想到什么先记进来。"}
             </p>
           )}
 
-          {todayFinished.length > 0 && (
+          {finishedShown.length > 0 && (
             <>
               <div className="mb-1.5 mt-4 flex items-center justify-between">
                 <h3 className="text-xs font-medium text-muted-foreground">
-                  已完成 {todayFinished.length} 项
+                  已完成 {finishedShown.length} 项
                 </h3>
                 <Button variant="ghost" size="sm" onClick={handleClearDone}>
                   清除已完成
                 </Button>
               </div>
               <div className="space-y-1.5">
-                {todayFinished.map((t) => (
+                {finishedShown.map((t) => (
                   <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
                     <Checkbox checked onCheckedChange={() => handleToggle(t)} className="size-5" />
                     <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground line-through">
@@ -292,71 +339,7 @@ function Page() {
           )}
         </section>
 
-        {/* 中：待办池 + 四象限筛选 */}
-        <section className="rounded-xl border bg-card p-4">
-          <div className="mb-3 flex items-baseline gap-2">
-            <h2 className="text-lg font-semibold">待办</h2>
-            <span className="text-xs text-muted-foreground">囤在这里，点 ☀️ 送进今天</span>
-          </div>
-
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            {QUADRANTS.map((q) => {
-              const s = Q_STYLE[q.key];
-              const n = backlog.filter((t) => t.quadrant === q.key).length;
-              const active = filterQ === q.key;
-              return (
-                <button
-                  key={q.key}
-                  onClick={() => setFilterQ(active ? null : q.key)}
-                  className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2 text-left transition-all",
-                    s.bg,
-                    active ? "ring-2 ring-ring" : "hover:opacity-80",
-                  )}
-                >
-                  <span className={cn("text-xs font-medium", s.text)}>{q.name}</span>
-                  <span className={cn("text-lg font-semibold", s.text)}>{n}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="space-y-1.5">
-            {backlogShown.map((t) => (
-              <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
-                <span className={cn("size-2 shrink-0 rounded-full", Q_STYLE[t.quadrant].dot)} />
-                <EditableText
-                  value={t.title}
-                  onSave={(v) => handleRename(t.id, v)}
-                  className="min-w-0 flex-1 truncate text-sm"
-                  inputClassName="flex-1 text-sm"
-                />
-                <button
-                  className="shrink-0 text-muted-foreground hover:text-amber-500"
-                  title="加入今天"
-                  onClick={() => moveToToday(t.id)}
-                >
-                  <Sun className="size-4" />
-                </button>
-                <button
-                  className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                  title="删除"
-                  onClick={() => handleDelete(t.id)}
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {backlogShown.length === 0 && (
-            <p className="py-6 text-sm text-muted-foreground">
-              {filterQ ? "这个象限空着。" : "待办池是空的，想到什么先记进来。"}
-            </p>
-          )}
-        </section>
-
-        {/* 右：打卡（窄） */}
+        {/* 打卡（窄） */}
         <section className="rounded-xl border bg-card p-4">
           <HabitPanel compact />
         </section>
@@ -368,9 +351,9 @@ function Page() {
 const todoModule: AppModule = {
   manifest: {
     id: "todo",
-    name: "To Do List",
+    name: "待办",
     icon: ListTodo,
-    description: "今天 + 四象限待办 + 例行打卡",
+    description: "四象限待办 + 例行打卡",
     defaultSize: { w: 2, h: 1 },
   },
   Card,
