@@ -99,7 +99,9 @@ function Page() {
           onValueChange={(v) => setSubjectId(v ?? "")}
         >
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="选择科目" />
+            <SelectValue>
+              {(v) => subjects.find((s) => s.id === v)?.name ?? "选择科目"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {subjects.map((s) => (

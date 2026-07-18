@@ -126,6 +126,17 @@ fn migrations() -> Vec<Migration> {
             );
         "#,
         },
+        Migration {
+            version: 3,
+            description: "todos_quadrant_due_date",
+            kind: MigrationKind::Up,
+            sql: r#"
+            -- 四象限（iu=重要紧急 in=重要不紧急 nu=紧急不重要 nn=不紧急不重要）
+            ALTER TABLE todos ADD COLUMN quadrant TEXT NOT NULL DEFAULT 'nn';
+            -- 到期日（YYYY-MM-DD）；等于今天即进入 To Do List
+            ALTER TABLE todos ADD COLUMN due_date TEXT;
+        "#,
+        },
     ]
 }
 

@@ -1,4 +1,4 @@
-import { SCHEMA_SQL } from "./schema";
+import { BROWSER_MIGRATIONS, SCHEMA_SQL } from "./schema";
 
 /**
  * 数据层的最小接口。桌面端由 tauri-plugin-sql 实现（本地 SQLite 文件），
@@ -43,6 +43,13 @@ async function loadBrowserDb(): Promise<DbClient> {
   const saved = localStorage.getItem(STORAGE_KEY);
   const db = saved ? new SQL.Database(fromBase64(saved)) : new SQL.Database();
   db.exec(SCHEMA_SQL);
+  for (const sql of BROWSER_MIGRATIONS) {
+    try {
+      db.run(sql);
+    } catch {
+      // 列已存在（duplicate column）——旧库已迁移过，忽略
+    }
+  }
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   function schedulePersist() {

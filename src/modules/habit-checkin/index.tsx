@@ -56,8 +56,11 @@ function Card() {
   );
 }
 
-/** 打卡面板：可独立成页，也可嵌入其他模块（如 To Do List 右栏） */
-export function HabitPanel() {
+/**
+ * 打卡面板：可独立成页，也可嵌入其他模块（如 To Do List 右栏）。
+ * compact = 窄栏模式：隐藏近 7 天方块和副标题，控件缩小。
+ */
+export function HabitPanel({ compact = false }: { compact?: boolean }) {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
   const today = todayStr();
@@ -91,70 +94,89 @@ export function HabitPanel() {
 
   return (
     <section>
-      <div className="mb-4 flex items-baseline gap-3">
-        <h2 className="text-xl font-semibold">打卡</h2>
-        <span className="text-sm text-muted-foreground">每天例行要做的</span>
+      <div className={cn("flex items-baseline gap-3", compact ? "mb-3" : "mb-4")}>
+        <h2 className={cn("font-semibold", compact ? "text-lg" : "text-xl")}>打卡</h2>
+        {!compact && <span className="text-sm text-muted-foreground">每天例行要做的</span>}
       </div>
 
-      <div className="mb-6 flex max-w-sm gap-2">
+      <div className={cn("flex gap-2", compact ? "mb-4" : "mb-6 max-w-sm")}>
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          placeholder="新习惯，如：早睡、背单词"
+          placeholder={compact ? "新习惯" : "新习惯，如：早睡、背单词"}
+          className={cn(compact && "h-8 text-sm")}
         />
-        <Button onClick={handleCreate}>
-          <Plus className="size-4" /> 添加
+        <Button size={compact ? "icon-sm" : "default"} onClick={handleCreate}>
+          <Plus className="size-4" />
+          {!compact && " 添加"}
         </Button>
       </div>
 
-      <div className="space-y-2">
+      <div className={cn(compact ? "space-y-1" : "space-y-2")}>
         {habits.map((habit) => {
           const dates = checkins.get(habit.id) ?? new Set<string>();
           const streak = calcStreak(dates);
           return (
             <div
               key={habit.id}
-              className="group flex items-center gap-4 rounded-lg border p-3"
+              className={cn(
+                "group flex items-center rounded-lg border",
+                compact ? "gap-2 px-2 py-1.5" : "gap-4 p-3",
+              )}
             >
               <Checkbox
                 checked={dates.has(today)}
                 onCheckedChange={() => handleToggle(habit.id, today)}
-                className="size-5"
+                className={cn(compact ? "size-4" : "size-5")}
               />
-              <span className="min-w-24 font-medium">{habit.name}</span>
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate",
+                  compact ? "text-sm" : "min-w-24 font-medium",
+                )}
+              >
+                {habit.name}
+              </span>
 
               {streak > 0 && (
-                <span className="flex items-center gap-1 text-sm text-orange-500">
-                  <Flame className="size-4" />
-                  连续 {streak} 天
+                <span
+                  className={cn(
+                    "flex shrink-0 items-center gap-0.5 text-orange-500",
+                    compact ? "text-xs" : "gap-1 text-sm",
+                  )}
+                >
+                  <Flame className={cn(compact ? "size-3.5" : "size-4")} />
+                  {compact ? streak : `连续 ${streak} 天`}
                 </span>
               )}
 
-              {/* 近 7 天小方块，点击可补卡/取消 */}
-              <div className="ml-auto flex gap-1">
-                {recentDays.map((d) => (
-                  <button
-                    key={d}
-                    title={d}
-                    onClick={() => handleToggle(habit.id, d)}
-                    className={cn(
-                      "size-5 rounded-sm border transition-colors",
-                      dates.has(d)
-                        ? "border-primary bg-primary"
-                        : "bg-muted hover:bg-accent",
-                      d === today && "ring-2 ring-ring/40",
-                    )}
-                  />
-                ))}
-              </div>
+              {/* 近 7 天小方块，点击可补卡/取消（窄栏模式下隐藏） */}
+              {!compact && (
+                <div className="ml-auto flex gap-1">
+                  {recentDays.map((d) => (
+                    <button
+                      key={d}
+                      title={d}
+                      onClick={() => handleToggle(habit.id, d)}
+                      className={cn(
+                        "size-5 rounded-sm border transition-colors",
+                        dates.has(d)
+                          ? "border-primary bg-primary"
+                          : "bg-muted hover:bg-accent",
+                        d === today && "ring-2 ring-ring/40",
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
 
               <button
-                className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
+                className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
                 title="删除习惯"
                 onClick={() => handleDelete(habit.id)}
               >
-                <Trash2 className="size-4" />
+                <Trash2 className={cn(compact ? "size-3.5" : "size-4")} />
               </button>
             </div>
           );
@@ -162,8 +184,8 @@ export function HabitPanel() {
       </div>
 
       {loaded && habits.length === 0 && (
-        <p className="mt-8 text-muted-foreground">
-          还没有习惯。在上方添加第一个打卡项，比如「早睡」「运动」。
+        <p className={cn("text-muted-foreground", compact ? "mt-4 text-sm" : "mt-8")}>
+          {compact ? "还没有习惯，先加一个。" : "还没有习惯。在上方添加第一个打卡项，比如「早睡」「运动」。"}
         </p>
       )}
     </section>

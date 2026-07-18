@@ -23,3 +23,10 @@ export function formatDateCn(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getMonth() + 1}月${d.getDate()}日 周${WEEKDAYS[d.getDay()]}`;
 }
+
+/** 所在周的周一（周日算上一周的） */
+export function mondayOf(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const dow = d.getDay(); // 0=周日
+  return addDays(dateStr, dow === 0 ? -6 : 1 - dow);
+}

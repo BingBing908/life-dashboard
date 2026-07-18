@@ -100,6 +100,8 @@ export const SCHEMA_SQL = `
         title       TEXT NOT NULL,
         done        INTEGER NOT NULL DEFAULT 0,
         done_at     TEXT,
+        quadrant    TEXT NOT NULL DEFAULT 'nn',
+        due_date    TEXT,
         sort_order  REAL NOT NULL DEFAULT 0,
         created_at  TEXT NOT NULL,
         updated_at  TEXT NOT NULL,
@@ -107,3 +109,12 @@ export const SCHEMA_SQL = `
         deleted_at  TEXT
     );
 `;
+
+/**
+ * 浏览器端的增量迁移：对已存在的旧库补列。
+ * 逐条执行、忽略"列已存在"错误（SQLite 没有 ADD COLUMN IF NOT EXISTS）。
+ */
+export const BROWSER_MIGRATIONS = [
+  "ALTER TABLE todos ADD COLUMN quadrant TEXT NOT NULL DEFAULT 'nn'",
+  "ALTER TABLE todos ADD COLUMN due_date TEXT",
+];
