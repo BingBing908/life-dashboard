@@ -56,7 +56,8 @@ function Card() {
   );
 }
 
-function Page() {
+/** 打卡面板：可独立成页，也可嵌入其他模块（如 To Do List 右栏） */
+export function HabitPanel() {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
   const today = todayStr();
@@ -89,8 +90,11 @@ function Page() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">打卡</h1>
+    <section>
+      <div className="mb-4 flex items-baseline gap-3">
+        <h2 className="text-xl font-semibold">打卡</h2>
+        <span className="text-sm text-muted-foreground">每天例行要做的</span>
+      </div>
 
       <div className="mb-6 flex max-w-sm gap-2">
         <Input
@@ -162,6 +166,14 @@ function Page() {
           还没有习惯。在上方添加第一个打卡项，比如「早睡」「运动」。
         </p>
       )}
+    </section>
+  );
+}
+
+function Page() {
+  return (
+    <div className="p-6">
+      <HabitPanel />
     </div>
   );
 }

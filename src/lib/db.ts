@@ -52,8 +52,9 @@ async function loadBrowserDb(): Promise<DbClient> {
     }, 300);
   }
 
-  // 我们的 SQL 都用 $1..$n 顺序占位符，转成 sql.js 支持的 ?
-  const toQmark = (sql: string) => sql.replace(/\$\d+/g, "?");
+  // 我们的 SQL 都用 $1..$n 顺序占位符，转成 SQLite 的编号占位符 ?N
+  // （不能转成裸 ?：同一个 $1 在语句里可能出现多次，?N 才能正确复用参数）
+  const toQmark = (sql: string) => sql.replace(/\$(\d+)/g, "?$1");
 
   return {
     async select<T>(sql: string, params: unknown[] = []): Promise<T> {

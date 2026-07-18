@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
+import { HabitPanel } from "../habit-checkin";
+import { getCheckins, listHabits } from "../habit-checkin/data";
 import {
   clearDone,
   createTodo,
@@ -15,29 +18,55 @@ import {
 } from "./data";
 
 function Card() {
-  const [todos, setTodos] = useState<Todo[] | null>(null);
+  const [summary, setSummary] = useState<{
+    pending: Todo[];
+    habitsTotal: number;
+    habitsDone: number;
+  } | null>(null);
 
   useEffect(() => {
-    listTodos().then(setTodos).catch(() => setTodos([]));
+    (async () => {
+      const [todos, habits, checkins] = await Promise.all([
+        listTodos(),
+        listHabits(),
+        getCheckins(1),
+      ]);
+      const today = todayStr();
+      setSummary({
+        pending: todos.filter((t) => !t.done),
+        habitsTotal: habits.length,
+        habitsDone: habits.filter((h) => checkins.get(h.id)?.has(today)).length,
+      });
+    })().catch(() =>
+      setSummary({ pending: [], habitsTotal: 0, habitsDone: 0 }),
+    );
   }, []);
 
-  if (todos === null)
+  if (summary === null)
     return <p className="text-sm text-muted-foreground">加载中…</p>;
-  const pending = todos.filter((t) => !t.done);
-  if (pending.length === 0)
+  const { pending, habitsTotal, habitsDone } = summary;
+  if (pending.length === 0 && habitsTotal === 0)
     return (
       <p className="text-sm text-muted-foreground">
-        {todos.length === 0 ? "记下想到的事，别让脑子当便签。" : "全部完成，干得漂亮 ✨"}
+        记下想到的事，别让脑子当便签。
       </p>
     );
   return (
     <div className="space-y-1 text-sm text-muted-foreground">
       <p>
         待办 <span className="font-medium text-foreground">{pending.length}</span> 项
+        {habitsTotal > 0 && (
+          <>
+            {" · 打卡 "}
+            <span className="font-medium text-foreground">{habitsDone}</span>/
+            {habitsTotal}
+          </>
+        )}
       </p>
       {pending.slice(0, 3).map((t) => (
         <p key={t.id} className="truncate">· {t.title}</p>
       ))}
+      {pending.length === 0 && <p>今日待办全部完成 ✨</p>}
     </div>
   );
 }
@@ -112,55 +141,66 @@ function Page() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <div className="mb-4 flex items-baseline gap-3">
-        <h1 className="text-2xl font-semibold">To Do List</h1>
-        {pending.length > 0 && (
-          <span className="text-muted-foreground">还剩 {pending.length} 项</span>
+    <div className="grid gap-8 p-6 lg:grid-cols-2">
+      {/* 左：今天临时的新任务 */}
+      <section>
+        <div className="mb-4 flex items-baseline gap-3">
+          <h2 className="text-xl font-semibold">To Do List</h2>
+          <span className="text-sm text-muted-foreground">今天临时要做的</span>
+          {pending.length > 0 && (
+            <span className="ml-auto text-sm text-muted-foreground">
+              还剩 {pending.length} 项
+            </span>
+          )}
+        </div>
+
+        <div className="mb-6 flex gap-2">
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            placeholder="要做什么？回车添加"
+          />
+          <Button onClick={handleCreate}>
+            <Plus className="size-4" /> 添加
+          </Button>
+        </div>
+
+        <div className="space-y-1.5">
+          {pending.map((t) => (
+            <TodoRow key={t.id} todo={t} />
+          ))}
+        </div>
+
+        {finished.length > 0 && (
+          <>
+            <div className="mb-2 mt-6 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                已完成 {finished.length} 项
+              </h3>
+              <Button variant="ghost" size="sm" onClick={handleClearDone}>
+                清除已完成
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              {finished.map((t) => (
+                <TodoRow key={t.id} todo={t} />
+              ))}
+            </div>
+          </>
         )}
-      </div>
 
-      <div className="mb-6 flex gap-2">
-        <Input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          placeholder="要做什么？回车添加"
-        />
-        <Button onClick={handleCreate}>
-          <Plus className="size-4" /> 添加
-        </Button>
-      </div>
+        {todos.length === 0 && (
+          <p className="mt-8 text-muted-foreground">
+            清单是空的。想到什么要做的，随手记在这里。
+          </p>
+        )}
+      </section>
 
-      <div className="space-y-1.5">
-        {pending.map((t) => (
-          <TodoRow key={t.id} todo={t} />
-        ))}
-      </div>
-
-      {finished.length > 0 && (
-        <>
-          <div className="mb-2 mt-6 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              已完成 {finished.length} 项
-            </h2>
-            <Button variant="ghost" size="sm" onClick={handleClearDone}>
-              清除已完成
-            </Button>
-          </div>
-          <div className="space-y-1.5">
-            {finished.map((t) => (
-              <TodoRow key={t.id} todo={t} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {todos.length === 0 && (
-        <p className="mt-8 text-muted-foreground">
-          清单是空的。想到什么要做的，随手记在这里。
-        </p>
-      )}
+      {/* 右：每天例行的打卡 */}
+      <section className="border-t pt-8 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+        <HabitPanel />
+      </section>
     </div>
   );
 }
@@ -170,8 +210,8 @@ const todoModule: AppModule = {
     id: "todo",
     name: "To Do List",
     icon: ListTodo,
-    description: "零散待办，想到就记",
-    defaultSize: { w: 1, h: 1 },
+    description: "今日临时待办 + 每日例行打卡",
+    defaultSize: { w: 2, h: 1 },
   },
   Card,
   Page,
