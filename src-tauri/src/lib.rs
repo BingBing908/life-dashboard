@@ -106,7 +106,27 @@ fn migrations() -> Vec<Migration> {
                 updated_at  TEXT NOT NULL
             );
         "#,
-    }]
+        },
+        Migration {
+            version: 2,
+            description: "create_todos",
+            kind: MigrationKind::Up,
+            sql: r#"
+            -- 待办清单（不挂日期的零散待办）
+            CREATE TABLE IF NOT EXISTS todos (
+                id          TEXT PRIMARY KEY,
+                title       TEXT NOT NULL,
+                done        INTEGER NOT NULL DEFAULT 0,
+                done_at     TEXT,
+                sort_order  REAL NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT
+            );
+        "#,
+        },
+    ]
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
