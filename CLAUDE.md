@@ -1,49 +1,68 @@
 # life-dashboard 项目说明
 
-Rosie 的个人工具：一个模块化仪表盘应用，包含计划表、学习记录、习惯打卡、通用小表格四个模块。中文交流。
+Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网页用，周末计划放在 iPad。中文交流。
 
 ## 技术栈
 
 - **桌面端**：Tauri 2（Rust 壳）+ React 19 + TypeScript + Vite
-- **UI**：Tailwind CSS v4 + shadcn/ui（Base UI 版本，组件在 `src/components/ui/`，注意 trigger 用 `render` prop 而不是 `asChild`）
-- **数据**：SQLite。运行环境自动检测（`src/lib/db.ts`）：
-  - Tauri 内 → tauri-plugin-sql，本地文件 `portwritingtool.db`，迁移定义在 `src-tauri/src/lib.rs`
-  - 纯浏览器 → sql.js (WASM) + localStorage，建表 SQL 在 `src/lib/schema.ts`
-  - ⚠️ 改表结构时两处 SQL 必须同步修改
+- **UI**：Tailwind CSS v4 + shadcn/ui（**Base UI 版本**）
+  - 组件在 `src/components/ui/`
+  - ⚠️ trigger 用 `render` prop，不是 `asChild`
+  - ⚠️ `<SelectValue>` 不会自动显示选中项文字，要传 render 函数：`<SelectValue>{(v) => 名字映射}</SelectValue>`，否则显示原始 value
+  - 主题变量在 `src/index.css`：蓝白管理后台配色（参考 NOC 工具）；字体幼圆（`YouYuan`，非 Windows 设备回退）
+- **数据**：SQLite，运行环境自动检测（`src/lib/db.ts`）：
+  - Tauri 内 → tauri-plugin-sql，本地文件 `portwritingtool.db`，迁移在 `src-tauri/src/lib.rs`（`migrations()`，目前到 v3）
+  - 纯浏览器 → sql.js (WASM) + localStorage（key `pwt-sqljs-db`），建表 SQL 在 `src/lib/schema.ts`
+  - ⚠️ **改表结构必须三处同步**：`lib.rs` 加新 Migration + `schema.ts` 的 `SCHEMA_SQL`（新库建表）+ `schema.ts` 的 `BROWSER_MIGRATIONS`（旧浏览器库补列，幂等 ALTER）
+  - SQL 占位符用 `$1..$n`；浏览器层转成编号 `?N`（不是裸 `?`，因为同一参数可能复用，如软删除 `deleted_at=$1, updated_at=$1`）
 
 ## 架构约定（重要）
 
-- **一切功能皆模块**。每个模块 = `manifest`（id/名称/图标/卡片尺寸）+ `Card`（仪表盘摘要卡）+ `Page`（完整页面），接口定义在 `src/modules/types.ts`
-- 新模块在 `src/modules/<名字>/` 下自包含（index.tsx + data.ts），然后在 `src/modules/registry.ts` 注册一行即可上架
+- **一切功能皆模块**。每个模块 = `manifest`（id/名称/图标/卡片尺寸）+ `Card`（仪表盘摘要卡）+ `Page`（完整页面），接口在 `src/modules/types.ts`
+- 新模块在 `src/modules/<名字>/` 下自包含（index.tsx + data.ts），在 `src/modules/registry.ts` 注册一行即上架
 - **不要**把功能硬编码进仪表盘壳子（`src/App.tsx`、`src/components/dashboard/`）
-- 所有业务表带同步预留字段：`id`(UUID)、`created_at`、`updated_at`、`device_id`、`deleted_at`（软删除，查询时过滤 `deleted_at IS NULL`）
-- SQL 占位符用 `$1..$n` 顺序风格（浏览器层会自动转成 `?`）
+- 所有业务表带同步预留字段：`id`(UUID)、`created_at`、`updated_at`、`device_id`、`deleted_at`（软删除，查询过滤 `deleted_at IS NULL`）
+- 通用组件：`src/components/EditableText.tsx`（点文字就地编辑，回车/失焦保存，Esc 取消）
+
+## 模块现状
+
+注册在 `registry.ts` 的有 4 个：`planner`（计划表）、`todo`（待办）、`study-log`（学习记录）、`mini-table`（小表格）。
+
+- **待办 `todo`**：单一列表 + 五个筛选框（四象限 iu/in/nu/nn + 今天，可叠加筛选）。每条待办有「今天」开关（点击设/清 `due_date=今天`）和象限彩签，标题可点击就地改。右侧窄栏嵌入打卡。含**每周复盘**（`WeeklyReview.tsx`）：周一~周五完成情况，周五 16:00 起到周末页顶出现横幅，平时点「本周复盘」可看。
+- **打卡 `habit-checkin`**：`HabitPanel` 组件（有 `compact` 窄栏模式，被待办页右栏复用），**未单独注册**到 registry（想拆回独立模块就在数组里加回 `habitCheckin`）。习惯名可就地改。
+- **计划表 `planner`**：iPad 日历式。左 0-24h 时间轴（日/周切换，点空白插入计划，点计划块编辑/删除，今天有红色当前时刻线，无时间的计划在顶部"待安排"条），右带农历+节气小月历（`MiniCalendar.tsx`，用 `lunar-javascript`），点日期跳转。
+- **学习记录 `study-log`**：科目 + 学习时长/笔记记录。
+- **小表格 `mini-table`**：自定义列的轻量表格，是"随手建表"的基础。
 
 ## 部署
 
-- **GitHub**：github.com/BingBing908/life-dashboard（master 分支）
-- **网页版**：推送 master 后 GitHub Actions 自动部署到 https://bingbing908.github.io/life-dashboard/
-- 网页版数据存在各浏览器本地，与桌面端不互通（待做云同步后打通）
+- **GitHub**：github.com/BingBing908/life-dashboard（master 分支，公开仓库）
+- **网页版**：推送 master 后 GitHub Actions 自动部署到 https://bingbing908.github.io/life-dashboard/（配置 `.github/workflows/deploy-pages.yml`，构建带 `GHPAGES=1` 让 vite base 走 `/life-dashboard/`）
+- 网页版数据存各浏览器本地，与桌面端、与其他设备**不互通**（待云同步打通）
 
 ## 常用命令
 
 ```bash
-npm run dev          # 纯浏览器预览（网页开发/无 Rust 环境时用这个）
+npm run dev          # 纯浏览器预览（网页开发/无 Rust 环境时用这个，端口 1420）
 npm run tauri dev    # 桌面应用开发模式（需要 Rust + VS Build Tools）
-npm run build        # 类型检查 + 前端构建
+npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 ```
 
 ## 路线图
 
 - [x] 四个核心模块 v1（2026-07）
-- [x] To Do List 三栏页：今天 / 四象限待办池（☀️ 送进今天）/ 窄栏打卡 + 每周五 16:00 复盘（2026-07-19）
-- [x] 日历式计划表：0-24h 日/周时间轴 + 带农历小月历（lunar-javascript）（2026-07-19）
+- [x] 待办改版：四象限筛选 + 今天开关 + 就地编辑 + 每周复盘（2026-07-19）
+- [x] 日历式计划表：日/周时间轴 + 农历小月历（2026-07-19）
+- [x] UI：蓝白配色 + 幼圆字体（2026-07-19）
 - [ ] **Supabase 云端数据同步**（下一个大功能：所有设备共享同一份数据，需要 Rosie 注册 Supabase）
 - [ ] 仪表盘卡片拖拽排布 + 布局持久化
 - [ ] 打卡月度热力图、学习番茄钟
-- [ ] UI 美化（Rosie 明确说过：先功能后外观）
+- [ ] 进一步 UI 美化（Rosie：先功能后外观）
 
 ## 工作习惯
 
-- 完成一块有意义的改动就提交并推送（Rosie 在多台电脑间切换，靠 GitHub 同步代码）
-- Rosie 的本机工具链都在 `D:\Software\DevTools`（Node/Rust/VS Build Tools/gh），新开终端可能要刷新 PATH
+- 完成一块有意义的改动就提交并推送（Rosie 多台电脑切换，靠 GitHub 同步代码）
+- 改动后习惯用浏览器预览（`npm run dev` + 打开 localhost:1420）验证真实交互再提交
+- Rosie 的本机工具链都在 `D:\Software\DevTools`（Node/Rust/VS Build Tools/gh），新开终端可能要刷新 PATH：
+  `$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")`
+- 本地目录名仍是 `PortWritingTool`（GitHub 仓库名是 `life-dashboard`），不影响使用
