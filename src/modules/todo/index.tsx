@@ -3,6 +3,7 @@ import { ListTodo, Plus, Sun, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { EditableText } from "@/components/EditableText";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   QUADRANTS,
   setTodoDueDate,
   toggleTodo,
+  updateTodoTitle,
   type Quadrant,
   type Todo,
 } from "./data";
@@ -151,6 +153,11 @@ function Page() {
     await setTodoDueDate(id, null);
   }
 
+  async function handleRename(id: string, title: string) {
+    patch(id, { title });
+    await updateTodoTitle(id, title);
+  }
+
   async function handleClearDone() {
     setTodos((ts) => ts.filter((t) => !t.done));
     await clearDone();
@@ -216,7 +223,12 @@ function Page() {
             {todayPending.map((t) => (
               <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
                 <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-5" />
-                <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
+                <EditableText
+                  value={t.title}
+                  onSave={(v) => handleRename(t.id, v)}
+                  className="min-w-0 flex-1 truncate text-sm"
+                  inputClassName="flex-1 text-sm"
+                />
                 {t.due_date && t.due_date < today && (
                   <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[11px] text-red-600">
                     逾期
@@ -313,7 +325,12 @@ function Page() {
             {backlogShown.map((t) => (
               <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
                 <span className={cn("size-2 shrink-0 rounded-full", Q_STYLE[t.quadrant].dot)} />
-                <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
+                <EditableText
+                  value={t.title}
+                  onSave={(v) => handleRename(t.id, v)}
+                  className="min-w-0 flex-1 truncate text-sm"
+                  inputClassName="flex-1 text-sm"
+                />
                 <button
                   className="shrink-0 text-muted-foreground hover:text-amber-500"
                   title="加入今天"

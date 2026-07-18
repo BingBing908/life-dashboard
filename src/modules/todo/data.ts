@@ -74,6 +74,14 @@ export async function setTodoDueDate(id: string, dueDate: string | null): Promis
   );
 }
 
+export async function updateTodoTitle(id: string, title: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE todos SET title = $1, updated_at = $2 WHERE id = $3",
+    [title, nowIso(), id],
+  );
+}
+
 export async function setTodoQuadrant(id: string, quadrant: Quadrant): Promise<void> {
   const db = await getDb();
   await db.execute(

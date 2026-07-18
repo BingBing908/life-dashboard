@@ -3,6 +3,7 @@ import { CircleCheck, Flame, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { EditableText } from "@/components/EditableText";
 import { cn } from "@/lib/utils";
 import { addDays, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
@@ -13,6 +14,7 @@ import {
   getCheckins,
   listHabits,
   toggleCheckin,
+  updateHabitName,
   type Habit,
 } from "./data";
 
@@ -80,6 +82,11 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
     await deleteHabit(id);
   }
 
+  async function handleRename(id: string, name: string) {
+    setHabits((hs) => hs.map((h) => (h.id === id ? { ...h, name } : h)));
+    await updateHabitName(id, name);
+  }
+
   async function handleToggle(habitId: string, date: string) {
     const checked = await toggleCheckin(habitId, date);
     setCheckins((prev) => {
@@ -130,14 +137,15 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
                 onCheckedChange={() => handleToggle(habit.id, today)}
                 className={cn(compact ? "size-4" : "size-5")}
               />
-              <span
+              <EditableText
+                value={habit.name}
+                onSave={(v) => handleRename(habit.id, v)}
                 className={cn(
                   "min-w-0 flex-1 truncate",
                   compact ? "text-sm" : "min-w-24 font-medium",
                 )}
-              >
-                {habit.name}
-              </span>
+                inputClassName={cn("flex-1", compact ? "text-sm" : "font-medium")}
+              />
 
               {streak > 0 && (
                 <span

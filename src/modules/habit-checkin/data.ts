@@ -23,6 +23,14 @@ export async function createHabit(name: string): Promise<Habit> {
   return { id: f.id, name };
 }
 
+export async function updateHabitName(id: string, name: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE habits SET name = $1, updated_at = $2 WHERE id = $3",
+    [name, nowIso(), id],
+  );
+}
+
 export async function deleteHabit(id: string): Promise<void> {
   const db = await getDb();
   const ts = nowIso();
