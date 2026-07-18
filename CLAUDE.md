@@ -61,6 +61,7 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 
 ## 工作习惯
 
+- **本文档随代码同步更新**：改了 `src/` 或 `src-tauri/` 就要把改动反映到本文档（模块现状/路线图/踩坑），和代码一起提交。由 `.claude/settings.json` 的 Stop hook 自动把关：每轮结束时若发现代码提交比 CLAUDE.md 新，会提醒补文档再收尾（该配置已提交进仓库，各电脑通用）。
 - 完成一块有意义的改动就提交并推送（Rosie 多台电脑切换，靠 GitHub 同步代码）
 - 改动后习惯用浏览器预览（`npm run dev` + 打开 localhost:1420）验证真实交互再提交
 - Rosie 的本机工具链都在 `D:\Software\DevTools`（Node/Rust/VS Build Tools/gh），新开终端可能要刷新 PATH：

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "检查 CLAUDE.md 是否需要同步",
+            "command": "input=$(cat); echo \"$input\" | grep -q '\"stop_hook_active\"[[:space:]]*:[[:space:]]*true' && exit 0; src=$(git log -1 --format=%ct -- src src-tauri 2>/dev/null); doc=$(git log -1 --format=%ct -- CLAUDE.md 2>/dev/null); if [ -n \"$src\" ] && { [ -z \"$doc\" ] || [ \"$src\" -gt \"$doc\" ]; }; then printf '{\"decision\":\"block\",\"reason\":\"代码已更新但 CLAUDE.md 未同步：请把这轮改动反映到 CLAUDE.md（模块现状/路线图/踩坑），和代码一起提交后再结束本轮。若本轮无需改文档，回复说明即可。\"}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
