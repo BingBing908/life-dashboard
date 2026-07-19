@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toDateStr, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
-import { getPeriodOn } from "../study-plan/data";
+import { dayNumOf, getPeriodOn } from "../study-plan/data";
 import {
   deleteDrink,
   getMeals,
@@ -59,10 +59,6 @@ const DRINK_COLOR: Record<DrinkSubtype, { dot: string; chip: string }> = {
   酸奶: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
 };
 
-function dayNum(d = new Date()): number {
-  return ((d.getDay() + 6) % 7) + 1;
-}
-
 function Slot({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="flex items-baseline gap-2">
@@ -81,7 +77,7 @@ function Card() {
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
   }, []);
-  const s = periodOn ? PERIOD_SCHEDULE : SCHEDULE[dayNum()];
+  const s = periodOn ? PERIOD_SCHEDULE : SCHEDULE[dayNumOf(todayStr())];
   return (
     <div className="space-y-1.5">
       <Slot label="早" items={s.morning} />
@@ -175,7 +171,7 @@ function DrinkCalendar({ drinks }: { drinks: Drink[] }) {
 
 function Page() {
   const today = todayStr();
-  const todayNum = dayNum();
+  const todayNum = dayNumOf(todayStr());
   const [periodOn, setPeriodOn] = useState(false);
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [meals, setMeals] = useState<Record<MealKey, { content: string; calories: string }>>({

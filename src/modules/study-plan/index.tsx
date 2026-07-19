@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatDateCn, todayStr } from "@/lib/dates";
+import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
 import {
   applyPeriod,
@@ -72,19 +73,6 @@ function TrackTag({ t }: { t: Track }) {
   );
 }
 
-/** 打开跟练视频：Tauri 里用系统浏览器，网页里开新标签 */
-async function openLink(url: string) {
-  if ("__TAURI_INTERNALS__" in window) {
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(url);
-      return;
-    } catch {
-      // 权限不足等情况回退到 window.open
-    }
-  }
-  window.open(url, "_blank", "noopener");
-}
 
 function Card() {
   const [text, setText] = useState<string | null>(null);

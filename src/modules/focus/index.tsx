@@ -17,6 +17,7 @@ import {
   type PlanItem,
 } from "../study-plan/data";
 import { listTodos, toggleTodo, type Todo } from "../todo/data";
+import { openLink } from "@/lib/openLink";
 
 interface Domain {
   key: string;
@@ -51,19 +52,6 @@ function autoDomainKey(): string {
   let key = DOMAINS[0].key;
   for (const d of DOMAINS) if (d.start <= now) key = d.key;
   return key;
-}
-
-async function openLink(url: string) {
-  if ("__TAURI_INTERNALS__" in window) {
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(url);
-      return;
-    } catch {
-      /* fallthrough */
-    }
-  }
-  window.open(url, "_blank", "noopener");
 }
 
 function Card() {
