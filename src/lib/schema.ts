@@ -114,12 +114,31 @@ export const SCHEMA_SQL = `
         kind        TEXT NOT NULL DEFAULT 'milktea',
         date        TEXT NOT NULL,
         note        TEXT,
+        subtype     TEXT,
+        brand       TEXT,
+        name        TEXT,
+        sugar       TEXT,
+        calories    INTEGER,
         created_at  TEXT NOT NULL,
         updated_at  TEXT NOT NULL,
         device_id   TEXT,
         deleted_at  TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_treat_log_date ON treat_log(date);
+
+    CREATE TABLE IF NOT EXISTS meal_log (
+        id          TEXT PRIMARY KEY,
+        date        TEXT NOT NULL,
+        meal        TEXT NOT NULL,
+        content     TEXT,
+        calories    INTEGER,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL,
+        device_id   TEXT,
+        deleted_at  TEXT,
+        UNIQUE(date, meal)
+    );
+    CREATE INDEX IF NOT EXISTS idx_meal_log_date ON meal_log(date);
 
     CREATE TABLE IF NOT EXISTS todos (
         id          TEXT PRIMARY KEY,
@@ -147,4 +166,9 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE plan_items ADD COLUMN period_action TEXT",
   "ALTER TABLE plan_items ADD COLUMN period_title TEXT",
   "ALTER TABLE plan_items ADD COLUMN period_detail TEXT",
+  "ALTER TABLE treat_log ADD COLUMN subtype TEXT",
+  "ALTER TABLE treat_log ADD COLUMN brand TEXT",
+  "ALTER TABLE treat_log ADD COLUMN name TEXT",
+  "ALTER TABLE treat_log ADD COLUMN sugar TEXT",
+  "ALTER TABLE treat_log ADD COLUMN calories INTEGER",
 ];

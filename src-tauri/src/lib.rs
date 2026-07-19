@@ -209,6 +209,33 @@ fn migrations() -> Vec<Migration> {
             CREATE INDEX IF NOT EXISTS idx_treat_log_date ON treat_log(date);
         "#,
         },
+        Migration {
+            version: 8,
+            description: "drink_detail_and_meal_log",
+            kind: MigrationKind::Up,
+            sql: r#"
+            ALTER TABLE treat_log ADD COLUMN subtype TEXT;
+            ALTER TABLE treat_log ADD COLUMN brand TEXT;
+            ALTER TABLE treat_log ADD COLUMN name TEXT;
+            ALTER TABLE treat_log ADD COLUMN sugar TEXT;
+            ALTER TABLE treat_log ADD COLUMN calories INTEGER;
+
+            -- 三餐记录（每天每餐一条：早/午/晚）
+            CREATE TABLE IF NOT EXISTS meal_log (
+                id          TEXT PRIMARY KEY,
+                date        TEXT NOT NULL,
+                meal        TEXT NOT NULL,
+                content     TEXT,
+                calories    INTEGER,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT,
+                UNIQUE(date, meal)
+            );
+            CREATE INDEX IF NOT EXISTS idx_meal_log_date ON meal_log(date);
+        "#,
+        },
     ]
 }
 
