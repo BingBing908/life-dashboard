@@ -45,12 +45,12 @@ const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
   reading:  { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
 };
 
-/** 今日视图的板块分组 */
+/** 今日视图的板块分组（养生置顶，其余按时间早晚：英语→学习→运动→阅读） */
 const SECTIONS: { name: string; hint: string; tracks: Track[] }[] = [
   { name: "养生", hint: "揉腹 · 八段锦 · 睡前拉伸", tracks: ["wellness"] },
-  { name: "运动", hint: "康复 + 训练", tracks: ["sport"] },
   { name: "英语", hint: "听说为主", tracks: ["english"] },
   { name: "学习", hint: "HCIP + AI", tracks: ["cert", "ai"] },
+  { name: "运动", hint: "康复 + 训练", tracks: ["sport"] },
   { name: "阅读", hint: "泡脚伴读", tracks: ["reading"] },
 ];
 
