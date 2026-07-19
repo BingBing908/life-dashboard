@@ -79,7 +79,7 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "19:40–19:50",
     title: "腰椎稳定 10 分钟（每晚开场）",
-    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停",
+    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停；🩸 生理期中后段改做：猫牛式+臀桥+髋部轻拉伸（不做任何卷腹/侧桥/平板类）",
     url: "https://www.bilibili.com/video/BV11f421Q7ZU/",
   },
   {
@@ -95,7 +95,7 @@ export const SEED_ITEMS: {
     days: "2",
     time_slot: "19:50–20:40",
     title: "芭杆 Barre 塑形（全程站立）",
-    detail: "入门介绍：bilibili.com/video/BV1BxwXzAEwk",
+    detail: "入门介绍：bilibili.com/video/BV1BxwXzAEwk；🩸 生理期：跳过视频里的卷腹/平板段落",
     url: "https://www.bilibili.com/video/BV11Autz4EoV/",
   },
   {
@@ -111,7 +111,7 @@ export const SEED_ITEMS: {
     days: "4",
     time_slot: "19:50–20:40",
     title: "站立有氧·心肺日（无跑跳）",
-    detail: "首选欧阳春晓 24 年后的无跑跳新片（B站搜）；此链接为备选",
+    detail: "首选欧阳春晓 24 年后的无跑跳新片（B站搜）；此链接为备选；🩸 生理期：跳过腹部段落，累了降档成快走",
     url: "https://www.bilibili.com/video/BV1kts5zoErK/",
   },
   {
