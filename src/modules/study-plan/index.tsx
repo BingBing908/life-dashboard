@@ -24,6 +24,7 @@ import {
   listChecks,
   listItems,
   matchesDay,
+  resetToSeed,
   seedIfEmpty,
   toggleCheck,
   TRACKS,
@@ -31,6 +32,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
+import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 
 const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
   sport:   { bg: "bg-emerald-50", text: "text-emerald-800", dot: "bg-emerald-500" },
@@ -96,7 +98,7 @@ function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [checks, setChecks] = useState<Set<string>>(new Set());
   const [cycleStart, setCycleStart] = useState<string | null>(null);
-  const [tab, setTab] = useState<"today" | "week">("today");
+  const [tab, setTab] = useState<"today" | "week" | "roadmap">("today");
   const [newDay, setNewDay] = useState("*");
   const [newTrack, setNewTrack] = useState<Track>("sport");
   const [newTime, setNewTime] = useState("");
@@ -160,35 +162,35 @@ function Page() {
     return (
       <div
         className={cn(
-          "group flex items-center gap-2.5 rounded-md border px-3 py-2",
+          "group flex items-center gap-3.5 rounded-lg border px-4 py-3.5",
           withCheck && done && "opacity-60",
         )}
       >
         {withCheck && (
-          <Checkbox checked={done} onCheckedChange={() => handleToggle(item)} className="size-5" />
+          <Checkbox checked={done} onCheckedChange={() => handleToggle(item)} className="size-6" />
         )}
-        <span className="w-24 shrink-0 text-xs text-muted-foreground">{item.time_slot}</span>
+        <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
         <TrackTag t={item.track} />
         <div className="min-w-0 flex-1">
           <EditableText
             value={item.title}
             onSave={(v) => handleRename(item.id, v)}
-            className={cn("block truncate text-sm", withCheck && done && "line-through")}
-            inputClassName="w-full text-sm"
+            className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
+            inputClassName="w-full text-[15px]"
           />
           {item.detail && (
-            <p className="truncate text-xs text-muted-foreground" title={item.detail}>
+            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
               {item.detail}
             </p>
           )}
         </div>
         {item.url && (
           <button
-            className="flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs text-primary hover:bg-accent"
+            className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
             title="打开跟练视频"
             onClick={() => openLink(item.url!)}
           >
-            <ExternalLink className="size-3.5" /> 跟练
+            <ExternalLink className="size-4" /> 跟练
           </button>
         )}
         <button
@@ -211,7 +213,7 @@ function Page() {
         </span>
         <span className="text-sm text-muted-foreground">{CYCLE_PHASES[week - 1]}</span>
         <div className="ml-auto flex overflow-hidden rounded-md border">
-          {(["today", "week"] as const).map((t) => (
+          {(["today", "week", "roadmap"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -220,7 +222,7 @@ function Page() {
                 tab === t ? "bg-primary text-primary-foreground" : "hover:bg-accent",
               )}
             >
-              {t === "today" ? "今天" : "一周"}
+              {t === "today" ? "今天" : t === "week" ? "一周" : "路线"}
             </button>
           ))}
         </div>
@@ -231,7 +233,7 @@ function Page() {
           <p className="mb-4 text-sm text-muted-foreground">
             {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
           </p>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {todays.map((item) => (
               <ItemRow key={item.id} item={item} withCheck />
             ))}
@@ -240,6 +242,63 @@ function Page() {
             <p className="py-8 text-muted-foreground">今天没有安排，休息也是计划的一部分。</p>
           )}
         </>
+      ) : tab === "roadmap" ? (
+        <div className="mt-4 space-y-4">
+          <div className="rounded-lg border-l-4 border-primary bg-accent p-4 text-sm leading-relaxed text-accent-foreground">
+            {SEMESTER_TARGET}
+          </div>
+          {SEMESTER_PLAN.map((m) => (
+            <section key={m.title} className="rounded-xl border bg-card p-4">
+              <div className="mb-2 flex flex-wrap items-baseline gap-2">
+                <h2 className="text-lg font-semibold">{m.title}</h2>
+                <span className="text-sm text-muted-foreground">{m.period}</span>
+                <span className="ml-auto rounded-full bg-red-50 px-3 py-0.5 text-sm text-red-700">
+                  {m.weight}
+                </span>
+              </div>
+              <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    ["sport", m.goals.sport],
+                    ["english", m.goals.english],
+                    ["cert", m.goals.cert],
+                    ["ai", m.goals.ai],
+                  ] as [Track, string][]
+                ).map(([t, text]) => (
+                  <div key={t} className="flex items-start gap-2 rounded-lg bg-muted/50 p-2.5">
+                    <TrackTag t={t} />
+                    <span className="min-w-0 flex-1 text-[13px] leading-snug">{text}</span>
+                  </div>
+                ))}
+              </div>
+              <ul className="space-y-1 text-[13px] text-muted-foreground">
+                {m.weeks.map((w) => (
+                  <li key={w}>· {w}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={async () => {
+                if (
+                  window.confirm(
+                    "把每日条目重置为最新计划模板？自定义条目和已打的勾会被清掉。",
+                  )
+                ) {
+                  const fresh = await resetToSeed();
+                  setItems(fresh);
+                  setChecks(new Set());
+                }
+              }}
+            >
+              同步最新计划模板
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="mt-4 space-y-6">
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {

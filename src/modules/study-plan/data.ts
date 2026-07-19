@@ -71,6 +71,18 @@ export function seedIfEmpty(): Promise<PlanItem[]> {
   return seedPromise;
 }
 
+/** 清空现有条目并重新播种（用于同步最新计划模板；已打的勾会失效） */
+export async function resetToSeed(): Promise<PlanItem[]> {
+  const db = await getDb();
+  const ts = nowIso();
+  await db.execute(
+    "UPDATE plan_items SET deleted_at = $1, updated_at = $1 WHERE deleted_at IS NULL",
+    [ts],
+  );
+  seedPromise = null;
+  return seedIfEmpty();
+}
+
 export async function createItem(
   fields: Pick<PlanItem, "track" | "days" | "time_slot" | "title"> & { url?: string | null },
   sortOrder: number,
