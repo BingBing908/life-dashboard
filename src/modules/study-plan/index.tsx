@@ -281,10 +281,51 @@ function Page() {
             {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
           </p>
           {(() => {
+            /** 养生板块用的迷你卡（方案C）：时间在上，勾选+标题在下，宽度自适应 */
+            const MiniCard = ({ item }: { item: PlanItem }) => {
+              const done = checks.has(item.id);
+              return (
+                <div
+                  title={item.detail ?? undefined}
+                  className={cn("rounded-lg border px-3 py-2", done && "opacity-60")}
+                >
+                  <div className="flex items-center text-xs text-muted-foreground">
+                    {item.time_slot}
+                    {item.url && (
+                      <button
+                        className="ml-auto text-primary hover:opacity-70"
+                        title="打开跟练视频"
+                        onClick={() => openLink(item.url!)}
+                      >
+                        <ExternalLink className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <Checkbox
+                      checked={done}
+                      onCheckedChange={() => handleToggle(item)}
+                      className="size-5"
+                    />
+                    <EditableText
+                      value={item.title}
+                      onSave={(v) => handleRename(item.id, v)}
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-sm font-medium",
+                        done && "text-muted-foreground line-through",
+                      )}
+                      inputClassName="w-full text-sm"
+                    />
+                  </div>
+                </div>
+              );
+            };
+
             const renderSection = (sec: (typeof SECTIONS)[number]) => {
               const secItems = todays.filter((i) => sec.tracks.includes(i.track));
               if (secItems.length === 0) return null;
               const secDone = secItems.filter((i) => checks.has(i.id)).length;
+              const wellness = sec.tracks[0] === "wellness";
               const dot = TRACK_STYLE[sec.tracks[0]].dot;
               return (
                 <section key={sec.name} className="rounded-xl border bg-card p-4">
@@ -303,22 +344,30 @@ function Page() {
                       {secDone === secItems.length ? "✓ 完成" : `${secDone}/${secItems.length}`}
                     </span>
                   </div>
-                  <div className="space-y-2">
-                    {secItems.map((item) => (
-                      <ItemRow
-                        key={item.id}
-                        item={item}
-                        withCheck
-                        hideTag={sec.tracks.length === 1}
-                      />
-                    ))}
-                  </div>
+                  {wellness ? (
+                    <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]">
+                      {secItems.map((item) => (
+                        <MiniCard key={item.id} item={item} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {secItems.map((item) => (
+                        <ItemRow
+                          key={item.id}
+                          item={item}
+                          withCheck
+                          hideTag={sec.tracks.length === 1}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </section>
               );
             };
             return (
               <div className="space-y-4">
-                {/* 养生横条 + 四象限（运动/英语 上，学习/阅读 下） */}
+                {/* 养生横条（迷你卡网格）+ 四象限（运动/英语 上，学习/阅读 下） */}
                 {renderSection(SECTIONS[0])}
                 <div className="grid items-start gap-4 lg:grid-cols-2">
                   {SECTIONS.slice(1).map(renderSection)}
