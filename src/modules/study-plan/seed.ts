@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 11;
+export const SEED_VERSION = 12;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -57,10 +57,33 @@ export const SEED_ITEMS: {
   {
     track: "english",
     days: "*",
-    time_slot: "07:30–09:10",
-    title: "英语·新概念一册（空腹在家）",
-    detail: "固定流程（点跟练=动画版英音，按课号找当天第N课；进度自己走，学完才进下一课，不赶日期）：07:30-07:45复习昨课跟读 ｜ 07:45-08:20学新课(盲听1遍→对照课本→语法看不懂开精讲版BV1BfB5YVEQf) ｜ 08:20-08:50影子跟读(BV1PJ4m1M7a3) ｜ 08:50-09:10不背单词PEP词库(先清复习再学新词,~10个/天起步,20分钟为限)。前~24课简单可加速,第25课起(进行时/过去式)放慢细学",
+    time_slot: "07:30–07:45",
+    title: "英语① 复习昨课·跟读",
+    detail: "出声跟读昨天那课，激活记忆。进度自己走，学完一课才进下一课，不赶日期",
     url: "https://www.bilibili.com/video/BV1We411p7tv/",
+  },
+  {
+    track: "english",
+    days: "*",
+    time_slot: "07:45–08:15",
+    title: "英语② 学新课（动画版英音，按课号找第N课）",
+    detail: "盲听1遍(不看书)→对照课本读懂每个词→语法看不懂开精讲版 BV1BfB5YVEQf。前~24课可加速，第25课起(进行时/过去式)放慢细学。⏸ 学完起身拉伸5分钟（护腰+醒脑，别碰手机）",
+    url: "https://www.bilibili.com/video/BV1We411p7tv/",
+  },
+  {
+    track: "english",
+    days: "*",
+    time_slot: "08:20–08:50",
+    title: "英语③ 影子跟读（站着做）",
+    detail: "站着出声模仿台词——练听说，也顺便当活动。⏸ 完再起身走动5分钟",
+    url: "https://www.bilibili.com/video/BV1PJ4m1M7a3/",
+  },
+  {
+    track: "english",
+    days: "*",
+    time_slot: "08:55–09:10",
+    title: "英语④ 不背单词（PEP 词库）",
+    detail: "先清复习再学新词，~10个/天起步、时间盒20分钟；PEP背完自然交接到新概念生词+基础2000词",
   },
   // ---------- 周末上午 ----------
   {
