@@ -21,6 +21,8 @@ import {
   dayNumOf,
   deleteItem,
   getCycleStart,
+  getSeedVersion,
+  latestSeedVersion,
   listChecks,
   listItems,
   matchesDay,
@@ -118,11 +120,27 @@ function Page() {
   const today = todayStr();
   const todayNum = dayNumOf(today);
 
+  const [seedOutdated, setSeedOutdated] = useState(false);
+
   useEffect(() => {
     seedIfEmpty().then(setItems);
     listChecks(today).then(setChecks);
     getCycleStart().then(setCycleStart);
+    getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
   }, [today]);
+
+  async function handleSyncTemplate() {
+    if (
+      window.confirm(
+        "把每日条目更新为最新计划模板？自定义条目和已打的勾会被清掉。",
+      )
+    ) {
+      const fresh = await resetToSeed();
+      setItems(fresh);
+      setChecks(new Set());
+      setSeedOutdated(false);
+    }
+  }
 
   const week = cycleStart ? cycleWeekOf(cycleStart, today) : 1;
   const todays = items.filter((i) => matchesDay(i, todayNum));
@@ -246,6 +264,17 @@ function Page() {
         </div>
       </div>
 
+      {seedOutdated && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium">计划模板有更新</span>
+            ——新的条目/视频链接还没进你的列表
+          </p>
+          <Button size="sm" variant="outline" className="ml-auto shrink-0" onClick={handleSyncTemplate}>
+            一键同步
+          </Button>
+        </div>
+      )}
       {tab === "today" ? (
         <>
           <p className="mb-4 text-sm text-muted-foreground">
@@ -342,17 +371,7 @@ function Page() {
               variant="ghost"
               size="sm"
               className="text-muted-foreground"
-              onClick={async () => {
-                if (
-                  window.confirm(
-                    "把每日条目重置为最新计划模板？自定义条目和已打的勾会被清掉。",
-                  )
-                ) {
-                  const fresh = await resetToSeed();
-                  setItems(fresh);
-                  setChecks(new Set());
-                }
-              }}
+              onClick={handleSyncTemplate}
             >
               同步最新计划模板
             </Button>

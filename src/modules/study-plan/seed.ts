@@ -1,5 +1,8 @@
 import type { Track } from "./data";
 
+/** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
+export const SEED_VERSION = 4;
+
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
  * 全部可在页面里改标题/备注、删除、新增。

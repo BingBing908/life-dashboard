@@ -1,6 +1,6 @@
 import { getDb, newRecordFields, nowIso } from "@/lib/db";
 import { mondayOf, todayStr } from "@/lib/dates";
-import { SEED_ITEMS } from "./seed";
+import { SEED_ITEMS, SEED_VERSION } from "./seed";
 
 /** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读 */
 export type Track = "wellness" | "sport" | "english" | "cert" | "ai" | "reading";
@@ -66,10 +66,34 @@ export function seedIfEmpty(): Promise<PlanItem[]> {
         );
       }
       await setCycleStart(mondayOf(todayStr()));
+      await setSeedVersion(SEED_VERSION);
       return listItems();
     })();
   }
   return seedPromise;
+}
+
+/** 已播种的模板版本；0 = 从未记录（老库） */
+export async function getSeedVersion(): Promise<number> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key = 'plan_seed_version'",
+  );
+  return rows[0] ? Number(rows[0].value) : 0;
+}
+
+async function setSeedVersion(v: number): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('plan_seed_version', $1, $2)
+     ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+    [String(v), nowIso()],
+  );
+}
+
+/** 当前代码里的模板版本（供 UI 比对） */
+export function latestSeedVersion(): number {
+  return SEED_VERSION;
 }
 
 /** 清空现有条目并重新播种（用于同步最新计划模板；已打的勾会失效） */
@@ -81,7 +105,9 @@ export async function resetToSeed(): Promise<PlanItem[]> {
     [ts],
   );
   seedPromise = null;
-  return seedIfEmpty();
+  const items = await seedIfEmpty();
+  await setSeedVersion(SEED_VERSION);
+  return items;
 }
 
 export async function createItem(
