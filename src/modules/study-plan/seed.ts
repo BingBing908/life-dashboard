@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 18;
+export const SEED_VERSION = 19;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -62,33 +62,33 @@ export const SEED_ITEMS: {
   {
     track: "english",
     days: "*",
-    time_slot: "07:30–07:45",
+    time_slot: "07:30–07:40",
     title: "英语① 复习昨课·跟读",
-    detail: "出声跟读昨天那课，激活记忆。进度自己走，学完一课才进下一课，不赶日期",
+    detail: "出声跟读昨天课文，激活记忆。进度自己走，看到哪算哪，不赶日期、不以「单元」为单位",
     url: "https://www.bilibili.com/video/BV1xa411J7jJ/",
   },
   {
     track: "english",
     days: "*",
-    time_slot: "07:45–08:15",
-    title: "英语② 学新课（刘羽Leo·单词→文章→语法）",
-    detail: "主教材：刘羽Leo 199集覆盖全144课，含系统语法讲解。按当课「单词→文章→语法」顺序看完。前~24课可1.5倍速快进语法，第25课起(进行时/过去式)放慢逐句跟。纯动画备用 BV1MT4y1o7Cv。⏸ 学完起身拉伸5分钟（护腰+醒脑，别碰手机）",
+    time_slot: "07:40–08:35",
+    title: "英语② 学新课（刘羽Leo：单词→语法→文章）",
+    detail: "新概念课两两成对：奇数课=新课文（单词21′+语法文章14′≈35′），偶数课=练习（留到次日当复习做）——一天只看新课文那一课，不必啃完整单元。前~24课可加速。纯动画备用 BV1MT4y1o7Cv。⏸ 学完起身5分钟",
     url: "https://www.bilibili.com/video/BV1xa411J7jJ/",
   },
   {
     track: "english",
     days: "*",
-    time_slot: "08:20–08:50",
-    title: "英语③ 影子跟读（站着做）",
-    detail: "站着出声模仿台词——练听说，也顺便当活动。⏸ 完再起身走动5分钟",
-    url: "https://www.bilibili.com/video/BV1PJ4m1M7a3/",
+    time_slot: "08:40–09:05",
+    title: "英语③ 朗读+跟读今天课文（站着做）",
+    detail: "不用单独跟读视频——跟你刚学这课的音频出声模仿最有效；也可在「每日英语听力」搜新概念一册做精听跟读",
+    url: "https://www.bilibili.com/video/BV1MT4y1o7Cv/",
   },
   {
     track: "english",
     days: "*",
-    time_slot: "08:55–09:10",
-    title: "英语④ 不背单词（PEP 词库）",
-    detail: "先清复习再学新词，~10个/天起步、时间盒20分钟；PEP背完自然交接到新概念生词+基础2000词",
+    time_slot: "到公司后/通勤",
+    title: "英语④ 不背单词 PEP（移出晨间）",
+    detail: "移出晨间100分钟，放到公交上或到公司开工前背，时间自由；先清复习再学新词；骑电动车通勤日别看手机，到工位再背",
   },
   // ---------- 周末上午：AI 项目（主线） ----------
   {
