@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Pill } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { getPeriodOn } from "../study-plan/data";
+import { logTreat, treatStats, undoTreatToday, type TreatStats } from "./data";
 
 /** 1=周一 … 7=周日；按 Rosie 作息表的补剂安排 */
 const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: string[] }> = {
-  1: { morning: ["维D"],           noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
+  1: { morning: ["维D 5000IU"],    noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
   2: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: ["钙镁锌"] },
   3: { morning: ["复合维B", "维C"], noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
   4: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: ["钙镁锌"] },
@@ -14,7 +17,16 @@ const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: str
   7: { morning: ["复合维B", "维C"], noon: ["鱼油", "辅酶Q10"], evening: [] },
 };
 
+/** 经期版：停鱼油等，只保留小红镁 */
+const PERIOD_SCHEDULE = { morning: [] as string[], noon: [] as string[], evening: ["小红镁"] };
+
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+
+const MEALS: { meal: string; hint: string }[] = [
+  { meal: "早餐", hint: "蛋白（鸡蛋/无糖酸奶/牛奶）+ 慢碳（燕麦/全麦）+ 一份果蔬" },
+  { meal: "午餐", hint: "一拳蛋白 + 一拳主食（多粗粮）+ 两拳蔬菜 + 鱼油/Q10 + 酸奶/牛奶" },
+  { meal: "晚餐", hint: "蛋白 + 大量蔬菜，主食减半或不吃，少油少糖，18:30 前吃完" },
+];
 
 function dayNum(d = new Date()): number {
   return ((d.getDay() + 6) % 7) + 1;
@@ -39,18 +51,15 @@ function Card() {
     getPeriodOn().then(setPeriodOn).catch(() => {});
   }, []);
 
-  if (periodOn) {
-    return (
-      <p className="text-sm text-pink-700">🩸 经期停用补剂，这几天先歇着</p>
-    );
-  }
-
-  const s = SCHEDULE[dayNum()];
+  const s = periodOn ? PERIOD_SCHEDULE : SCHEDULE[dayNum()];
   return (
     <div className="space-y-1.5">
       <Slot label="早" items={s.morning} />
       <Slot label="午" items={s.noon} />
       <Slot label="晚" items={s.evening} />
+      {periodOn && (
+        <p className="text-xs text-pink-700">🩸 经期：停鱼油等，仅保留小红镁</p>
+      )}
     </div>
   );
 }
@@ -58,56 +67,113 @@ function Card() {
 function Page() {
   const todayNum = dayNum();
   const [periodOn, setPeriodOn] = useState(false);
+  const [stats, setStats] = useState<TreatStats | null>(null);
+
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
+    treatStats().then(setStats).catch(() => {});
   }, []);
 
+  async function addTea() {
+    await logTreat();
+    setStats(await treatStats());
+  }
+  async function undoTea() {
+    await undoTreatToday();
+    setStats(await treatStats());
+  }
+
+  const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
+
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-1 text-2xl font-semibold">补剂</h1>
-      <p className="mb-4 text-sm text-muted-foreground">
-        脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
-      </p>
-      {periodOn && (
-        <div className="mb-4 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm text-pink-700">
-          🩸 经期停用中——下表仅供参考，经期结束关掉「经期模式」即恢复
+    <div className="mx-auto max-w-2xl space-y-8 p-6">
+      {/* 补剂 */}
+      <section>
+        <h1 className="mb-1 text-2xl font-semibold">补剂</h1>
+        <p className="mb-3 text-sm text-muted-foreground">
+          脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
+        </p>
+        {periodOn && (
+          <div className="mb-3 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm text-pink-700">
+            🩸 经期中：停鱼油等，仅保留晚间小红镁（下表为平时安排，供参考）
+          </div>
+        )}
+        <div className="overflow-hidden rounded-xl border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50 text-left">
+                <th className="px-4 py-2 font-medium"> </th>
+                <th className="px-4 py-2 font-medium">早</th>
+                <th className="px-4 py-2 font-medium">午</th>
+                <th className="px-4 py-2 font-medium">晚</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+                const s = SCHEDULE[d];
+                return (
+                  <tr
+                    key={d}
+                    className={
+                      "border-b last:border-0 " +
+                      (d === todayNum ? "bg-accent/60 font-medium" : "")
+                    }
+                  >
+                    <td className="px-4 py-2 text-muted-foreground">
+                      {DAY_NAMES[d]}
+                      {d === todayNum && " ·今天"}
+                    </td>
+                    <td className="px-4 py-2">{fmt(s.morning)}</td>
+                    <td className="px-4 py-2">{fmt(s.noon)}</td>
+                    <td className="px-4 py-2">{fmt(s.evening)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
-      <div className="overflow-hidden rounded-xl border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              <th className="px-4 py-2 font-medium"> </th>
-              <th className="px-4 py-2 font-medium">早</th>
-              <th className="px-4 py-2 font-medium">午</th>
-              <th className="px-4 py-2 font-medium">晚</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-              const s = SCHEDULE[d];
-              const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
-              return (
-                <tr
-                  key={d}
-                  className={
-                    "border-b last:border-0 " +
-                    (d === todayNum ? "bg-accent/60 font-medium" : "")
-                  }
-                >
-                  <td className="px-4 py-2 text-muted-foreground">
-                    {DAY_NAMES[d]}
-                    {d === todayNum && " ·今天"}
-                  </td>
-                  <td className="px-4 py-2">{fmt(s.morning)}</td>
-                  <td className="px-4 py-2">{fmt(s.noon)}</td>
-                  <td className="px-4 py-2">{fmt(s.evening)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      </section>
+
+      {/* 三餐推荐 */}
+      <section>
+        <h2 className="mb-1 text-lg font-semibold">三餐推荐</h2>
+        <p className="mb-3 text-sm text-muted-foreground">减脂期原则：蛋白吃够、糖油少、晚餐轻、喝够水。</p>
+        <div className="space-y-2">
+          {MEALS.map((m) => (
+            <div key={m.meal} className="flex gap-3 rounded-lg border px-4 py-3">
+              <span className="w-10 shrink-0 font-medium">{m.meal}</span>
+              <span className="text-sm text-muted-foreground">{m.hint}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 奶茶打卡 */}
+      <section>
+        <h2 className="mb-1 text-lg font-semibold">奶茶打卡 🧋</h2>
+        <p className="mb-3 text-sm text-muted-foreground">喝了就记一杯——不评判，只是让你看得见。</p>
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border p-4">
+          <Button onClick={addTea}>记一杯 🧋</Button>
+          {stats && stats.todayCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={undoTea}>
+              撤销一杯
+            </Button>
+          )}
+          <div className="ml-auto flex gap-5 text-sm">
+            <span>
+              今天{" "}
+              <span className="font-semibold">{stats?.todayCount ?? 0}</span> 杯
+            </span>
+            <span>
+              本月{" "}
+              <span className="font-semibold">{stats?.monthCount ?? 0}</span> 杯
+            </span>
+            <span className="text-muted-foreground">
+              最近：{stats?.lastDate ? (stats.lastDate === todayStr() ? "今天" : stats.lastDate.slice(5)) : "—"}
+            </span>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -117,7 +183,7 @@ const supplementModule: AppModule = {
     id: "supplement",
     name: "补剂",
     icon: Pill,
-    description: "今日早中晚该吃的补剂",
+    description: "今日补剂 + 三餐推荐 + 奶茶打卡",
     defaultSize: { w: 1, h: 1 },
   },
   Card,

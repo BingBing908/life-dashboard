@@ -190,6 +190,25 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE plan_items ADD COLUMN period_detail TEXT;
         "#,
         },
+        Migration {
+            version: 7,
+            description: "create_treat_log",
+            kind: MigrationKind::Up,
+            // 放纵记录（目前用于奶茶打卡，kind 默认 milktea，一杯一条）
+            sql: r#"
+            CREATE TABLE IF NOT EXISTS treat_log (
+                id          TEXT PRIMARY KEY,
+                kind        TEXT NOT NULL DEFAULT 'milktea',
+                date        TEXT NOT NULL,
+                note        TEXT,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_treat_log_date ON treat_log(date);
+        "#,
+        },
     ]
 }
 
