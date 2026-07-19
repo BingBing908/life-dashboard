@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { formatDateCn, todayStr } from "@/lib/dates";
+import { addDays, formatDateCn, todayStr } from "@/lib/dates";
 import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
 import {
@@ -146,6 +146,9 @@ function Page() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [todos, setTodos] = useState<Todo[]>([]);
   const [selected, setSelected] = useState<string | null>(null); // 今天视图手动查看的领域
+  const [yChecks, setYChecks] = useState<Set<string>>(new Set()); // 昨天的打卡（睡前拉伸可次日补勾）
+
+  const yesterday = addDays(today, -1);
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
@@ -155,7 +158,8 @@ function Page() {
     getPeriodOn().then(setPeriodState);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listTodos().then(setTodos);
-  }, [today]);
+    listChecks(yesterday).then(setYChecks);
+  }, [today, yesterday]);
 
   async function togglePeriod() {
     const next = !periodOn;
@@ -197,6 +201,19 @@ function Page() {
     active.source === "todo"
       ? todos.filter((t) => !t.done && t.due_date && t.due_date <= today)
       : [];
+
+  // 「今天没勾=没完成」，唯一例外是睡前拉伸：昨天该做却没打勾的，今早还能补一勾
+  const graceItems = items.filter(
+    (i) =>
+      i.title.includes("睡前拉伸") &&
+      matchesDay(i, dayNumOf(yesterday)) &&
+      !yChecks.has(i.id),
+  );
+
+  async function checkGraceYesterday(item: PlanItem) {
+    await toggleCheck(item.id, yesterday);
+    setYChecks((prev) => new Set(prev).add(item.id));
+  }
 
   async function handleToggle(item: PlanItem) {
     const checked = await toggleCheck(item.id, today);
@@ -468,6 +485,26 @@ function Page() {
               </button>
             )}
           </div>
+
+          {/* 睡前拉伸次日补勾：其余任务过了今天不再补，只有它有宽限 */}
+          {graceItems.map((i) => (
+            <div
+              key={i.id}
+              className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5"
+            >
+              <span className="text-sm text-teal-800">
+                昨晚的「{i.title}」还没打勾——现在补也算昨天完成
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="ml-auto shrink-0"
+                onClick={() => checkGraceYesterday(i)}
+              >
+                补勾昨天
+              </Button>
+            </div>
+          ))}
 
           <div className="flex gap-6">
             {/* 左：连线时间轴，点圆点切到那个时段 */}
