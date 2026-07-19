@@ -144,6 +144,41 @@ fn migrations() -> Vec<Migration> {
             // 计划表模块已移除（改用 iPad 做下班后规划）
             sql: "DROP TABLE IF EXISTS plan_tasks;",
         },
+        Migration {
+            version: 5,
+            description: "create_study_plan",
+            kind: MigrationKind::Up,
+            sql: r#"
+            -- 学练计划：周计划条目（days: '*'=每天 或 '1,3,5'，1=周一..7=周日）
+            CREATE TABLE IF NOT EXISTS plan_items (
+                id          TEXT PRIMARY KEY,
+                track       TEXT NOT NULL,
+                days        TEXT NOT NULL DEFAULT '*',
+                time_slot   TEXT,
+                title       TEXT NOT NULL,
+                detail      TEXT,
+                url         TEXT,
+                sort_order  REAL NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT
+            );
+
+            -- 学练计划：每日完成记录
+            CREATE TABLE IF NOT EXISTS plan_checks (
+                id          TEXT PRIMARY KEY,
+                item_id     TEXT NOT NULL REFERENCES plan_items(id),
+                date        TEXT NOT NULL,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT,
+                UNIQUE(item_id, date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_plan_checks_date ON plan_checks(date);
+        "#,
+        },
     ]
 }
 

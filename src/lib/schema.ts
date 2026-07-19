@@ -79,6 +79,33 @@ export const SCHEMA_SQL = `
         updated_at  TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS plan_items (
+        id          TEXT PRIMARY KEY,
+        track       TEXT NOT NULL,
+        days        TEXT NOT NULL DEFAULT '*',
+        time_slot   TEXT,
+        title       TEXT NOT NULL,
+        detail      TEXT,
+        url         TEXT,
+        sort_order  REAL NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL,
+        device_id   TEXT,
+        deleted_at  TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS plan_checks (
+        id          TEXT PRIMARY KEY,
+        item_id     TEXT NOT NULL REFERENCES plan_items(id),
+        date        TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL,
+        device_id   TEXT,
+        deleted_at  TEXT,
+        UNIQUE(item_id, date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_plan_checks_date ON plan_checks(date);
+
     CREATE TABLE IF NOT EXISTS todos (
         id          TEXT PRIMARY KEY,
         title       TEXT NOT NULL,
