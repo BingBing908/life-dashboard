@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -34,21 +34,21 @@ export const SEED_ITEMS: {
     track: "wellness",
     days: "1,3,5,7",
     time_slot: "06:50–07:25",
-    title: "八段锦（国家体育总局版）",
-    detail: "与武当版隔天交替；练完接足弓训练",
-    url: "https://www.bilibili.com/video/BV1jG411c7yo/",
+    title: "八段锦（武当版）",
+    detail: "与国局版隔天交替；今天不排足弓，多出的时间当早晨缓冲；周日想换国局版也行",
+    url: "https://www.bilibili.com/video/BV1ZK411z7wY/",
   },
   {
     track: "wellness",
     days: "2,4,6",
     time_slot: "06:50–07:25",
-    title: "八段锦（武当版）",
-    detail: "与国局版隔天交替；今天不排足弓，多出的时间当早晨缓冲",
-    url: "https://www.bilibili.com/video/BV1ZK411z7wY/",
+    title: "八段锦（国家体育总局版）",
+    detail: "与武当版隔天交替；练完接足弓训练",
+    url: "https://www.bilibili.com/video/BV1jG411c7yo/",
   },
   {
     track: "sport",
-    days: "1,3,5,7",
+    days: "2,4,6",
     time_slot: "07:25–07:50",
     title: "足弓重建（跟国局八段锦同日）",
     detail: "拯救扁平足 / 优化下肢力线",
