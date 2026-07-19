@@ -109,6 +109,19 @@ export const SCHEMA_SQL = `
     );
     CREATE INDEX IF NOT EXISTS idx_plan_checks_date ON plan_checks(date);
 
+    CREATE TABLE IF NOT EXISTS plan_notes (
+        id          TEXT PRIMARY KEY,
+        item_id     TEXT NOT NULL,
+        date        TEXT NOT NULL,
+        note        TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL,
+        device_id   TEXT,
+        deleted_at  TEXT,
+        UNIQUE(item_id, date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_plan_notes_date ON plan_notes(date);
+
     CREATE TABLE IF NOT EXISTS treat_log (
         id          TEXT PRIMARY KEY,
         kind        TEXT NOT NULL DEFAULT 'milktea',

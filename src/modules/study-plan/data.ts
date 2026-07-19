@@ -199,6 +199,40 @@ export async function deleteItem(id: string): Promise<void> {
   await db.execute("UPDATE plan_items SET deleted_at = $1, updated_at = $1 WHERE id = $2", [ts, id]);
 }
 
+/** 某天各条目的进度笔记：item_id -> note */
+export async function listNotes(date: string): Promise<Map<string, string>> {
+  const db = await getDb();
+  const rows = await db.select<{ item_id: string; note: string | null }[]>(
+    "SELECT item_id, note FROM plan_notes WHERE date = $1 AND deleted_at IS NULL",
+    [date],
+  );
+  const m = new Map<string, string>();
+  for (const r of rows) if (r.note) m.set(r.item_id, r.note);
+  return m;
+}
+
+/** upsert 某条目某天的进度笔记 */
+export async function setNote(itemId: string, date: string, note: string): Promise<void> {
+  const db = await getDb();
+  const existing = await db.select<{ id: string }[]>(
+    "SELECT id FROM plan_notes WHERE item_id = $1 AND date = $2",
+    [itemId, date],
+  );
+  const ts = nowIso();
+  if (existing[0]) {
+    await db.execute(
+      "UPDATE plan_notes SET note = $1, deleted_at = NULL, updated_at = $2 WHERE id = $3",
+      [note || null, ts, existing[0].id],
+    );
+  } else {
+    const f = newRecordFields();
+    await db.execute(
+      "INSERT INTO plan_notes (id, item_id, date, note, created_at, updated_at, device_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [f.id, itemId, date, note || null, f.created_at, f.updated_at, f.device_id],
+    );
+  }
+}
+
 /** 某天已完成的条目 id 集合 */
 export async function listChecks(date: string): Promise<Set<string>> {
   const db = await getDb();

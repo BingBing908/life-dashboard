@@ -27,9 +27,11 @@ import {
   latestSeedVersion,
   listChecks,
   listItems,
+  listNotes,
   matchesDay,
   resetToSeed,
   seedIfEmpty,
+  setNote,
   setPeriodOn,
   toggleCheck,
   TRACKS,
@@ -125,6 +127,7 @@ function Page() {
 
   const [seedOutdated, setSeedOutdated] = useState(false);
   const [periodOn, setPeriodState] = useState(false);
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
@@ -132,6 +135,7 @@ function Page() {
     getCycleStart().then(setCycleStart);
     getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
     getPeriodOn().then(setPeriodState);
+    listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
   }, [today]);
 
   async function togglePeriod() {
@@ -211,47 +215,66 @@ function Page() {
     hideTag?: boolean;
   }) {
     const done = checks.has(item.id);
+    const isEnglish = item.track === "english";
+    const noteVal = notes[item.id] ?? "";
+    // 英语条目：写了「做了什么」才允许打勾
+    const canCheck = !isEnglish || done || noteVal.trim().length > 0;
+    const showNote = withCheck && isEnglish;
     return (
-      <div
-        className={cn(
-          "group flex items-center gap-3.5 rounded-lg border px-4 py-3.5",
-          withCheck && done && "opacity-60",
-        )}
-      >
-        {withCheck && (
-          <Checkbox checked={done} onCheckedChange={() => handleToggle(item)} className="size-6" />
-        )}
-        <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
-        {!hideTag && <TrackTag t={item.track} />}
-        <div className="min-w-0 flex-1">
-          <EditableText
-            value={item.title}
-            onSave={(v) => handleRename(item.id, v)}
-            className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
-            inputClassName="w-full text-[15px]"
-          />
-          {item.detail && (
-            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
-              {item.detail}
-            </p>
+      <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && done && "opacity-60")}>
+        <div className="flex items-center gap-3.5">
+          {withCheck && (
+            <Checkbox
+              checked={done}
+              disabled={!canCheck}
+              onCheckedChange={() => canCheck && handleToggle(item)}
+              className="size-6"
+            />
           )}
-        </div>
-        {item.url && (
+          <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
+          {!hideTag && <TrackTag t={item.track} />}
+          <div className="min-w-0 flex-1">
+            <EditableText
+              value={item.title}
+              onSave={(v) => handleRename(item.id, v)}
+              className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
+              inputClassName="w-full text-[15px]"
+            />
+            {item.detail && (
+              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
+                {item.detail}
+              </p>
+            )}
+          </div>
+          {item.url && (
+            <button
+              className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
+              title="打开跟练视频"
+              onClick={() => openLink(item.url!)}
+            >
+              <ExternalLink className="size-4" /> 跟练
+            </button>
+          )}
           <button
-            className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
-            title="打开跟练视频"
-            onClick={() => openLink(item.url!)}
+            className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+            title="删除"
+            onClick={() => handleDelete(item.id)}
           >
-            <ExternalLink className="size-4" /> 跟练
+            <Trash2 className="size-4" />
           </button>
+        </div>
+        {showNote && (
+          <input
+            value={noteVal}
+            onChange={(e) => {
+              const v = e.target.value;
+              setNotes((s) => ({ ...s, [item.id]: v }));
+              setNote(item.id, today, v);
+            }}
+            placeholder={done ? "已完成" : "今天做了什么？如：刷完001（写了才能打勾）"}
+            className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+          />
         )}
-        <button
-          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-          title="删除"
-          onClick={() => handleDelete(item.id)}
-        >
-          <Trash2 className="size-4" />
-        </button>
       </div>
     );
   }
