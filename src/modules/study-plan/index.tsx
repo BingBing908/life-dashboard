@@ -215,11 +215,21 @@ function Page() {
     hideTag?: boolean;
   }) {
     const done = checks.has(item.id);
-    const isEnglish = item.track === "english";
+    // 英语/学习/阅读：写了「做了什么」才允许打勾
+    const needsNote =
+      item.track === "english" ||
+      item.track === "cert" ||
+      item.track === "ai" ||
+      item.track === "reading";
     const noteVal = notes[item.id] ?? "";
-    // 英语条目：写了「做了什么」才允许打勾
-    const canCheck = !isEnglish || done || noteVal.trim().length > 0;
-    const showNote = withCheck && isEnglish;
+    const canCheck = !needsNote || done || noteVal.trim().length > 0;
+    const showNote = withCheck && needsNote;
+    const notePlaceholder =
+      item.track === "reading"
+        ? "看到哪本书的哪里？如：《她对此感到厌烦》第3章"
+        : item.track === "english"
+          ? "今天做了什么？如：刷完001"
+          : "看了哪个视频 / 做了什么？";
     return (
       <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && done && "opacity-60")}>
         <div className="flex items-center gap-3.5">
@@ -271,7 +281,7 @@ function Page() {
               setNotes((s) => ({ ...s, [item.id]: v }));
               setNote(item.id, today, v);
             }}
-            placeholder={done ? "已完成" : "今天做了什么？如：刷完001（写了才能打勾）"}
+            placeholder={done ? "已完成" : notePlaceholder + "（写了才能打勾）"}
             className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
           />
         )}
