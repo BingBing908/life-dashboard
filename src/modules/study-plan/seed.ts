@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 7;
+export const SEED_VERSION = 8;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -41,7 +41,7 @@ export const SEED_ITEMS: {
   {
     track: "wellness",
     days: "2,4,6",
-    time_slot: "06:50–07:25",
+    time_slot: "06:50–07:05",
     title: "八段锦（国家体育总局版）",
     detail: "与武当版隔天交替；练完接足弓训练",
     url: "https://www.bilibili.com/video/BV1jG411c7yo/",
@@ -49,7 +49,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "2,4,6",
-    time_slot: "07:25–07:50",
+    time_slot: "07:05–07:25",
     title: "足弓重建（跟国局八段锦同日）",
     detail: "拯救扁平足 / 优化下肢力线",
     url: "https://www.bilibili.com/video/BV1ofKEzjEUd/",
@@ -57,7 +57,7 @@ export const SEED_ITEMS: {
   {
     track: "english",
     days: "*",
-    time_slot: "07:50–09:10",
+    time_slot: "07:30–09:10",
     title: "英语·听说训练（空腹在家）",
     detail: "教材：《查莉成长日记》S1 当精听材料。10min复习昨日 + 25min精听一小段（先双字幕→逐句听懂）+ 20min跟读模仿台词 + 15min高频词；公交日路上泛听已学的片段",
   },
