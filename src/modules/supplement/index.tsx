@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Pill } from "lucide-react";
 import type { AppModule } from "../types";
+import { getPeriodOn } from "../study-plan/data";
 
 /** 1=周一 … 7=周日；按 Rosie 作息表的补剂安排 */
 const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: string[] }> = {
@@ -32,6 +34,17 @@ function Slot({ label, items }: { label: string; items: string[] }) {
 }
 
 function Card() {
+  const [periodOn, setPeriodOn] = useState(false);
+  useEffect(() => {
+    getPeriodOn().then(setPeriodOn).catch(() => {});
+  }, []);
+
+  if (periodOn) {
+    return (
+      <p className="text-sm text-pink-700">🩸 经期停用补剂，这几天先歇着</p>
+    );
+  }
+
   const s = SCHEDULE[dayNum()];
   return (
     <div className="space-y-1.5">
@@ -44,12 +57,22 @@ function Card() {
 
 function Page() {
   const todayNum = dayNum();
+  const [periodOn, setPeriodOn] = useState(false);
+  useEffect(() => {
+    getPeriodOn().then(setPeriodOn).catch(() => {});
+  }, []);
+
   return (
     <div className="mx-auto max-w-2xl p-6">
       <h1 className="mb-1 text-2xl font-semibold">补剂</h1>
       <p className="mb-4 text-sm text-muted-foreground">
         脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
       </p>
+      {periodOn && (
+        <div className="mb-4 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm text-pink-700">
+          🩸 经期停用中——下表仅供参考，经期结束关掉「经期模式」即恢复
+        </div>
+      )}
       <div className="overflow-hidden rounded-xl border">
         <table className="w-full text-sm">
           <thead>
