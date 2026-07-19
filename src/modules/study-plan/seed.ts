@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 12;
+export const SEED_VERSION = 13;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -60,15 +60,15 @@ export const SEED_ITEMS: {
     time_slot: "07:30–07:45",
     title: "英语① 复习昨课·跟读",
     detail: "出声跟读昨天那课，激活记忆。进度自己走，学完一课才进下一课，不赶日期",
-    url: "https://www.bilibili.com/video/BV1We411p7tv/",
+    url: "https://www.bilibili.com/video/BV1MT4y1o7Cv/",
   },
   {
     track: "english",
     days: "*",
     time_slot: "07:45–08:15",
-    title: "英语② 学新课（动画版英音，按课号找第N课）",
-    detail: "盲听1遍(不看书)→对照课本读懂每个词→语法看不懂开精讲版 BV1BfB5YVEQf。前~24课可加速，第25课起(进行时/过去式)放慢细学。⏸ 学完起身拉伸5分钟（护腰+醒脑，别碰手机）",
-    url: "https://www.bilibili.com/video/BV1We411p7tv/",
+    title: "英语② 学新课（课文动画144集全，第N集=第N课）",
+    detail: "盲听1遍(不看书)→对照课本读懂每个词→语法看不懂开精讲版 BV1RQc2emE7k（144课全）。带中英字幕备用版 BV1faSBYuEiV。前~24课可加速，第25课起(进行时/过去式)放慢细学。⏸ 学完起身拉伸5分钟（护腰+醒脑，别碰手机）",
+    url: "https://www.bilibili.com/video/BV1MT4y1o7Cv/",
   },
   {
     track: "english",
