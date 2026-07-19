@@ -1,11 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LayoutDashboard } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
 
+/** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
+ *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。 */
+function parseHash(): string {
+  const h = window.location.hash.replace(/^#\/?/, "");
+  if (!h || h === "dashboard") return "dashboard";
+  return getModule(h) ? h : "dashboard";
+}
+
 export default function App() {
-  const [view, setView] = useState("dashboard");
+  const [view, setViewState] = useState(parseHash);
+
+  // 监听前进/后退与手动改 hash
+  useEffect(() => {
+    const onHash = () => setViewState(parseHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function setView(id: string) {
+    window.location.hash = id === "dashboard" ? "/" : `/${id}`;
+    setViewState(id);
+  }
+
   const active = view === "dashboard" ? null : getModule(view);
 
   return (
