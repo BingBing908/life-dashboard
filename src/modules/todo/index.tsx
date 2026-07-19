@@ -17,6 +17,14 @@ import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
 import {
+  dayNumOf,
+  listChecks as listPlanChecks,
+  matchesDay,
+  seedIfEmpty as seedPlan,
+  toggleCheck as togglePlanCheck,
+  type PlanItem,
+} from "../study-plan/data";
+import {
   clearDone,
   createTodo,
   deleteTodo,
@@ -107,11 +115,28 @@ function Page() {
   const [newToToday, setNewToToday] = useState(false);
   const [filterQ, setFilterQ] = useState<Quadrant | null>(null);
   const [filterToday, setFilterToday] = useState(false);
+  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
+  const [planChecks, setPlanChecks] = useState<Set<string>>(new Set());
   const today = todayStr();
 
   useEffect(() => {
     listTodos().then(setTodos);
-  }, []);
+    seedPlan().then(setPlanItems);
+    listPlanChecks(today).then(setPlanChecks);
+  }, [today]);
+
+  // 今天的学练计划（活读取，镜像进「今天」）
+  const planToday = planItems.filter((i) => matchesDay(i, dayNumOf(today)));
+
+  async function togglePlan(id: string) {
+    const checked = await togglePlanCheck(id, today);
+    setPlanChecks((prev) => {
+      const n = new Set(prev);
+      if (checked) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  }
 
   const patch = (id: string, p: Partial<Todo>) =>
     setTodos((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
@@ -162,8 +187,19 @@ function Page() {
   }
 
   const tiles = [
+    {
+      key: "all" as const,
+      name: "全部",
+      count: pending.length,
+      style: null,
+      active: !filterQ && !filterToday,
+      onClick: () => {
+        setFilterQ(null);
+        setFilterToday(false);
+      },
+    },
     ...QUADRANTS.map((q) => ({
-      key: q.key as Quadrant | "today",
+      key: q.key as Quadrant | "today" | "all",
       name: q.name,
       count: pending.filter((t) => t.quadrant === q.key).length,
       style: Q_STYLE[q.key],
@@ -200,7 +236,7 @@ function Page() {
           </div>
 
           {/* 五个筛选框 */}
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {tiles.map((tile) => (
               <button
                 key={tile.key}
@@ -334,6 +370,30 @@ function Page() {
                     </button>
                   </div>
                 ))}
+              </div>
+            </>
+          )}
+
+          {/* 今天的学练计划（镜像，来自学练计划，可勾选） */}
+          {planToday.length > 0 && (
+            <>
+              <div className="mb-1.5 mt-5 flex items-baseline gap-2">
+                <h3 className="text-xs font-medium text-muted-foreground">今天的学练计划</h3>
+                <span className="text-[11px] text-muted-foreground/70">来自学练计划 · 自动同步</span>
+              </div>
+              <div className="space-y-1.5">
+                {planToday.map((i) => {
+                  const done = planChecks.has(i.id);
+                  return (
+                    <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
+                      <Checkbox checked={done} onCheckedChange={() => togglePlan(i.id)} className="size-5" />
+                      <span className="w-20 shrink-0 text-xs text-muted-foreground">{i.time_slot}</span>
+                      <span className={cn("min-w-0 flex-1 truncate text-sm", done && "text-muted-foreground line-through")}>
+                        {i.title}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
