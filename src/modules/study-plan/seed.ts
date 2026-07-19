@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 20;
+export const SEED_VERSION = 21;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -168,12 +168,10 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "4",
-    time_slot: "19:50–20:40",
-    title: "欧阳春晓·王心凌金曲 15 分钟无跑跳有氧（心肺日）",
-    detail: "明确无跑跳；累了降档成快走",
+    time_slot: "出门时段",
+    title: "出门散步 1 小时（周中·心肺日）",
+    detail: "本周第1次出门就走满1小时；不出门则在家做欧阳春晓·王心凌15分钟无跑跳有氧 BV1KCamz3EAz",
     url: "https://www.bilibili.com/video/BV1KCamz3EAz/",
-    period_action: "swap",
-    period_detail: "🩸 经期：跳过腹部段落，累了降档成快走",
   },
   {
     track: "sport",
@@ -187,16 +185,16 @@ export const SEED_ITEMS: {
     track: "sport",
     days: "6",
     time_slot: "出门时段",
-    title: "出门散步 1 小时（心肺·无冲击）",
-    detail: "每周≥2次出门，出门就走满1小时、顺便晒太阳；不出门则在家做芭杆臀腿 BV1FczFBcEBQ",
+    title: "出门散步 1 小时（周末·第2次出门）",
+    detail: "本周第2次出门就走满1小时、晒太阳；不出门则在家做芭杆臀腿 BV1FczFBcEBQ",
     url: "https://www.bilibili.com/video/BV1FczFBcEBQ/",
   },
   {
     track: "sport",
     days: "7",
-    time_slot: "出门时段",
-    title: "出门散步 1 小时 / 或恢复日",
-    detail: "凑够本周第2次出门就走满1小时；不出门就做泡沫轴放松 BV1pp4y1X7og（重点滚斜方肌和小腿）",
+    time_slot: "19:50–20:40",
+    title: "恢复日·泡沫轴放松（周日下午搓澡+休闲，晚间放松即可）",
+    detail: "泡沫轴放松，重点滚斜方肌和小腿；周日安排搓澡+休闲，不再出门运动",
     url: "https://www.bilibili.com/video/BV1pp4y1X7og/",
   },
   // ---------- 睡前 ----------

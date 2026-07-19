@@ -10,9 +10,11 @@ import type { AppModule } from "../types";
 import {
   calcStreak,
   createHabit,
+  dayNum,
   deleteHabit,
   getCheckins,
-  listHabits,
+  habitOnDay,
+  seedHabitsIfEmpty,
   toggleCheckin,
   updateHabitName,
   type Habit,
@@ -26,7 +28,7 @@ function useHabits() {
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
-    const [hs, cs] = await Promise.all([listHabits(), getCheckins(HISTORY_DAYS)]);
+    const [hs, cs] = await Promise.all([seedHabitsIfEmpty(), getCheckins(HISTORY_DAYS)]);
     setHabits(hs);
     setCheckins(cs);
     setLoaded(true);
@@ -42,18 +44,19 @@ function useHabits() {
 function Card() {
   const { habits, checkins, loaded } = useHabits();
   if (!loaded) return <p className="text-sm text-muted-foreground">加载中…</p>;
-  if (habits.length === 0)
+  const today = todayStr();
+  const todayHabits = habits.filter((h) => habitOnDay(h, dayNum(today)));
+  if (todayHabits.length === 0)
     return (
       <p className="text-sm text-muted-foreground">
-        还没有习惯，点击创建第一个打卡项。
+        今天没有打卡项。
       </p>
     );
-  const today = todayStr();
-  const done = habits.filter((h) => checkins.get(h.id)?.has(today)).length;
+  const done = todayHabits.filter((h) => checkins.get(h.id)?.has(today)).length;
   return (
     <p className="text-sm text-muted-foreground">
       今日已打卡 <span className="font-medium text-foreground">{done}</span> /{" "}
-      {habits.length}
+      {todayHabits.length}
     </p>
   );
 }
@@ -66,6 +69,8 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
   const today = todayStr();
+  // 只显示今天该打卡的（工作日/周末不同）
+  const todayHabits = habits.filter((h) => habitOnDay(h, dayNum(today)));
   // 近 7 天，最左是 6 天前
   const recentDays = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
 
@@ -121,7 +126,7 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
       </div>
 
       <div className={cn(compact ? "space-y-1" : "space-y-2")}>
-        {habits.map((habit) => {
+        {todayHabits.map((habit) => {
           const dates = checkins.get(habit.id) ?? new Set<string>();
           const streak = calcStreak(dates);
           return (
@@ -191,9 +196,9 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
         })}
       </div>
 
-      {loaded && habits.length === 0 && (
+      {loaded && todayHabits.length === 0 && (
         <p className={cn("text-muted-foreground", compact ? "mt-4 text-sm" : "mt-8")}>
-          {compact ? "还没有习惯，先加一个。" : "还没有习惯。在上方添加第一个打卡项，比如「早睡」「运动」。"}
+          今天没有打卡项。
         </p>
       )}
     </section>

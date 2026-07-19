@@ -54,6 +54,8 @@ export const SCHEMA_SQL = `
         name        TEXT NOT NULL,
         icon        TEXT,
         color       TEXT,
+        days        TEXT,
+        sort_order  REAL,
         created_at  TEXT NOT NULL,
         updated_at  TEXT NOT NULL,
         device_id   TEXT,
@@ -184,4 +186,6 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE treat_log ADD COLUMN name TEXT",
   "ALTER TABLE treat_log ADD COLUMN sugar TEXT",
   "ALTER TABLE treat_log ADD COLUMN calories INTEGER",
+  "ALTER TABLE habits ADD COLUMN days TEXT",
+  "ALTER TABLE habits ADD COLUMN sort_order REAL",
 ];

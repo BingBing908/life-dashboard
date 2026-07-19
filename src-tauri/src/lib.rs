@@ -256,6 +256,16 @@ fn migrations() -> Vec<Migration> {
             CREATE INDEX IF NOT EXISTS idx_plan_notes_date ON plan_notes(date);
         "#,
         },
+        Migration {
+            version: 10,
+            description: "habits_days_order",
+            kind: MigrationKind::Up,
+            // 打卡按星期区分（days: '*' 或 '1,2,3,4,5'）+ 排序
+            sql: r#"
+            ALTER TABLE habits ADD COLUMN days TEXT;
+            ALTER TABLE habits ADD COLUMN sort_order REAL;
+        "#,
+        },
     ]
 }
 
