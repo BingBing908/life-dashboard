@@ -21,6 +21,16 @@ import {
 } from "./data";
 
 const HISTORY_DAYS = 60;
+const DAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"]; // 索引 0..6 对应周一..周日
+
+/** days 字符串转成人话：'*'→每天，'1,5,6,7'→一五六日 */
+function daysLabel(days: string): string {
+  if (!days || days === "*") return "每天";
+  return days
+    .split(",")
+    .map((d) => DAY_LABELS[Number(d) - 1])
+    .join("");
+}
 
 function useHabits() {
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -68,18 +78,38 @@ function Card() {
 export function HabitPanel({ compact = false }: { compact?: boolean }) {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
+  // 新习惯的重复星期（默认每天全选）；空集=不能添加
+  const [newDays, setNewDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5, 6, 7]));
+  const [addHint, setAddHint] = useState("");
   const today = todayStr();
   // 只显示今天该打卡的（工作日/周末不同）
   const todayHabits = habits.filter((h) => habitOnDay(h, dayNum(today)));
   // 近 7 天，最左是 6 天前
   const recentDays = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
 
+  function toggleNewDay(d: number) {
+    setNewDays((prev) => {
+      const n = new Set(prev);
+      if (n.has(d)) n.delete(d);
+      else n.add(d);
+      return n;
+    });
+  }
+
   async function handleCreate() {
     const name = newName.trim();
-    if (!name) return;
-    const h = await createHabit(name);
+    if (!name || newDays.size === 0) return;
+    const daysStr =
+      newDays.size === 7 ? "*" : [...newDays].sort((a, b) => a - b).join(",");
+    const h = await createHabit(name, daysStr);
     setHabits((hs) => [...hs, h]);
     setNewName("");
+    // 提示：若这个习惯今天不该打卡，列表里看不到，说一声免得以为没保存
+    setAddHint(
+      habitOnDay(h, dayNum(today))
+        ? ""
+        : `已添加「${name}」：每周${daysLabel(daysStr)}，今天不显示`,
+    );
   }
 
   async function handleDelete(id: string) {
@@ -111,18 +141,47 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
         {!compact && <span className="text-sm text-muted-foreground">每天例行要做的</span>}
       </div>
 
-      <div className={cn("flex gap-2", compact ? "mb-4" : "mb-6 max-w-sm")}>
-        <Input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-          placeholder={compact ? "新习惯" : "新习惯，如：早睡、背单词"}
-          className={cn(compact && "h-8 text-sm")}
-        />
-        <Button size={compact ? "icon-sm" : "default"} onClick={handleCreate}>
-          <Plus className="size-4" />
-          {!compact && " 添加"}
-        </Button>
+      <div className={cn(compact ? "mb-4" : "mb-6 max-w-sm")}>
+        <div className="flex gap-2">
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            placeholder={compact ? "新习惯" : "新习惯，如：早睡、背单词"}
+            className={cn(compact && "h-8 text-sm")}
+          />
+          <Button size={compact ? "icon-sm" : "default"} onClick={handleCreate}>
+            <Plus className="size-4" />
+            {!compact && " 添加"}
+          </Button>
+        </div>
+        {/* 重复星期：全选=每天；例如搓澡只选「日」，泡脚选一/五/六/日 */}
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+            const on = newDays.has(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleNewDay(d)}
+                title={"周" + DAY_LABELS[d - 1]}
+                className={cn(
+                  "flex items-center justify-center rounded-md border text-xs transition-colors",
+                  compact ? "size-6" : "size-7",
+                  on
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent",
+                )}
+              >
+                {DAY_LABELS[d - 1]}
+              </button>
+            );
+          })}
+          <span className="ml-1 text-xs text-muted-foreground">
+            {newDays.size === 7 ? "每天" : newDays.size === 0 ? "选个星期" : `每周${daysLabel([...newDays].sort((a, b) => a - b).join(","))}`}
+          </span>
+        </div>
+        {addHint && <p className="mt-1.5 text-xs text-primary">{addHint}</p>}
       </div>
 
       <div className={cn(compact ? "space-y-1" : "space-y-2")}>
@@ -146,11 +205,17 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
                 value={habit.name}
                 onSave={(v) => handleRename(habit.id, v)}
                 className={cn(
-                  "min-w-0 flex-1 truncate",
+                  "min-w-0 truncate",
                   compact ? "text-sm" : "min-w-24 font-medium",
                 )}
                 inputClassName={cn("flex-1", compact ? "text-sm" : "font-medium")}
               />
+              {habit.days && habit.days !== "*" ? (
+                <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {daysLabel(habit.days)}
+                </span>
+              ) : null}
+              <span className="flex-1" />
 
               {streak > 0 && (
                 <span

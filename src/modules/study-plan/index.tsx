@@ -40,7 +40,44 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
+import { listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
+
+/** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
+interface Domain {
+  key: string;
+  name: string;
+  start: number; // 当天分钟数，用于按当前时间自动定位到该做的事
+  time: string;
+  color: string;
+  tint: string;
+  textc: string;
+  source: "plan" | "todo";
+  tracks?: Track[];
+  noteRequired: boolean;
+}
+
+const DOMAINS: Domain[] = [
+  { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false },
+  { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
+  { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: true },
+  { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
+  { key: "sport", name: "运动", start: 1180, time: "19:40", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
+  { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
+];
+
+function nowMinutes(): number {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** 当前时间落在哪个领域（最后一个 start<=now；早于第一个则养生） */
+function autoDomainKey(): string {
+  const now = nowMinutes();
+  let key = DOMAINS[0].key;
+  for (const d of DOMAINS) if (d.start <= now) key = d.key;
+  return key;
+}
 
 const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
   wellness: { bg: "bg-teal-50",    text: "text-teal-800",    dot: "bg-teal-500" },
@@ -50,15 +87,6 @@ const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
   ai:       { bg: "bg-amber-50",   text: "text-amber-800",   dot: "bg-amber-500" },
   reading:  { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
 };
-
-/** 今日视图的板块分组（养生置顶，其余按时间早晚：英语→学习→运动→阅读） */
-const SECTIONS: { name: string; hint: string; tracks: Track[] }[] = [
-  { name: "养生", hint: "揉腹 · 八段锦 · 睡前拉伸", tracks: ["wellness"] },
-  { name: "英语", hint: "听说为主", tracks: ["english"] },
-  { name: "学习", hint: "HCIP + AI", tracks: ["cert", "ai"] },
-  { name: "运动", hint: "康复 + 训练", tracks: ["sport"] },
-  { name: "阅读", hint: "泡脚伴读", tracks: ["reading"] },
-];
 
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -116,6 +144,8 @@ function Page() {
   const [seedOutdated, setSeedOutdated] = useState(false);
   const [periodOn, setPeriodState] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [selected, setSelected] = useState<string | null>(null); // 今天视图手动查看的领域
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
@@ -124,6 +154,7 @@ function Page() {
     getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
     getPeriodOn().then(setPeriodState);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
+    listTodos().then(setTodos);
   }, [today]);
 
   async function togglePeriod() {
@@ -154,6 +185,19 @@ function Page() {
   const todays = shown.filter((i) => matchesDay(i, todayNum));
   const doneCount = todays.filter((i) => checks.has(i.id)).length;
 
+  // 今天视图：按当前时间自动定位的领域（可手动切换查看）
+  const autoKey = autoDomainKey();
+  const activeKey = selected ?? autoKey;
+  const active = DOMAINS.find((d) => d.key === activeKey)!;
+  const planCards =
+    active.source === "plan"
+      ? todays.filter((i) => active.tracks!.includes(i.track))
+      : [];
+  const todoCards =
+    active.source === "todo"
+      ? todos.filter((t) => !t.done && t.due_date && t.due_date <= today)
+      : [];
+
   async function handleToggle(item: PlanItem) {
     const checked = await toggleCheck(item.id, today);
     setChecks((prev) => {
@@ -162,6 +206,16 @@ function Page() {
       else next.delete(item.id);
       return next;
     });
+  }
+
+  async function toggleWork(t: Todo) {
+    setTodos((ts) => ts.map((x) => (x.id === t.id ? { ...x, done: x.done ? 0 : 1 } : x)));
+    await toggleTodo(t.id, !t.done);
+  }
+
+  function saveNote(id: string, v: string) {
+    setNotes((s) => ({ ...s, [id]: v }));
+    setNote(id, today, v);
   }
 
   async function handleRename(id: string, title: string) {
@@ -277,6 +331,81 @@ function Page() {
     );
   }
 
+  /** 今天视图的大卡片：勾选+标题+打开 / 详细解释 / 网址 / 我做了什么 */
+  function ThreeRowCard({
+    id,
+    title,
+    detail,
+    url,
+    done,
+    noteRequired,
+    notePlaceholder,
+    onToggle,
+  }: {
+    id: string;
+    title: string;
+    detail: string | null;
+    url: string | null;
+    done: boolean;
+    noteRequired: boolean;
+    notePlaceholder: string;
+    onToggle: () => void;
+  }) {
+    const noteVal = notes[id] ?? "";
+    const canCheck = !noteRequired || done || noteVal.trim().length > 0;
+    return (
+      <div className={cn("rounded-xl border bg-card p-4", done && "opacity-60")}>
+        {/* 第一行：要做的事 + 跳转 */}
+        <div className="flex items-center gap-3">
+          <Checkbox
+            checked={done}
+            disabled={!canCheck}
+            onCheckedChange={() => canCheck && onToggle()}
+            className="size-6 shrink-0"
+          />
+          <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
+          {url && (
+            <button
+              onClick={() => openLink(url)}
+              title="打开"
+              className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
+            >
+              <ExternalLink className="size-4" /> 打开
+            </button>
+          )}
+        </div>
+        {/* 第二行：详细解释 */}
+        {detail && (
+          <p className="mt-2 pl-9 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+        )}
+        {/* 第三行：网址 */}
+        {url && (
+          <button
+            onClick={() => openLink(url)}
+            className="mt-1.5 block max-w-full truncate pl-9 text-left text-xs text-primary/80 hover:underline"
+          >
+            {url}
+          </button>
+        )}
+        {/* 第四行：我做了什么 */}
+        <input
+          value={noteVal}
+          onChange={(e) => saveNote(id, e.target.value)}
+          placeholder={done ? "已完成" : noteRequired ? notePlaceholder + "（写了才能打勾）" : "我做了什么（选填）"}
+          className="mt-2.5 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+        />
+      </div>
+    );
+  }
+
+  /** 领域内条目的「我做了什么」提示语 */
+  function placeholderFor(active: Domain, track?: Track): string {
+    if (active.source === "todo") return "我具体做了什么？";
+    if (track === "reading") return "看到哪本书的哪里？如：《她对此感到厌烦》第3章";
+    if (track === "english") return "今天做了什么？如：刷完001";
+    return "看了哪个视频 / 做了什么？";
+  }
+
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-1 flex flex-wrap items-center gap-3">
@@ -326,107 +455,117 @@ function Page() {
       )}
       {tab === "today" ? (
         <>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
-          </p>
-          {(() => {
-            /** 养生板块用的迷你卡（方案C）：时间在上，勾选+标题在下，宽度自适应 */
-            const MiniCard = ({ item }: { item: PlanItem }) => {
-              const done = checks.has(item.id);
-              return (
-                <div
-                  title={item.detail ?? undefined}
-                  className={cn("rounded-lg border px-3 py-2", done && "opacity-60")}
-                >
-                  <div className="flex items-center text-xs text-muted-foreground">
-                    {item.time_slot}
-                    {item.url && (
-                      <button
-                        className="ml-auto text-primary hover:opacity-70"
-                        title="打开跟练视频"
-                        onClick={() => openLink(item.url!)}
-                      >
-                        <ExternalLink className="size-4" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <Checkbox
-                      checked={done}
-                      onCheckedChange={() => handleToggle(item)}
-                      className="size-5"
-                    />
-                    <EditableText
-                      value={item.title}
-                      onSave={(v) => handleRename(item.id, v)}
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-sm font-medium",
-                        done && "text-muted-foreground line-through",
-                      )}
-                      inputClassName="w-full text-sm"
-                    />
-                  </div>
-                </div>
-              );
-            };
+          <div className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-sm text-muted-foreground">
+              {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
+            </p>
+            {selected && selected !== autoKey && (
+              <button
+                className="text-sm text-primary hover:underline"
+                onClick={() => setSelected(null)}
+              >
+                ← 回到此刻
+              </button>
+            )}
+          </div>
 
-            const renderSection = (sec: (typeof SECTIONS)[number]) => {
-              const secItems = todays.filter((i) => sec.tracks.includes(i.track));
-              if (secItems.length === 0) return null;
-              const secDone = secItems.filter((i) => checks.has(i.id)).length;
-              const wellness = sec.tracks[0] === "wellness";
-              const dot = TRACK_STYLE[sec.tracks[0]].dot;
-              return (
-                <section key={sec.name} className="rounded-xl border bg-card p-4">
-                  <div className="mb-2.5 flex items-baseline gap-2">
-                    <span className={cn("size-2.5 self-center rounded-full", dot)} />
-                    <h2 className="text-base font-semibold">{sec.name}</h2>
-                    <span className="text-xs text-muted-foreground">{sec.hint}</span>
-                    <span
-                      className={cn(
-                        "ml-auto text-sm",
-                        secDone === secItems.length
-                          ? "font-medium text-primary"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {secDone === secItems.length ? "✓ 完成" : `${secDone}/${secItems.length}`}
-                    </span>
-                  </div>
-                  {wellness ? (
-                    <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]">
-                      {secItems.map((item) => (
-                        <MiniCard key={item.id} item={item} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {secItems.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          withCheck
-                          hideTag={sec.tracks.length === 1}
+          <div className="flex gap-6">
+            {/* 左：连线时间轴，点圆点切到那个时段 */}
+            <div className="relative w-32 shrink-0 sm:w-36">
+              <div className="absolute bottom-4 left-[9px] top-4 w-0.5 bg-border" />
+              <div className="flex flex-col gap-9">
+                {DOMAINS.map((d) => {
+                  const isActive = d.key === activeKey;
+                  const isPast = d.start <= nowMinutes();
+                  return (
+                    <div key={d.key}>
+                      <button
+                        onClick={() => setSelected(d.key)}
+                        className="relative flex w-full items-center gap-3 text-left"
+                      >
+                        <span
+                          className="z-10 shrink-0 rounded-full transition-all"
+                          style={{
+                            width: isActive ? 20 : 16,
+                            height: isActive ? 20 : 16,
+                            marginLeft: isActive ? -2 : 0,
+                            background: isActive || isPast ? d.color : "var(--surface-2)",
+                            border: isActive || isPast ? "none" : `2px solid ${d.color}`,
+                            boxShadow: isActive ? `0 0 0 5px ${d.tint}` : "none",
+                          }}
                         />
-                      ))}
+                        <span>
+                          <span
+                            className="block text-[15px]"
+                            style={{ color: isActive ? d.textc : undefined, fontWeight: isActive ? 600 : 400 }}
+                          >
+                            {d.name}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {d.time}
+                            {d.key === autoKey && " · 现在"}
+                          </span>
+                        </span>
+                      </button>
+                      {d.key === autoKey && (
+                        <div className="my-2.5 ml-[-4px] border-t border-dashed border-red-400" />
+                      )}
                     </div>
-                  )}
-                </section>
-              );
-            };
-            return (
-              <div className="space-y-4">
-                {/* 养生横条（迷你卡网格）+ 四象限（运动/英语 上，学习/阅读 下） */}
-                {renderSection(SECTIONS[0])}
-                <div className="grid items-start gap-4 lg:grid-cols-2">
-                  {SECTIONS.slice(1).map(renderSection)}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })()}
-          {todays.length === 0 && (
-            <p className="py-8 text-muted-foreground">今天没有安排，休息也是计划的一部分。</p>
-          )}
+            </div>
+
+            {/* 右：当前领域内容（大卡片，含详细解释） */}
+            <div className="min-w-0 flex-1 border-l pl-6">
+              <div className="mb-4 flex items-baseline gap-2">
+                <span className="text-xl font-semibold" style={{ color: active.textc }}>
+                  {active.name}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {active.source === "todo" ? "今天要做的（来自待办）" : ""}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {active.source === "plan" &&
+                  planCards.map((i) => (
+                    <ThreeRowCard
+                      key={i.id}
+                      id={i.id}
+                      title={i.title}
+                      detail={i.detail}
+                      url={i.url}
+                      done={checks.has(i.id)}
+                      noteRequired={active.noteRequired}
+                      notePlaceholder={placeholderFor(active, i.track)}
+                      onToggle={() => handleToggle(i)}
+                    />
+                  ))}
+                {active.source === "todo" &&
+                  todoCards.map((t) => (
+                    <ThreeRowCard
+                      key={t.id}
+                      id={t.id}
+                      title={t.title}
+                      detail={null}
+                      url={null}
+                      done={!!t.done}
+                      noteRequired={active.noteRequired}
+                      notePlaceholder={placeholderFor(active)}
+                      onToggle={() => toggleWork(t)}
+                    />
+                  ))}
+                {((active.source === "plan" && planCards.length === 0) ||
+                  (active.source === "todo" && todoCards.length === 0)) && (
+                  <p className="py-10 text-sm text-muted-foreground">
+                    {active.source === "todo"
+                      ? "今天没有安排到「今天」的待办——去待办把要做的点进今天。"
+                      : "这个时段今天没有安排。"}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </>
       ) : tab === "roadmap" ? (
         <div className="mt-4 space-y-4">
