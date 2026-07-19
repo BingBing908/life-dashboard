@@ -35,12 +35,22 @@ import {
 import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 
 const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
-  sport:   { bg: "bg-emerald-50", text: "text-emerald-800", dot: "bg-emerald-500" },
-  english: { bg: "bg-blue-50",    text: "text-blue-800",    dot: "bg-blue-500" },
-  cert:    { bg: "bg-violet-50",  text: "text-violet-800",  dot: "bg-violet-500" },
-  ai:      { bg: "bg-amber-50",   text: "text-amber-800",   dot: "bg-amber-500" },
-  reading: { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
+  wellness: { bg: "bg-teal-50",    text: "text-teal-800",    dot: "bg-teal-500" },
+  sport:    { bg: "bg-emerald-50", text: "text-emerald-800", dot: "bg-emerald-500" },
+  english:  { bg: "bg-blue-50",    text: "text-blue-800",    dot: "bg-blue-500" },
+  cert:     { bg: "bg-violet-50",  text: "text-violet-800",  dot: "bg-violet-500" },
+  ai:       { bg: "bg-amber-50",   text: "text-amber-800",   dot: "bg-amber-500" },
+  reading:  { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
 };
+
+/** 今日视图的板块分组 */
+const SECTIONS: { name: string; hint: string; tracks: Track[] }[] = [
+  { name: "养生", hint: "揉腹 · 八段锦 · 睡前拉伸", tracks: ["wellness"] },
+  { name: "运动", hint: "康复 + 训练", tracks: ["sport"] },
+  { name: "英语", hint: "听说为主", tracks: ["english"] },
+  { name: "学习", hint: "HCIP + AI", tracks: ["cert", "ai"] },
+  { name: "阅读", hint: "泡脚伴读", tracks: ["reading"] },
+];
 
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -157,7 +167,15 @@ function Page() {
     setNewUrl("");
   }
 
-  function ItemRow({ item, withCheck }: { item: PlanItem; withCheck: boolean }) {
+  function ItemRow({
+    item,
+    withCheck,
+    hideTag = false,
+  }: {
+    item: PlanItem;
+    withCheck: boolean;
+    hideTag?: boolean;
+  }) {
     const done = checks.has(item.id);
     return (
       <div
@@ -170,7 +188,7 @@ function Page() {
           <Checkbox checked={done} onCheckedChange={() => handleToggle(item)} className="size-6" />
         )}
         <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
-        <TrackTag t={item.track} />
+        {!hideTag && <TrackTag t={item.track} />}
         <div className="min-w-0 flex-1">
           <EditableText
             value={item.title}
@@ -233,10 +251,42 @@ function Page() {
           <p className="mb-4 text-sm text-muted-foreground">
             {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
           </p>
-          <div className="space-y-2">
-            {todays.map((item) => (
-              <ItemRow key={item.id} item={item} withCheck />
-            ))}
+          <div className="space-y-4">
+            {SECTIONS.map((sec) => {
+              const secItems = todays.filter((i) => sec.tracks.includes(i.track));
+              if (secItems.length === 0) return null;
+              const secDone = secItems.filter((i) => checks.has(i.id)).length;
+              const dot = TRACK_STYLE[sec.tracks[0]].dot;
+              return (
+                <section key={sec.name} className="rounded-xl border bg-card p-4">
+                  <div className="mb-2.5 flex items-baseline gap-2">
+                    <span className={cn("size-2.5 self-center rounded-full", dot)} />
+                    <h2 className="text-base font-semibold">{sec.name}</h2>
+                    <span className="text-xs text-muted-foreground">{sec.hint}</span>
+                    <span
+                      className={cn(
+                        "ml-auto text-sm",
+                        secDone === secItems.length
+                          ? "font-medium text-primary"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {secDone === secItems.length ? "✓ 完成" : `${secDone}/${secItems.length}`}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {secItems.map((item) => (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        withCheck
+                        hideTag={sec.tracks.length === 1}
+                      />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
           {todays.length === 0 && (
             <p className="py-8 text-muted-foreground">今天没有安排，休息也是计划的一部分。</p>

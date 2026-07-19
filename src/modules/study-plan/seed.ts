@@ -14,14 +14,20 @@ export const SEED_ITEMS: {
 }[] = [
   // ---------- 早晨 ----------
   {
-    track: "sport",
+    track: "wellness",
+    days: "*",
+    time_slot: "06:10–06:40",
+    title: "仙人揉腹 + 五脏逼毒",
+  },
+  {
+    track: "wellness",
     days: "1,2,3,4,5",
     time_slot: "06:50–07:25",
     title: "八段锦（体育总局 12 分钟口令版）",
     url: "https://www.bilibili.com/video/BV1VsDpYXEqD/",
   },
   {
-    track: "sport",
+    track: "wellness",
     days: "6,7",
     time_slot: "06:50–07:25",
     title: "八段锦（武当·袁师懋道长带练版）",
@@ -143,6 +149,13 @@ export const SEED_ITEMS: {
     time_slot: "21:00–21:40",
     title: "阅读（泡脚时段）",
     detail: "当前：《她对此感到厌烦》；之后：长安的荔枝→秋园→显微镜下的大明→82年生的金智英→万历十五年→始于极限→叫魂→翦商；历史类只收史实可靠的；50 页弃权规则，只记进度不设 KPI",
+  },
+  {
+    track: "wellness",
+    days: "*",
+    time_slot: "21:40–22:00",
+    title: "睡前拉伸 + 补剂",
+    detail: "拉伸 10-15 分钟；按作息表当日补剂（小红镁/钙镁锌）",
   },
 ];
 

@@ -2,10 +2,11 @@ import { getDb, newRecordFields, nowIso } from "@/lib/db";
 import { mondayOf, todayStr } from "@/lib/dates";
 import { SEED_ITEMS } from "./seed";
 
-/** 五条线：运动 / 英语 / HCIP / AI方向 / 阅读 */
-export type Track = "sport" | "english" | "cert" | "ai" | "reading";
+/** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读 */
+export type Track = "wellness" | "sport" | "english" | "cert" | "ai" | "reading";
 
 export const TRACKS: { key: Track; name: string }[] = [
+  { key: "wellness", name: "养生" },
   { key: "sport", name: "运动" },
   { key: "english", name: "英语" },
   { key: "cert", name: "HCIP" },
