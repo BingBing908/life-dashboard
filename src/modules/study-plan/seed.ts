@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 15;
+export const SEED_VERSION = 16;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -21,6 +21,7 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "06:10–06:30",
     title: "仙人揉腹",
+    detail: "🩸 生理期暂停（揉腹是腹部按压，经期做可能增量/加重不适），等流量很少了再恢复；直接从八段锦开始",
     url: "https://www.bilibili.com/video/BV1oh4y1d7kb/",
   },
   {
