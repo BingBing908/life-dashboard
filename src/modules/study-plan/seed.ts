@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 16;
+export const SEED_VERSION = 17;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -14,6 +14,10 @@ export const SEED_ITEMS: {
   title: string;
   detail?: string;
   url?: string;
+  /** 经期开关打开时：'skip'=隐藏；'swap'=换成 period_title/period_detail */
+  period_action?: "skip" | "swap";
+  period_title?: string;
+  period_detail?: string;
 }[] = [
   // ---------- 早晨 ----------
   {
@@ -21,8 +25,8 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "06:10–06:30",
     title: "仙人揉腹",
-    detail: "🩸 生理期暂停（揉腹是腹部按压，经期做可能增量/加重不适），等流量很少了再恢复；直接从八段锦开始",
     url: "https://www.bilibili.com/video/BV1oh4y1d7kb/",
+    period_action: "skip",
   },
   {
     track: "wellness",
@@ -122,8 +126,11 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "19:40–19:50",
     title: "腰椎稳定 10 分钟（每晚开场）",
-    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停；🩸 生理期中后段改做：猫牛式+臀桥+髋部轻拉伸（不做任何卷腹/侧桥/平板类）",
+    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停",
     url: "https://www.bilibili.com/video/BV11f421Q7ZU/",
+    period_action: "swap",
+    period_title: "腰椎稳定·经期版 10 分钟",
+    period_detail: "猫牛式 + 臀桥 + 髋部轻拉伸（不做任何卷腹/侧桥/平板）；⚠️ 出现放射性疼痛立即停",
   },
   {
     track: "sport",
@@ -138,8 +145,9 @@ export const SEED_ITEMS: {
     days: "2",
     time_slot: "19:50–20:40",
     title: "欧阳春晓·芭杆练手臂 x 薄背 20 分钟（全程站立）",
-    detail: "🩸 生理期：跳过卷腹/平板段落",
     url: "https://www.bilibili.com/video/BV11Autz4EoV/",
+    period_action: "swap",
+    period_detail: "🩸 经期：跳过视频里的卷腹/平板段落，其余照做",
   },
   {
     track: "sport",
@@ -156,6 +164,8 @@ export const SEED_ITEMS: {
     title: "欧阳春晓·王心凌金曲 15 分钟无跑跳有氧（心肺日）",
     detail: "明确无跑跳；累了降档成快走",
     url: "https://www.bilibili.com/video/BV1KCamz3EAz/",
+    period_action: "swap",
+    period_detail: "🩸 经期：跳过腹部段落，累了降档成快走",
   },
   {
     track: "sport",

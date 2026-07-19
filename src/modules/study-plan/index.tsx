@@ -15,12 +15,14 @@ import { cn } from "@/lib/utils";
 import { formatDateCn, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
+  applyPeriod,
   createItem,
   CYCLE_PHASES,
   cycleWeekOf,
   dayNumOf,
   deleteItem,
   getCycleStart,
+  getPeriodOn,
   getSeedVersion,
   latestSeedVersion,
   listChecks,
@@ -28,6 +30,7 @@ import {
   matchesDay,
   resetToSeed,
   seedIfEmpty,
+  setPeriodOn,
   toggleCheck,
   TRACKS,
   updateItemTitle,
@@ -121,13 +124,26 @@ function Page() {
   const todayNum = dayNumOf(today);
 
   const [seedOutdated, setSeedOutdated] = useState(false);
+  const [periodOn, setPeriodState] = useState(false);
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
     listChecks(today).then(setChecks);
     getCycleStart().then(setCycleStart);
     getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
+    getPeriodOn().then(setPeriodState);
   }, [today]);
+
+  async function togglePeriod() {
+    const next = !periodOn;
+    setPeriodState(next);
+    await setPeriodOn(next);
+  }
+
+  // 经期开关打开时：隐藏 skip 项、把 swap 项换成经期版
+  const shown = items
+    .map((i) => applyPeriod(i, periodOn))
+    .filter((i): i is PlanItem => i !== null);
 
   async function handleSyncTemplate() {
     if (
@@ -143,7 +159,7 @@ function Page() {
   }
 
   const week = cycleStart ? cycleWeekOf(cycleStart, today) : 1;
-  const todays = items.filter((i) => matchesDay(i, todayNum));
+  const todays = shown.filter((i) => matchesDay(i, todayNum));
   const doneCount = todays.filter((i) => checks.has(i.id)).length;
 
   async function handleToggle(item: PlanItem) {
@@ -248,7 +264,19 @@ function Page() {
           周期第 {week} 周
         </span>
         <span className="text-sm text-muted-foreground">{CYCLE_PHASES[week - 1]}</span>
-        <div className="ml-auto flex overflow-hidden rounded-md border">
+        <button
+          onClick={togglePeriod}
+          title="经期模式：打开后自动隐藏/替换腹部相关内容"
+          className={cn(
+            "ml-auto rounded-full border px-3 py-1 text-sm transition-colors",
+            periodOn
+              ? "border-pink-300 bg-pink-50 text-pink-700"
+              : "text-muted-foreground hover:bg-accent",
+          )}
+        >
+          🩸 经期{periodOn ? "中·已避开腹部" : "模式"}
+        </button>
+        <div className="flex overflow-hidden rounded-md border">
           {(["today", "week", "roadmap"] as const).map((t) => (
             <button
               key={t}
@@ -429,7 +457,7 @@ function Page() {
       ) : (
         <div className="mt-4 space-y-6">
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-            const dayItems = items.filter((i) => matchesDay(i, d));
+            const dayItems = shown.filter((i) => matchesDay(i, d));
             return (
               <section key={d}>
                 <h2

@@ -179,6 +179,17 @@ fn migrations() -> Vec<Migration> {
             CREATE INDEX IF NOT EXISTS idx_plan_checks_date ON plan_checks(date);
         "#,
         },
+        Migration {
+            version: 6,
+            description: "plan_items_period",
+            kind: MigrationKind::Up,
+            // 经期开关：period_action=''/'skip'/'swap'；swap 时用 period_title/detail 替换
+            sql: r#"
+            ALTER TABLE plan_items ADD COLUMN period_action TEXT;
+            ALTER TABLE plan_items ADD COLUMN period_title TEXT;
+            ALTER TABLE plan_items ADD COLUMN period_detail TEXT;
+        "#,
+        },
     ]
 }
 

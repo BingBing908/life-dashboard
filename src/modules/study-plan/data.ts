@@ -23,6 +23,10 @@ export interface PlanItem {
   title: string;
   detail: string | null;
   url: string | null;
+  /** 经期处理：null/''=不受影响；'skip'=经期隐藏；'swap'=经期换成 period_title/detail */
+  period_action: string | null;
+  period_title: string | null;
+  period_detail: string | null;
   sort_order: number;
 }
 
@@ -40,7 +44,7 @@ export function matchesDay(item: PlanItem, dayNum: number): boolean {
 export async function listItems(): Promise<PlanItem[]> {
   const db = await getDb();
   return db.select<PlanItem[]>(
-    `SELECT id, track, days, time_slot, title, detail, url, sort_order
+    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order
      FROM plan_items WHERE deleted_at IS NULL ORDER BY time_slot, sort_order`,
   );
 }
@@ -60,9 +64,9 @@ export function seedIfEmpty(): Promise<PlanItem[]> {
       for (const s of SEED_ITEMS) {
         const f = newRecordFields();
         await db.execute(
-          `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, sort_order, created_at, updated_at, device_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [f.id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, order++, f.created_at, f.updated_at, f.device_id],
+          `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, created_at, updated_at, device_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [f.id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, s.period_action ?? null, s.period_title ?? null, s.period_detail ?? null, order++, f.created_at, f.updated_at, f.device_id],
         );
       }
       await setCycleStart(mondayOf(todayStr()));
@@ -129,8 +133,46 @@ export async function createItem(
     title: fields.title,
     detail: null,
     url: fields.url ?? null,
+    period_action: null,
+    period_title: null,
+    period_detail: null,
     sort_order: sortOrder,
   };
+}
+
+/** 经期开关是否打开 */
+export async function getPeriodOn(): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key = 'plan_period_on'",
+  );
+  return rows[0]?.value === "1";
+}
+
+export async function setPeriodOn(on: boolean): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('plan_period_on', $1, $2)
+     ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+    [on ? "1" : "0", nowIso()],
+  );
+}
+
+/**
+ * 经期视图变换：开关打开时，
+ * 'skip' 条目返回 null（隐藏），'swap' 条目替换标题/备注。
+ */
+export function applyPeriod(item: PlanItem, periodOn: boolean): PlanItem | null {
+  if (!periodOn || !item.period_action) return item;
+  if (item.period_action === "skip") return null;
+  if (item.period_action === "swap") {
+    return {
+      ...item,
+      title: item.period_title || item.title,
+      detail: item.period_detail || item.detail,
+    };
+  }
+  return item;
 }
 
 export async function updateItemTitle(id: string, title: string): Promise<void> {

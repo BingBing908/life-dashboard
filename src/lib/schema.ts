@@ -80,18 +80,21 @@ export const SCHEMA_SQL = `
     );
 
     CREATE TABLE IF NOT EXISTS plan_items (
-        id          TEXT PRIMARY KEY,
-        track       TEXT NOT NULL,
-        days        TEXT NOT NULL DEFAULT '*',
-        time_slot   TEXT,
-        title       TEXT NOT NULL,
-        detail      TEXT,
-        url         TEXT,
-        sort_order  REAL NOT NULL DEFAULT 0,
-        created_at  TEXT NOT NULL,
-        updated_at  TEXT NOT NULL,
-        device_id   TEXT,
-        deleted_at  TEXT
+        id            TEXT PRIMARY KEY,
+        track         TEXT NOT NULL,
+        days          TEXT NOT NULL DEFAULT '*',
+        time_slot     TEXT,
+        title         TEXT NOT NULL,
+        detail        TEXT,
+        url           TEXT,
+        period_action TEXT,
+        period_title  TEXT,
+        period_detail TEXT,
+        sort_order    REAL NOT NULL DEFAULT 0,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        device_id     TEXT,
+        deleted_at    TEXT
     );
 
     CREATE TABLE IF NOT EXISTS plan_checks (
@@ -129,4 +132,7 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE todos ADD COLUMN quadrant TEXT NOT NULL DEFAULT 'nn'",
   "ALTER TABLE todos ADD COLUMN due_date TEXT",
   "DROP TABLE IF EXISTS plan_tasks",
+  "ALTER TABLE plan_items ADD COLUMN period_action TEXT",
+  "ALTER TABLE plan_items ADD COLUMN period_title TEXT",
+  "ALTER TABLE plan_items ADD COLUMN period_detail TEXT",
 ];
