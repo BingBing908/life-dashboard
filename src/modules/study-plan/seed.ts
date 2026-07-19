@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 6;
+export const SEED_VERSION = 7;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -104,55 +104,57 @@ export const SEED_ITEMS: {
     track: "sport",
     days: "1",
     time_slot: "19:50–20:40",
-    title: "上背 / 圆肩驼背纠正",
-    detail: "注意别练大斜方肌，看视频要点",
-    url: "https://www.bilibili.com/video/BV1P5411Y7DW/",
+    title: "C戈·瘦斜方肌 20 分钟（针对斜方肌肥大）",
+    detail: "正对你的斜方肌肥大；圆肩另配 C戈肩带综合矫正 BV15T411j7bs",
+    url: "https://www.bilibili.com/video/BV1Qv411u7aF/",
   },
   {
     track: "sport",
     days: "2",
     time_slot: "19:50–20:40",
-    title: "芭杆 Barre 塑形（全程站立）",
-    detail: "入门介绍：bilibili.com/video/BV1BxwXzAEwk；🩸 生理期：跳过视频里的卷腹/平板段落",
+    title: "欧阳春晓·芭杆练手臂 x 薄背 20 分钟（全程站立）",
+    detail: "🩸 生理期：跳过卷腹/平板段落",
     url: "https://www.bilibili.com/video/BV11Autz4EoV/",
   },
   {
     track: "sport",
     days: "3",
     time_slot: "19:50–20:40",
-    title: "24 式太极·分段学习",
-    detail: "教学参考邱慧芳央视版：bilibili.com/video/BV1w5411t7Xj",
-    url: "https://www.bilibili.com/video/BV1wGKWeyEzj/",
+    title: "24 式太极·邱慧芳教学（分段学）",
+    detail: "跟你收藏的邱慧芳教学版，一次学一两式",
+    url: "https://www.bilibili.com/video/BV1iE411c7Ni/",
   },
   {
     track: "sport",
     days: "4",
     time_slot: "19:50–20:40",
-    title: "站立有氧·心肺日（无跑跳）",
-    detail: "首选欧阳春晓 24 年后的无跑跳新片（B站搜）；此链接为备选；🩸 生理期：跳过腹部段落，累了降档成快走",
-    url: "https://www.bilibili.com/video/BV1kts5zoErK/",
+    title: "欧阳春晓·王心凌金曲 15 分钟无跑跳有氧（心肺日）",
+    detail: "明确无跑跳；累了降档成快走",
+    url: "https://www.bilibili.com/video/BV1KCamz3EAz/",
   },
   {
     track: "sport",
     days: "5",
     time_slot: "19:50–20:40",
-    title: "骨盆前倾 / 下肢力线矫正",
-    detail: "搭配 9090 呼吸法：bilibili.com/video/BV1XdrHBSEAM",
-    url: "https://www.bilibili.com/video/BV1xA411h7jf/",
+    title: "欧阳春晓·大腿内侧 x 盆底肌 x 骨盆稳定 20 分钟",
+    detail: "针对骨盆前倾；膝超伸另配 C戈膝超伸矫正 BV1K7411b7yo",
+    url: "https://www.bilibili.com/video/BV1PhHrzfEqN/",
   },
   {
     track: "sport",
     days: "6",
     time_slot: "19:50–20:40",
-    title: "太极复习 + 快走 30 分钟",
+    title: "欧阳春晓·芭杆臀腿雕刻 30 分钟",
+    detail: "或改太极复习 + 快走 30 分钟，二选一看状态",
+    url: "https://www.bilibili.com/video/BV1FczFBcEBQ/",
   },
   {
     track: "sport",
     days: "7",
     time_slot: "19:50–20:40",
-    title: "恢复日：筋膜球放松 + 轻拉伸",
+    title: "恢复日·欧阳春晓 17 分钟泡沫轴全身按摩",
     detail: "重点滚斜方肌和小腿",
-    url: "https://www.bilibili.com/video/BV1A54y1S7mn/",
+    url: "https://www.bilibili.com/video/BV1pp4y1X7og/",
   },
   // ---------- 睡前 ----------
   {
