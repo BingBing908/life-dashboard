@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 14;
+export const SEED_VERSION = 15;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -182,6 +182,13 @@ export const SEED_ITEMS: {
   },
   // ---------- 睡前 ----------
   {
+    track: "wellness",
+    days: "1,5,6,7",
+    time_slot: "21:00–21:40",
+    title: "泡脚",
+    detail: "和阅读同时段，边泡边看书；水别太烫、15-20分钟即可；其他晚上想泡随时加",
+  },
+  {
     track: "reading",
     days: "*",
     time_slot: "21:00–21:40",
@@ -192,8 +199,8 @@ export const SEED_ITEMS: {
     track: "wellness",
     days: "*",
     time_slot: "21:40–22:00",
-    title: "睡前筋膜拉伸 + 补剂",
-    detail: "跟练 10-15 分钟；按作息表当日补剂（小红镁/钙镁锌）",
+    title: "睡前拉伸",
+    detail: "跟练 10-15 分钟；顺便吃当日补剂（小红镁/钙镁锌）",
     url: "https://www.bilibili.com/video/BV1UovWBNENi/",
   },
 ];
