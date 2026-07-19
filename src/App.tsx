@@ -3,6 +3,7 @@ import { LayoutDashboard } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
+import { runSync } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
  *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。 */
@@ -14,6 +15,8 @@ function parseHash(): string {
 
 export default function App() {
   const [view, setViewState] = useState(parseHash);
+  const [booting, setBooting] = useState(true); // 首次同步完成前不渲染模块，避免空库重复播种
+  const [syncTick, setSyncTick] = useState(0); // 拉到新数据后 +1，用作 key 强制刷新视图
 
   // 监听前进/后退与手动改 hash
   useEffect(() => {
@@ -22,12 +25,42 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  // 云端同步：首次进入先同步再渲染（带 4s 超时，离线也能进）；之后聚焦/定时增量同步
+  useEffect(() => {
+    let alive = true;
+    const bump = (changed: boolean) => {
+      if (alive && changed) setSyncTick((t) => t + 1);
+    };
+    const initial = runSync().then(bump);
+    const timeout = new Promise((r) => setTimeout(r, 4000));
+    Promise.race([initial, timeout]).then(() => {
+      if (alive) setBooting(false);
+    });
+
+    const onFocus = () => runSync().then(bump);
+    window.addEventListener("focus", onFocus);
+    const iv = setInterval(onFocus, 30_000);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", onFocus);
+      clearInterval(iv);
+    };
+  }, []);
+
   function setView(id: string) {
     window.location.hash = id === "dashboard" ? "/" : `/${id}`;
     setViewState(id);
   }
 
   const active = view === "dashboard" ? null : getModule(view);
+
+  if (booting) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-muted-foreground">
+        <p className="animate-pulse text-sm">正在同步云端数据…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -53,8 +86,8 @@ export default function App() {
         </nav>
       </aside>
 
-      {/* 主区域 */}
-      <main className="flex-1 overflow-y-auto">
+      {/* 主区域（syncTick 变化＝拉到云端新数据，用 key 强制重新加载视图） */}
+      <main key={syncTick} className="flex-1 overflow-y-auto">
         {active ? <active.Page /> : <DashboardShell onOpenModule={setView} />}
       </main>
     </div>
