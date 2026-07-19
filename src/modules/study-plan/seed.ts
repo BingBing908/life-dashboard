@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 8;
+export const SEED_VERSION = 9;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -58,8 +58,8 @@ export const SEED_ITEMS: {
     track: "english",
     days: "*",
     time_slot: "07:30–09:10",
-    title: "英语·听说训练（空腹在家）",
-    detail: "教材：《查莉成长日记》S1 当精听材料。10min复习昨日 + 25min精听一小段（先双字幕→逐句听懂）+ 20min跟读模仿台词 + 15min高频词；公交日路上泛听已学的片段",
+    title: "英语·新概念一册（空腹在家）",
+    detail: "主线：新概念英语第一册（从零搭语法+基础词+音频，正合当前 A1 水平）。15min复习昨课跟读 + 35min学新课（盲听→读懂全文→记语法点）+ 30min影子跟读课文（练听说）+ 20min单词（本课生词+基础2000词，暂不碰四级词汇）。查莉当磨耳朵玩具，中字看着玩不强求。约每周4课，18周学完一册",
   },
   // ---------- 周末上午 ----------
   {
@@ -185,7 +185,7 @@ export interface MonthPlan {
 }
 
 export const SEMESTER_TARGET =
-  "2026-12-27 验收总目标：体重 ≤58kg 达标 / ≤56.5kg 优秀（55kg 顺延至 2027 Q1，50kg 不设为目标）· 英语无字幕看《查莉》听懂 60-70% · HCIP 知识点全部过完 · 手握 2 个可写简历的 AI 落地作品";
+  "2026-12-27 验收总目标：体重 ≤58kg 达标 / ≤56.5kg 优秀（55kg 顺延至 2027 Q1，50kg 不设为目标）· 英语学完新概念一册、开二册，无字幕看《查莉》听懂 50-60%（A1 起步，务实目标）· HCIP 知识点全部过完 · 手握 2 个可写简历的 AI 落地作品";
 
 export const SEMESTER_PLAN: MonthPlan[] = [
   {
@@ -194,7 +194,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "记录基线：体重 / 腰围 / 体态照，建立饮食记录习惯",
     goals: {
       sport: "周期① 适应周 ×2：把每天的动作学会，跟练只做 2/3 量",
-      english: "完成摸底测试（对话快测 + EF SET），音标纠音起步",
+      english: "摸底完成（A1 起步）；新概念一册开学 L1–L16，配套音频跟读",
       cert: "HCIA 复习第 1-2 周：每晚一节视频课（1.5 倍速）",
       ai: "《AI for Everyone》中字开看，开一本「AI 名词手册」",
     },
@@ -209,7 +209,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "月底 ≤65.5kg（-2kg）",
     goals: {
       sport: "周期① 完成 → 周期② 开始，心肺日开始足量",
-      english: "高频词 0→1000；查莉 S1 双字幕精听，每天一小段",
+      english: "新概念一册 L17–L60；基础 2000 词起步；查莉中字磨耳朵",
       cert: "HCIA 收尾 + 自测查漏 → 8/18 起进 HCIP 科目一",
       ai: "《AI for Everyone》看完 + 3Blue1Brown 神经网络中字系列；名词手册成形",
     },
@@ -226,7 +226,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "月底 ≤63.5kg",
     goals: {
       sport: "周期②→③，心肺日 +10 分钟",
-      english: "高频词 2000；查莉切英文单字幕；开始影子跟读台词",
+      english: "新概念一册收尾 L61–L72 → 二册开篇；影子跟读加量",
       cert: "HCIP 科目一过完；eNSP 入门实验（隔周周六上午）",
       ai: "李宏毅《生成式AI导论 2024》核心讲 + 吴恩达提示工程中字；产出 Prompt 实验笔记",
     },
@@ -242,7 +242,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "月底 ≤61.5kg",
     goals: {
       sport: "引入走跑交替（先置办高支撑运动内衣 + 学跑姿视频），周期③→④",
-      english: "半字幕挑战（生词才暂停）；每周 2 次和 Claude 英文对话",
+      english: "新概念二册推进；启用新东方四级词汇；查莉切双字幕精听",
       cert: "HCIP 科目二",
       ai: "RAG / Agent 概念 + 给 life-dashboard 搭一个 AI 小功能（作品②）",
     },
@@ -258,7 +258,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "月底 ≤59.5kg · 拍体态对比照复评",
     goals: {
       sport: "走跑交替进阶（跑段逐周加长），体态复评",
-      english: "无字幕首刷简单集，听不懂的逐句复盘",
+      english: "新概念二册；查莉英文字幕挑战；每周 2 次和 Claude 英文对话",
       cert: "HCIP 科目三 + 错题本",
       ai: "评测(Evals)实战：给 NOC Sentinel 建评测集 + 使用数据统计（作品①升级）",
     },
@@ -274,7 +274,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     weight: "12/27 验收：≤58kg 达标 / ≤56.5kg 优秀；聚餐季执行防反弹策略",
     goals: {
       sport: "维持强度；聚餐日先吃蛋白质、饮食记录不断",
-      english: "里程碑测试：无字幕看一集查莉，目标听懂 ≥60-70%",
+      english: "里程碑：无字幕看一集查莉，目标听懂 ≥50-60%（A1 起步的务实线）",
       cert: "HCIP 三科总复习 + 模拟卷，12/27 前知识点验收",
       ai: "NOC Sentinel 复盘文档 + AI PM 简历/作品集成稿",
     },
