@@ -8,7 +8,7 @@ import { logTreat, treatStats, undoTreatToday, type TreatStats } from "./data";
 
 /** 1=周一 … 7=周日；按 Rosie 作息表的补剂安排 */
 const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: string[] }> = {
-  1: { morning: ["维D 5000IU"],    noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
+  1: { morning: ["维D"],           noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
   2: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: ["钙镁锌"] },
   3: { morning: ["复合维B", "维C"], noon: ["鱼油", "辅酶Q10"], evening: ["小红镁"] },
   4: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: ["钙镁锌"] },
@@ -22,10 +22,22 @@ const PERIOD_SCHEDULE = { morning: [] as string[], noon: [] as string[], evening
 
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
-const MEALS: { meal: string; hint: string }[] = [
-  { meal: "早餐", hint: "蛋白（鸡蛋/无糖酸奶/牛奶）+ 慢碳（燕麦/全麦）+ 一份果蔬" },
-  { meal: "午餐", hint: "一拳蛋白 + 一拳主食（多粗粮）+ 两拳蔬菜 + 鱼油/Q10 + 酸奶/牛奶" },
-  { meal: "晚餐", hint: "蛋白 + 大量蔬菜，主食减半或不吃，少油少糖，18:30 前吃完" },
+const MEALS: { meal: string; cook: string; takeout: string }[] = [
+  {
+    meal: "早餐",
+    cook: "水煮蛋 2 个 + 无糖燕麦牛奶 + 一小把莓果 / 一个苹果",
+    takeout: "便利店：茶叶蛋 + 无糖豆浆 + 水煮玉米",
+  },
+  {
+    meal: "午餐",
+    cook: "鸡胸 / 虾 + 糙米饭一拳 + 清炒时蔬两拳",
+    takeout: "轻食沙拉（鸡胸 + 杂蔬，油醋汁减半）/ 清汤麻辣烫（多菜 + 鸡胸豆腐，免麻酱油碟）",
+  },
+  {
+    meal: "晚餐",
+    cook: "清蒸鱼 / 豆腐 + 大量绿叶菜，主食减半或不吃",
+    takeout: "关东煮（萝卜 / 海带 / 豆腐 / 蛋，少丸子）/ 白灼虾鸡 + 焯青菜",
+  },
 ];
 
 function dayNum(d = new Date()): number {
@@ -89,7 +101,7 @@ function Page() {
     <div className="mx-auto max-w-2xl space-y-8 p-6">
       {/* 补剂 */}
       <section>
-        <h1 className="mb-1 text-2xl font-semibold">补剂</h1>
+        <h2 className="mb-1 text-lg font-semibold">补剂</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
         </p>
@@ -140,9 +152,16 @@ function Page() {
         <p className="mb-3 text-sm text-muted-foreground">减脂期原则：蛋白吃够、糖油少、晚餐轻、喝够水。</p>
         <div className="space-y-2">
           {MEALS.map((m) => (
-            <div key={m.meal} className="flex gap-3 rounded-lg border px-4 py-3">
-              <span className="w-10 shrink-0 font-medium">{m.meal}</span>
-              <span className="text-sm text-muted-foreground">{m.hint}</span>
+            <div key={m.meal} className="rounded-lg border px-4 py-3">
+              <p className="mb-1.5 font-medium">{m.meal}</p>
+              <p className="text-sm">
+                <span className="mr-1 text-muted-foreground">🍳 自己做</span>
+                {m.cook}
+              </p>
+              <p className="mt-1 text-sm">
+                <span className="mr-1 text-muted-foreground">🥡 外卖</span>
+                {m.takeout}
+              </p>
             </div>
           ))}
         </div>
@@ -181,9 +200,9 @@ function Page() {
 const supplementModule: AppModule = {
   manifest: {
     id: "supplement",
-    name: "补剂",
+    name: "饮食",
     icon: Pill,
-    description: "今日补剂 + 三餐推荐 + 奶茶打卡",
+    description: "补剂 + 三餐推荐 + 奶茶打卡",
     defaultSize: { w: 1, h: 1 },
   },
   Card,
