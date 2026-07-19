@@ -223,7 +223,7 @@ function Page() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <div className="mb-1 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">学练计划</h1>
         <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
@@ -251,8 +251,8 @@ function Page() {
           <p className="mb-4 text-sm text-muted-foreground">
             {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
           </p>
-          <div className="space-y-4">
-            {SECTIONS.map((sec) => {
+          {(() => {
+            const renderSection = (sec: (typeof SECTIONS)[number]) => {
               const secItems = todays.filter((i) => sec.tracks.includes(i.track));
               if (secItems.length === 0) return null;
               const secDone = secItems.filter((i) => checks.has(i.id)).length;
@@ -286,8 +286,17 @@ function Page() {
                   </div>
                 </section>
               );
-            })}
-          </div>
+            };
+            return (
+              <div className="space-y-4">
+                {/* 养生横条 + 四象限（运动/英语 上，学习/阅读 下） */}
+                {renderSection(SECTIONS[0])}
+                <div className="grid items-start gap-4 lg:grid-cols-2">
+                  {SECTIONS.slice(1).map(renderSection)}
+                </div>
+              </div>
+            );
+          })()}
           {todays.length === 0 && (
             <p className="py-8 text-muted-foreground">今天没有安排，休息也是计划的一部分。</p>
           )}
