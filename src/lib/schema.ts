@@ -26,22 +26,6 @@ export const SCHEMA_SQL = `
     );
     CREATE INDEX IF NOT EXISTS idx_rows_table ON mini_table_rows(table_id);
 
-    CREATE TABLE IF NOT EXISTS plan_tasks (
-        id          TEXT PRIMARY KEY,
-        title       TEXT NOT NULL,
-        date        TEXT NOT NULL,
-        start_time  TEXT,
-        end_time    TEXT,
-        done        INTEGER NOT NULL DEFAULT 0,
-        repeat_rule TEXT,
-        note        TEXT,
-        created_at  TEXT NOT NULL,
-        updated_at  TEXT NOT NULL,
-        device_id   TEXT,
-        deleted_at  TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_plan_tasks_date ON plan_tasks(date);
-
     CREATE TABLE IF NOT EXISTS study_subjects (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -117,4 +101,5 @@ export const SCHEMA_SQL = `
 export const BROWSER_MIGRATIONS = [
   "ALTER TABLE todos ADD COLUMN quadrant TEXT NOT NULL DEFAULT 'nn'",
   "ALTER TABLE todos ADD COLUMN due_date TEXT",
+  "DROP TABLE IF EXISTS plan_tasks",
 ];

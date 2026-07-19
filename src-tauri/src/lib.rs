@@ -137,6 +137,13 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE todos ADD COLUMN due_date TEXT;
         "#,
         },
+        Migration {
+            version: 4,
+            description: "drop_planner",
+            kind: MigrationKind::Up,
+            // 计划表模块已移除（改用 iPad 做下班后规划）
+            sql: "DROP TABLE IF EXISTS plan_tasks;",
+        },
     ]
 }
 
