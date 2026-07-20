@@ -57,20 +57,31 @@ interface Domain {
   source: "plan" | "todo";
   tracks?: Track[];
   noteRequired: boolean;
+  timeMin?: number; // 只收该时间(分钟)及以后的条目
+  timeMax?: number; // 只收该时间之前的条目
 }
 
 const DOMAINS: Domain[] = [
-  { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false },
+  // 养生只收上午的（泡脚/睡前拉伸这类晚间养生归到最后的「睡前」节点）
+  { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
   { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false },
   { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
   { key: "sport", name: "运动", start: 1180, time: "19:40", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
   { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
+  // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
+  { key: "bedtime", name: "睡前", start: 1300, time: "21:40", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
 ];
 
 function nowMinutes(): number {
   const d = new Date();
   return d.getHours() * 60 + d.getMinutes();
+}
+
+/** 从 time_slot（如 "21:00–21:40"）解析开始分钟数 */
+function slotStartMin(item: PlanItem): number {
+  const m = (item.time_slot ?? "").match(/(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
 }
 
 /** 当前时间落在哪个领域（最后一个 start<=now；早于第一个则养生） */
@@ -373,7 +384,15 @@ function Page() {
   const active = DOMAINS.find((d) => d.key === activeKey)!;
   const planCards =
     active.source === "plan"
-      ? pendingFirst(todays.filter((i) => active.tracks!.includes(i.track)))
+      ? pendingFirst(
+          todays.filter((i) => {
+            if (!active.tracks!.includes(i.track)) return false;
+            const s = slotStartMin(i);
+            if (active.timeMax !== undefined && s >= active.timeMax) return false;
+            if (active.timeMin !== undefined && s < active.timeMin) return false;
+            return true;
+          }),
+        )
       : [];
   const todoCards =
     active.source === "todo"
@@ -532,7 +551,7 @@ function Page() {
             {/* 左：连线时间轴，点圆点切到那个时段 */}
             <div className="relative w-32 shrink-0 sm:w-36">
               <div className="absolute bottom-4 left-[9px] top-4 w-0.5 bg-border" />
-              <div className="flex flex-col gap-9">
+              <div className="flex flex-col gap-14">
                 {DOMAINS.map((d) => {
                   const isActive = d.key === activeKey;
                   const isPast = d.start <= nowMinutes();
