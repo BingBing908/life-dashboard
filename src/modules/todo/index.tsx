@@ -384,24 +384,32 @@ function Page() {
               </div>
               <div className="space-y-1.5">
                 {finishedShown.map((t) => (
-                  <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
-                    <DoneToggle
-                      state="done"
-                      onDone={() => {}}
-                      onSkip={() => {}}
-                      onClear={() => handleToggle(t)}
-                      size="sm"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground line-through">
-                      {t.title}
-                    </span>
-                    <button
-                      className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                      title="删除"
-                      onClick={() => handleDelete(t.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                  <div key={t.id} className="group rounded-md border px-3 py-2">
+                    <div className="flex items-center gap-2.5">
+                      <DoneToggle
+                        state="done"
+                        onDone={() => {}}
+                        onSkip={() => {}}
+                        onClear={() => handleToggle(t)}
+                        size="sm"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground line-through">
+                        {t.title}
+                      </span>
+                      <button
+                        className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                        title="删除"
+                        onClick={() => handleDelete(t.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                    {(notes[t.id] ?? "").trim() && (
+                      <p className="mt-1.5 pl-1 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground/70">做了：</span>
+                        {notes[t.id]}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
