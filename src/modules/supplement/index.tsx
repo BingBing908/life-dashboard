@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Pill, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -383,7 +383,7 @@ const supplementModule: AppModule = {
   manifest: {
     id: "supplement",
     name: "饮食",
-    icon: Pill,
+    icon: Utensils,
     description: "补剂 + 三餐记录 + 饮品日历打卡",
     defaultSize: { w: 1, h: 1 },
   },
