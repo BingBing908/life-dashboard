@@ -217,8 +217,16 @@ function LearningBoard({
   );
 }
 
-/** 一条学习内容（展示为主，可删） */
+/** 一条学习内容（展示为主，可删）。body 里 [[术语]] 会渲染成下划线，点开看 meta.glossary 里的释义。 */
 function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; onDelete: (id: string) => void }) {
+  const [term, setTerm] = useState<string | null>(null);
+  let glossary: Record<string, string> = {};
+  try {
+    glossary = entry.meta ? JSON.parse(entry.meta).glossary ?? {} : {};
+  } catch {
+    glossary = {};
+  }
+  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\])/g);
   return (
     <div className="group rounded-lg border bg-background p-3">
       <div className="flex items-center gap-2">
@@ -237,7 +245,32 @@ function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; o
         </button>
       </div>
       {entry.body && (
-        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{entry.body}</p>
+        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+          {parts.map((p, i) => {
+            const m = p.match(/^\[\[([^\]]+)\]\]$/);
+            if (m) {
+              const t = m[1];
+              const active = term === t;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setTerm(active ? null : t)}
+                  className="font-medium"
+                  style={{ color: accent, borderBottom: `1.5px dotted ${accent}`, background: active ? accent + "18" : "transparent" }}
+                >
+                  {t}
+                </button>
+              );
+            }
+            return <span key={i}>{p}</span>;
+          })}
+        </p>
+      )}
+      {term && glossary[term] && (
+        <div className="mt-2 rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "12", borderColor: accent + "44" }}>
+          <span className="font-medium" style={{ color: accent }}>{term}</span>
+          <span className="text-foreground/85">：{glossary[term]}</span>
+        </div>
       )}
     </div>
   );
