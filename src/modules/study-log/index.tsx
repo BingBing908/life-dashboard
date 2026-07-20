@@ -14,6 +14,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,6 +320,76 @@ function Blurred({ active, children }: { active: boolean; children: React.ReactN
   return <div className={cn("transition", active && "pointer-events-none select-none blur-md")}>{children}</div>;
 }
 
+/** 单词本：可增删（会的删、缺的加）；默写时高糊；点默写单词进听写 */
+function WordBook({
+  words,
+  wordAtt,
+  mode,
+  onSetMode,
+  onWords,
+  accent,
+}: {
+  words: Word[];
+  wordAtt: WordAtt[];
+  mode: "none" | "word" | "article";
+  onSetMode: (m: "none" | "word" | "article") => void;
+  onWords: (w: Word[]) => void;
+  accent: string;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [en, setEn] = useState("");
+  const [cn, setCn] = useState("");
+  function add() {
+    if (!en.trim()) return;
+    onWords([...words, { en: en.trim(), cn: cn.trim() }]);
+    setEn(""); setCn(""); setAdding(false);
+  }
+  return (
+    <div className="rounded-md border p-2.5" style={{ background: accent + "0d" }}>
+      <p className="mb-1.5 text-xs text-muted-foreground">单词本 · {words.length}（生词/短语，可增删）</p>
+      <Blurred active={mode === "word"}>
+        <div className="space-y-0.5">
+          {words.map((w, i) => (
+            <div key={i} className="group flex items-center gap-1 text-sm">
+              <span className="font-medium">{w.en}</span>
+              {w.cn && <span className="text-xs text-muted-foreground">{w.cn}</span>}
+              <button
+                className="invisible ml-auto shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                title="删除（这个我会）"
+                onClick={() => onWords(words.filter((_, idx) => idx !== i))}
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      </Blurred>
+      {mode === "word" && <p className="mt-1 text-[11px] text-muted-foreground">默写中，单词本已模糊</p>}
+      {mode !== "word" && (
+        adding ? (
+          <div className="mt-2 space-y-1">
+            <input value={en} onChange={(e) => setEn(e.target.value)} placeholder="生词/短语" className="h-7 w-full rounded border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40" />
+            <input value={cn} onChange={(e) => setCn(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} placeholder="中文意思" className="h-7 w-full rounded border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary/40" />
+            <div className="flex gap-1">
+              <button onClick={add} className="flex-1 rounded px-2 py-1 text-xs text-primary-foreground" style={{ background: accent }}>加入</button>
+              <button onClick={() => { setAdding(false); setEn(""); setCn(""); }} className="rounded border px-2 py-1 text-xs">取消</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed py-1 text-xs text-muted-foreground hover:bg-accent">
+            <Plus className="size-3.5" /> 加生词/短语
+          </button>
+        )
+      )}
+      {words.length > 0 && (
+        <button onClick={() => onSetMode(mode === "word" ? "none" : "word")} className="mt-2 w-full rounded-md px-2 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
+          {mode === "word" ? "收起默写" : `默写单词${wordAtt.length ? ` (${wordAtt.length}/3)` : ""}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** 单词默写：英译中 → 批改 → 中译英 → 批改 → 完成本遍；三遍留存对比 */
 function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; attempts: WordAtt[]; onSave: (a: WordAtt) => void; accent: string }) {
   const [order, setOrder] = useState<Word[]>(() => shuffle(words));
@@ -476,7 +547,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_190px]">
         <div className="min-w-0">
           {/* 默写文章时把原文/学习点/背诵句都高糊，杜绝偷看 */}
           <Blurred active={mode === "article"}>
@@ -504,26 +575,14 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
           )}
         </div>
 
-        <div className="rounded-md border p-2.5" style={{ background: accent + "0d" }}>
-          <p className="mb-1.5 text-xs text-muted-foreground">单词本 · {words.length}</p>
-          {/* 默写单词时单词本高糊，杜绝偷看答案 */}
-          <Blurred active={mode === "word"}>
-            <div className="space-y-0.5">
-              {words.map((w, i) => (
-                <div key={i} className="text-sm">
-                  <span className="font-medium">{w.en}</span>
-                  <span className="ml-1 text-xs text-muted-foreground">{w.cn}</span>
-                </div>
-              ))}
-            </div>
-          </Blurred>
-          {mode === "word" && <p className="mt-1 text-[11px] text-muted-foreground">默写中，单词本已模糊</p>}
-          {words.length > 0 && (
-            <button onClick={() => setMode(mode === "word" ? "none" : "word")} className="mt-2 w-full rounded-md px-2 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
-              {mode === "word" ? "收起默写" : `默写单词${wordAtt.length ? ` (${wordAtt.length}/3)` : ""}`}
-            </button>
-          )}
-        </div>
+        <WordBook
+          words={words}
+          wordAtt={wordAtt}
+          mode={mode}
+          onSetMode={setMode}
+          onWords={(w) => onPatch(entry.id, { words: w })}
+          accent={accent}
+        />
       </div>
 
       {mode === "word" && (
