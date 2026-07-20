@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ListTodo, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DoneToggle } from "@/components/DoneToggle";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import {
@@ -386,7 +387,7 @@ function Page() {
                   const done = planChecks.has(i.id);
                   return (
                     <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
-                      <Checkbox checked={done} onCheckedChange={() => togglePlan(i.id)} className="size-5" />
+                      <DoneToggle done={done} onToggle={() => togglePlan(i.id)} size="sm" />
                       <span className="w-20 shrink-0 text-xs text-muted-foreground">{i.time_slot}</span>
                       <span className={cn("min-w-0 flex-1 truncate text-sm", done && "text-muted-foreground line-through")}>
                         {i.title}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { DoneToggle } from "@/components/DoneToggle";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import {
@@ -293,11 +293,12 @@ function Page() {
       <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && done && "opacity-60")}>
         <div className="flex items-center gap-3.5">
           {withCheck && (
-            <Checkbox
-              checked={done}
-              disabled={!canCheck}
-              onCheckedChange={() => canCheck && handleToggle(item)}
-              className="size-6"
+            <DoneToggle
+              done={done}
+              canComplete={canCheck}
+              onToggle={() => handleToggle(item)}
+              size="sm"
+              disabledHint="先写「做了什么」才能标记完成"
             />
           )}
           <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
@@ -352,6 +353,7 @@ function Page() {
   function ThreeRowCard({
     id,
     title,
+    timeSlot,
     detail,
     url,
     done,
@@ -361,6 +363,7 @@ function Page() {
   }: {
     id: string;
     title: string;
+    timeSlot?: string | null;
     detail: string | null;
     url: string | null;
     done: boolean;
@@ -372,14 +375,13 @@ function Page() {
     const canCheck = !noteRequired || done || noteVal.trim().length > 0;
     return (
       <div className={cn("rounded-xl border bg-card p-4", done && "opacity-60")}>
-        {/* 第一行：要做的事 + 跳转 */}
+        {/* 第一行：明细时间 + 要做的事 + 跳转 + 完成状态 */}
         <div className="flex items-center gap-3">
-          <Checkbox
-            checked={done}
-            disabled={!canCheck}
-            onCheckedChange={() => canCheck && onToggle()}
-            className="size-6 shrink-0"
-          />
+          {timeSlot && (
+            <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+              {timeSlot}
+            </span>
+          )}
           <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
           {url && (
             <button
@@ -390,16 +392,22 @@ function Page() {
               <ExternalLink className="size-4" /> 打开
             </button>
           )}
+          <DoneToggle
+            done={done}
+            canComplete={canCheck}
+            onToggle={onToggle}
+            disabledHint="先写「做了什么」才能标记完成"
+          />
         </div>
         {/* 第二行：详细解释 */}
         {detail && (
-          <p className="mt-2 pl-9 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>
         )}
         {/* 第三行：网址 */}
         {url && (
           <button
             onClick={() => openLink(url)}
-            className="mt-1.5 block max-w-full truncate pl-9 text-left text-xs text-primary/80 hover:underline"
+            className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
           >
             {url}
           </button>
@@ -570,6 +578,7 @@ function Page() {
                       key={i.id}
                       id={i.id}
                       title={i.title}
+                      timeSlot={i.time_slot}
                       detail={i.detail}
                       url={i.url}
                       done={checks.has(i.id)}
