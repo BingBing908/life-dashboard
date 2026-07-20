@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Film,
   Landmark,
+  Layers,
   Library,
   LineChart,
   PenLine,
@@ -44,6 +45,7 @@ const BOARDS: BoardCfg[] = [
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "术语卡"], hint: "每日 5 条新闻 + 术语卡", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
   { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "时间线框架 + 每日一卡", c: { bg: "#FAEEDA", text: "#633806", sub: "#854F0B", accent: "#BA7517" } },
   { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "看懂日线 · 基金入门（教知识、不荐买卖）", c: { bg: "#EAF3DE", text: "#27500A", sub: "#3B6D11", accent: "#639922" } },
+  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "练习"], hint: "PM 概念 · AI 产品拆解 · 用自己的项目练表达", c: { bg: "#F1EFE8", text: "#2C2C2A", sub: "#5F5E5A", accent: "#888780" } },
   { key: "book", name: "书籍", icon: Library, hint: "在读/读过的书 + 读后感", c: { bg: "#E1F5EE", text: "#085041", sub: "#0F6E56", accent: "#1D9E75" } },
   { key: "movie", name: "电影", icon: Film, hint: "看过的电影 + 观后感", c: { bg: "#FBEAF0", text: "#72243E", sub: "#993556", accent: "#D4537E" } },
 ];
@@ -930,7 +932,7 @@ function Page() {
         <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} onDelete={del} />
       )}
 
-      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance") && (
+      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm") && (
         <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onDelete={del} />
       )}
 
