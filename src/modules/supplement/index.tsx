@@ -27,7 +27,6 @@ const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: str
   6: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: [] },
   7: { morning: ["复合维B", "维C"], noon: ["鱼油", "辅酶Q10"], evening: [] },
 };
-const PERIOD_SCHEDULE = { morning: [] as string[], noon: [] as string[], evening: [] as string[] };
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
 const MEALS: { key: MealKey; label: string; cook: string; takeout: string }[] = [
@@ -77,13 +76,15 @@ function Card() {
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
   }, []);
-  const s = periodOn ? PERIOD_SCHEDULE : SCHEDULE[dayNumOf(todayStr())];
+  if (periodOn) {
+    return <p className="text-xs text-pink-700">🩸 经期：无需进食补剂</p>;
+  }
+  const s = SCHEDULE[dayNumOf(todayStr())];
   return (
     <div className="space-y-1.5">
       <Slot label="早" items={s.morning} />
       <Slot label="午" items={s.noon} />
       <Slot label="晚" items={s.evening} />
-      {periodOn && <p className="text-xs text-pink-700">🩸 经期：已暂停所有保健品</p>}
     </div>
   );
 }
@@ -228,48 +229,32 @@ function Page() {
   const monthCount = drinks.filter((d) => d.date.startsWith(monthPrefix)).length;
 
   const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
+  const todaySupp = SCHEDULE[todayNum];
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">
       {/* 补剂 */}
       <section>
-        <h2 className="mb-1 text-lg font-semibold">补剂</h2>
+        <h2 className="mb-1 text-lg font-semibold">补剂（今天 · {DAY_NAMES[todayNum]}）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
         </p>
-        {periodOn && (
-          <div className="mb-3 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm text-pink-700">
-            🩸 经期中：已暂停所有保健品（下表为平时安排）
+        {periodOn ? (
+          <div className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-3 text-sm text-pink-700">
+            🩸 经期中：无需进食补剂
+          </div>
+        ) : (
+          <div className="divide-y overflow-hidden rounded-xl border">
+            {([["早", todaySupp.morning], ["午", todaySupp.noon], ["晚", todaySupp.evening]] as const).map(
+              ([label, arr]) => (
+                <div key={label} className="flex items-center gap-4 px-4 py-2.5 text-sm">
+                  <span className="w-8 shrink-0 text-muted-foreground">{label}</span>
+                  <span className={arr.length ? "" : "text-muted-foreground"}>{fmt(arr)}</span>
+                </div>
+              ),
+            )}
           </div>
         )}
-        <div className="overflow-hidden rounded-xl border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50 text-left">
-                <th className="px-4 py-2 font-medium"> </th>
-                <th className="px-4 py-2 font-medium">早</th>
-                <th className="px-4 py-2 font-medium">午</th>
-                <th className="px-4 py-2 font-medium">晚</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-                const s = SCHEDULE[d];
-                return (
-                  <tr key={d} className={"border-b last:border-0 " + (d === todayNum ? "bg-accent/60 font-medium" : "")}>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {DAY_NAMES[d]}
-                      {d === todayNum && " ·今天"}
-                    </td>
-                    <td className="px-4 py-2">{fmt(s.morning)}</td>
-                    <td className="px-4 py-2">{fmt(s.noon)}</td>
-                    <td className="px-4 py-2">{fmt(s.evening)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
       </section>
 
       {/* 三餐：推荐 + 记录 */}
