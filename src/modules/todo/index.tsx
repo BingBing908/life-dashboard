@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ListTodo, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, ListTodo, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DoneToggle } from "@/components/DoneToggle";
@@ -119,6 +119,7 @@ function Page() {
   const [filterToday, setFilterToday] = useState(false);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [planStatus, setPlanStatus] = useState<Map<string, CheckStatus>>(new Map());
+  const [planOpen, setPlanOpen] = useState(false); // 今日学练计划镜像默认折叠，免得挤掉待办
   const today = todayStr();
 
   useEffect(() => {
@@ -305,17 +306,17 @@ function Page() {
           </div>
 
           {/* 列表 */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {pendingShown.map((t) => {
               const today_ = isToday(t);
               return (
-                <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
-                  <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-5" />
+                <div key={t.id} className="group flex items-center gap-3 rounded-lg border px-4 py-3.5 hover:bg-accent/40">
+                  <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-6" />
                   <EditableText
                     value={t.title}
                     onSave={(v) => handleRename(t.id, v)}
-                    className="min-w-0 flex-1 truncate text-sm"
-                    inputClassName="flex-1 text-sm"
+                    className="min-w-0 flex-1 truncate text-[15px] font-medium"
+                    inputClassName="flex-1 text-[15px]"
                   />
                   <button
                     onClick={() => toggleToday(t)}
@@ -378,35 +379,40 @@ function Page() {
             </>
           )}
 
-          {/* 今天的学练计划（镜像，来自学练计划，可勾选） */}
+          {/* 今天的学练计划（镜像，来自学练计划，可勾选）——可折叠，默认收起免得挤掉待办 */}
           {planToday.length > 0 && (
             <>
-              <div className="mb-1.5 mt-5 flex items-baseline gap-2">
-                <h3 className="text-xs font-medium text-muted-foreground">今天的学练计划</h3>
-                <span className="text-[11px] text-muted-foreground/70">来自学练计划 · 自动同步</span>
-              </div>
-              <div className="space-y-1.5">
-                {planToday.map((i) => {
-                  const st = planStatus.get(i.id) ?? "pending";
-                  const done = st === "done";
-                  const decided = st !== "pending";
-                  return (
-                    <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
-                      <DoneToggle
-                        state={st}
-                        onDone={() => setPlan(i.id, "done")}
-                        onSkip={() => setPlan(i.id, "skip")}
-                        onClear={() => setPlan(i.id, null)}
-                        size="sm"
-                      />
-                      <span className="w-20 shrink-0 text-xs text-muted-foreground">{i.time_slot}</span>
-                      <span className={cn("min-w-0 flex-1 truncate text-sm", decided && "text-muted-foreground", done && "line-through")}>
-                        {i.title}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+              <button
+                onClick={() => setPlanOpen((o) => !o)}
+                className="mt-5 flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ChevronRight className={cn("size-3.5 transition-transform", planOpen && "rotate-90")} />
+                今天的学练计划（{planToday.length}）
+                <span className="text-[11px] font-normal text-muted-foreground/70">来自学练计划 · 自动同步</span>
+              </button>
+              {planOpen && (
+                <div className="mt-1.5 space-y-1.5">
+                  {planToday.map((i) => {
+                    const st = planStatus.get(i.id) ?? "pending";
+                    const done = st === "done";
+                    const decided = st !== "pending";
+                    return (
+                      <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
+                        <DoneToggle
+                          state={st}
+                          onDone={() => setPlan(i.id, "done")}
+                          onSkip={() => setPlan(i.id, "skip")}
+                          onClear={() => setPlan(i.id, null)}
+                          size="sm"
+                        />
+                        <span className={cn("min-w-0 flex-1 truncate text-sm", decided && "text-muted-foreground", done && "line-through")}>
+                          {i.title}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
         </section>
