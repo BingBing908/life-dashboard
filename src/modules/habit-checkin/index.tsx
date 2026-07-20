@@ -23,6 +23,12 @@ import {
 
 const HISTORY_DAYS = 60;
 const DAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"]; // 索引 0..6 对应周一..周日
+// 重复星期快捷预设
+const DAY_PRESETS: { label: string; days: string; set: number[] }[] = [
+  { label: "每天", days: "*", set: [1, 2, 3, 4, 5, 6, 7] },
+  { label: "工作日", days: "1,2,3,4,5", set: [1, 2, 3, 4, 5] },
+  { label: "周末", days: "6,7", set: [6, 7] },
+];
 
 /** days 字符串转成人话：'*'→每天，'1,5,6,7'→一五六日 */
 function daysLabel(days: string): string {
@@ -140,6 +146,12 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
     await updateHabitDays(habit.id, daysStr);
   }
 
+  // 快捷预设直接设某习惯的重复日（每天/工作日/周末）
+  async function applyHabitDays(habit: Habit, days: string) {
+    setHabits((hs) => hs.map((h) => (h.id === habit.id ? { ...h, days } : h)));
+    await updateHabitDays(habit.id, days);
+  }
+
   async function handleToggle(habitId: string, date: string) {
     const checked = await toggleCheckin(habitId, date);
     setCheckins((prev) => {
@@ -173,8 +185,21 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
             {!compact && " 添加"}
           </Button>
         </div>
+        {/* 快捷预设 */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {DAY_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => setNewDays(new Set(p.set))}
+              className="rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         {/* 重复星期：全选=每天；例如搓澡只选「日」，泡脚选一/五/六/日 */}
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
             const on = newDays.has(d);
             return (
@@ -288,6 +313,17 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
                 {editing && (
                   <div className="mb-2 mt-1 flex flex-wrap items-center gap-1 pl-1">
                     <span className="text-xs text-muted-foreground">重复：</span>
+                    {DAY_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => applyHabitDays(habit, p.days)}
+                        className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                    <span className="mx-0.5 text-muted-foreground/40">|</span>
                     {[1, 2, 3, 4, 5, 6, 7].map((d) => (
                       <button
                         key={d}
