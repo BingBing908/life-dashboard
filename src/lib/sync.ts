@@ -102,6 +102,9 @@ let syncing = false;
  * 失败（离线等）返回 false，不抛错——保证离线时应用照常用本地数据。
  */
 export async function runSync(): Promise<boolean> {
+  // 开发模式默认不与线上云同步（防止本地测试数据污染 Rosie 的生产库）；
+  // 要在 dev 里联云，手动 localStorage.setItem('pwt-sync-on','1')。生产永远同步。
+  if (import.meta.env.DEV && localStorage.getItem("pwt-sync-on") !== "1") return false;
   if (syncing) return false;
   syncing = true;
   try {

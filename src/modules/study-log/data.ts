@@ -18,6 +18,17 @@ export interface Entry {
   created_at: string;
 }
 
+/** 取所有板块的全部条目（一次读、在组件里分组，数据量小时最省事） */
+export async function listAllEntries(): Promise<Entry[]> {
+  const db = await getDb();
+  return db.select<Entry[]>(
+    `SELECT id, board, kind, entry_date, title, body, meta, status, sort_order, created_at
+       FROM study_entries
+      WHERE deleted_at IS NULL
+      ORDER BY COALESCE(entry_date, '') DESC, created_at DESC`,
+  );
+}
+
 export async function listEntries(board: Board): Promise<Entry[]> {
   const db = await getDb();
   return db.select<Entry[]>(
