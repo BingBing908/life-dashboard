@@ -78,7 +78,7 @@ function Landing({
       {BOARDS.map((b) => {
         const mine = entries.filter((e) => e.board === b.key);
         const covers = mine
-          .filter((e) => (e.kind === "book" || e.kind === "movie") && metaGet(e, "cover"))
+          .filter((e) => e.kind !== "note" && metaGet(e, "cover"))
           .slice(0, 3);
         const latest = mine.find((e) => e.kind !== "note");
         return (
@@ -612,7 +612,7 @@ function Page() {
       {board === "book" && cfg && (
         <BookBoard
           cfg={cfg}
-          books={boardEntries.filter((e) => e.kind === "book")}
+          books={boardEntries.filter((e) => e.kind !== "note")}
           notesByBook={boardEntries.filter((e) => e.kind === "note").reduce((m, n) => {
             const bid = metaGet(n, "book_id");
             if (!m.has(bid)) m.set(bid, []);
@@ -630,7 +630,7 @@ function Page() {
       )}
 
       {board === "movie" && cfg && (
-        <MovieBoard cfg={cfg} movies={boardEntries.filter((e) => e.kind === "movie")} onAdd={addMovie} onPatch={patchEntry} onDelete={del} />
+        <MovieBoard cfg={cfg} movies={boardEntries.filter((e) => e.kind !== "note")} onAdd={addMovie} onPatch={patchEntry} onDelete={del} />
       )}
     </div>
   );
