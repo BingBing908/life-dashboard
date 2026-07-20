@@ -31,7 +31,7 @@ type Palette = { bg: string; text: string; sub: string; accent: string };
 type BoardCfg = {
   key: Board;
   name: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   kinds?: string[];
   hint: string;
   c: Palette;
@@ -74,7 +74,7 @@ function Landing({
   onOpen: (b: Board) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {BOARDS.map((b) => {
         const mine = entries.filter((e) => e.board === b.key);
         const covers = mine
@@ -85,24 +85,24 @@ function Landing({
           <button
             key={b.key}
             onClick={() => onOpen(b.key)}
-            className="flex gap-3 rounded-xl p-4 text-left transition-transform hover:scale-[1.01]"
+            className="flex min-h-36 gap-5 rounded-2xl p-6 text-left transition-transform hover:scale-[1.01]"
             style={{ background: b.c.bg }}
           >
-            <div className="shrink-0">
-              <b.icon className="size-6" />
-              <div className="mt-2 text-base font-medium" style={{ color: b.c.text }}>
+            <div className="w-24 shrink-0">
+              <b.icon className="size-9" style={{ color: b.c.accent }} />
+              <div className="mt-3 text-2xl font-medium" style={{ color: b.c.text }}>
                 {b.name}
               </div>
-              <div className="text-xs" style={{ color: b.c.sub }}>
+              <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>
                 {mine.filter((e) => e.kind !== "note").length} 条
               </div>
             </div>
-            <div className="min-w-0 flex-1 border-l pl-3" style={{ borderColor: b.c.accent + "55" }}>
+            <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
               {b.key === "book" || b.key === "movie" ? (
                 covers.length > 0 ? (
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-2">
                     {covers.map((e) => (
-                      <div key={e.id} className="h-14 w-10 shrink-0 overflow-hidden rounded" style={{ background: b.c.accent + "33" }}>
+                      <div key={e.id} className="h-24 w-16 shrink-0 overflow-hidden rounded-md" style={{ background: b.c.accent + "33" }}>
                         {metaGet(e, "cover") && (
                           <img src={metaGet(e, "cover")} alt="" className="h-full w-full object-cover" />
                         )}
@@ -110,20 +110,20 @@ function Landing({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs" style={{ color: b.c.sub }}>{b.hint}</p>
+                  <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
                 )
               ) : latest ? (
                 <>
-                  <p className="text-xs font-medium" style={{ color: b.c.text }}>
+                  <p className="text-sm font-medium" style={{ color: b.c.text }}>
                     {latest.kind}
                     {latest.title ? ` · ${latest.title}` : ""}
                   </p>
-                  <p className="mt-1 line-clamp-3 text-xs leading-relaxed" style={{ color: b.c.sub }}>
+                  <p className="mt-1.5 line-clamp-4 text-sm leading-relaxed" style={{ color: b.c.sub }}>
                     {latest.body || b.hint}
                   </p>
                 </>
               ) : (
-                <p className="text-xs" style={{ color: b.c.sub }}>{b.hint}</p>
+                <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
               )}
             </div>
           </button>
@@ -590,7 +590,7 @@ function Page() {
   const boardEntries = board ? all.filter((e) => e.board === board) : [];
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <div className="mb-4 flex items-center gap-2">
         {board && (
           <button onClick={() => { setBoard(null); setOpenBookId(null); }} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
