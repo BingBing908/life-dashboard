@@ -121,7 +121,7 @@ function Landing({
                     {latest.title ? ` · ${latest.title}` : ""}
                   </p>
                   <p className="mt-1.5 line-clamp-4 text-sm leading-relaxed" style={{ color: b.c.sub }}>
-                    {latest.body || b.hint}
+                    {(latest.body || b.hint).replace(/\[\[([^\]]+)\]\]/g, "$1")}
                   </p>
                 </>
               ) : (
@@ -272,6 +272,289 @@ function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; o
           <span className="text-foreground/85">：{glossary[term]}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- 英语精读：双译 + 单词本 + 默写（方案 A）----
+
+interface Word { en: string; cn: string }
+interface WordAtt { e2c: { c: number; t: number }; c2e: { c: number; t: number } }
+interface ArtAtt { score: number }
+
+function parseMetaObj(e: Entry): Record<string, unknown> {
+  try {
+    return e.meta ? JSON.parse(e.meta) : {};
+  } catch {
+    return {};
+  }
+}
+const normEn = (s: string) => (s || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+const normCn = (s: string) => (s || "").replace(/[\s，。,.、；;！!？?"'“”‘’（）()]/g, "").trim();
+const cnOk = (u: string, a: string) => {
+  const x = normCn(u), y = normCn(a);
+  return !!x && (x === y || y.includes(x) || x.includes(y));
+};
+const enOk = (u: string, a: string) => {
+  const x = normEn(u), y = normEn(a);
+  return !!x && x === y;
+};
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** 单词默写：英译中 → 批改 → 中译英 → 批改 → 完成本遍；三遍留存对比 */
+function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; attempts: WordAtt[]; onSave: (a: WordAtt) => void; accent: string }) {
+  const [order, setOrder] = useState<Word[]>(() => shuffle(words));
+  const [phase, setPhase] = useState<"e2c" | "c2e">("e2c");
+  const [e2c, setE2c] = useState<Record<number, string>>({});
+  const [c2e, setC2e] = useState<Record<number, string>>({});
+  const [gE, setGE] = useState(false);
+  const [gC, setGC] = useState(false);
+  const [view, setView] = useState<number | null>(null); // 看第几遍；null=正在写
+
+  function reset() {
+    setOrder(shuffle(words)); setPhase("e2c"); setE2c({}); setC2e({}); setGE(false); setGC(false); setView(null);
+  }
+  function finish() {
+    const ec = order.filter((w, i) => cnOk(e2c[i] ?? "", w.cn)).length;
+    const ce = order.filter((w, i) => enOk(c2e[i] ?? "", w.en)).length;
+    onSave({ e2c: { c: ec, t: order.length }, c2e: { c: ce, t: order.length } });
+    reset();
+  }
+
+  const tabs = (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      {attempts.map((a, i) => (
+        <button key={i} onClick={() => setView(i)} className={cn("rounded-full border px-2.5 py-0.5 text-xs", view === i ? "text-primary-foreground" : "")} style={view === i ? { background: accent, borderColor: accent } : undefined}>
+          第{i + 1}遍 {a.e2c.c + a.c2e.c}/{a.e2c.t + a.c2e.t}
+        </button>
+      ))}
+      {attempts.length < 3 && (
+        <button onClick={() => setView(null)} className={cn("rounded-full border px-2.5 py-0.5 text-xs", view === null ? "text-primary-foreground" : "")} style={view === null ? { background: accent, borderColor: accent } : undefined}>
+          ✏️ 写{attempts.length ? "新一遍" : ""}
+        </button>
+      )}
+    </div>
+  );
+
+  if (view !== null && attempts[view]) {
+    const a = attempts[view];
+    return (
+      <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+        {tabs}
+        <p className="text-sm">第 {view + 1} 遍：英译中 <b>{a.e2c.c}/{a.e2c.t}</b> · 中译英 <b>{a.c2e.c}/{a.c2e.t}</b></p>
+        {attempts.length > 1 && <p className="mt-1 text-xs text-muted-foreground">切换标签对比各遍，看有没有进步。</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+      {tabs}
+      <p className="mb-2 text-sm font-medium">{phase === "e2c" ? "① 英译中（看英文，写中文）" : "② 中译英（看中文，写英文）"}</p>
+      <div className="space-y-1.5">
+        {order.map((w, i) => {
+          const val = phase === "e2c" ? (e2c[i] ?? "") : (c2e[i] ?? "");
+          const graded = phase === "e2c" ? gE : gC;
+          const ok = phase === "e2c" ? cnOk(val, w.cn) : enOk(val, w.en);
+          return (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-sm">{phase === "e2c" ? w.en : w.cn} →</span>
+              <input
+                value={val}
+                onChange={(e) => (phase === "e2c" ? setE2c((s) => ({ ...s, [i]: e.target.value })) : setC2e((s) => ({ ...s, [i]: e.target.value })))}
+                className="h-8 flex-1 rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                placeholder={phase === "e2c" ? "中文意思" : "English"}
+              />
+              {graded && (ok ? <span className="text-sm text-emerald-600">✓</span> : <span className="shrink-0 text-xs text-red-600">✗ {phase === "e2c" ? w.cn : w.en}</span>)}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        {phase === "e2c" && !gE && <Button size="sm" onClick={() => setGE(true)}>批改</Button>}
+        {phase === "e2c" && gE && <Button size="sm" onClick={() => setPhase("c2e")}>下一步：中译英</Button>}
+        {phase === "c2e" && !gC && <Button size="sm" onClick={() => setGC(true)}>批改</Button>}
+        {phase === "c2e" && gC && <Button size="sm" onClick={finish}>完成本遍</Button>}
+      </div>
+    </div>
+  );
+}
+
+/** 文章默写：写→批改（按词命中率+标出漏词）；三遍留存 */
+function ArticleDictation({ article, attempts, onSave, accent }: { article: string; attempts: ArtAtt[]; onSave: (a: ArtAtt) => void; accent: string }) {
+  const [text, setText] = useState("");
+  const [graded, setGraded] = useState(false);
+  const [view, setView] = useState<number | null>(null);
+
+  const expWords = (article.toLowerCase().match(/[a-z']+/g) ?? []);
+  const expSet = new Set(expWords);
+  const gotSet = new Set(text.toLowerCase().match(/[a-z']+/g) ?? []);
+  const missing = [...expSet].filter((w) => !gotSet.has(w));
+  const score = expSet.size ? Math.round(((expSet.size - missing.length) / expSet.size) * 100) : 0;
+
+  function finish() {
+    onSave({ score });
+    setText(""); setGraded(false); setView(null);
+  }
+  const tabs = (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      {attempts.map((a, i) => (
+        <button key={i} onClick={() => setView(i)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === i ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
+          第{i + 1}遍 {a.score}%
+        </button>
+      ))}
+      {attempts.length < 3 && (
+        <button onClick={() => setView(null)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === null ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
+          ✏️ 写{attempts.length ? "新一遍" : ""}
+        </button>
+      )}
+    </div>
+  );
+  if (view !== null && attempts[view]) {
+    return (
+      <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+        {tabs}
+        <p className="text-sm">第 {view + 1} 遍命中 <b>{attempts[view].score}%</b>{attempts.length > 1 && "（切标签对比进步）"}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+      {tabs}
+      <p className="mb-2 text-sm font-medium">默写文章（凭记忆写英文原文）</p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="在这里默写整篇……" className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
+      {graded && (
+        <div className="mt-2 text-sm">
+          <p>命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个词）。{missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}</p>
+        </div>
+      )}
+      <div className="mt-3 flex justify-end gap-2">
+        {!graded ? <Button size="sm" onClick={() => setGraded(true)}>批改</Button> : <Button size="sm" onClick={finish}>完成本遍</Button>}
+      </div>
+    </div>
+  );
+}
+
+/** 英语精读卡：左文章（可展开整段中文 + 默写），右竖排单词本（可默写） */
+function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accent: string; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
+  const m = parseMetaObj(entry);
+  const articleEn = (m.article_en as string) || entry.body || "";
+  const articleCn = (m.article_cn as string) || "";
+  const words = (m.words as Word[]) || [];
+  const notes = (m.notes as string) || "";
+  const recite = (m.recite as string) || "";
+  const wordAtt = (m.wordAtt as WordAtt[]) || [];
+  const artAtt = (m.artAtt as ArtAtt[]) || [];
+  const [showCn, setShowCn] = useState(false);
+  const [mode, setMode] = useState<"none" | "word" | "article">("none");
+
+  return (
+    <div className="group rounded-lg border bg-background p-3">
+      <div className="mb-2 flex items-center gap-2">
+        {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
+        {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
+        <button className="invisible ml-auto text-muted-foreground hover:text-destructive group-hover:visible" title="删除" onClick={() => onDelete(entry.id)}>
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+        <div className="min-w-0">
+          <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{articleEn}</p>
+          {notes && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">📝 {notes}</p>}
+          {recite && <p className="mt-1.5 text-sm" style={{ color: accent }}>🔖 背这句：{recite}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {articleCn && (
+              <button onClick={() => setShowCn((v) => !v)} className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent">
+                {showCn ? "▴ 收起中文" : "▾ 展开中文翻译"}
+              </button>
+            )}
+            <button onClick={() => setMode(mode === "article" ? "none" : "article")} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
+              默写文章{artAtt.length ? ` (${artAtt.length}/3)` : ""}
+            </button>
+          </div>
+          {showCn && articleCn && (
+            <p className="mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
+          )}
+        </div>
+
+        <div className="rounded-md border p-2.5" style={{ background: accent + "0d" }}>
+          <p className="mb-1.5 text-xs text-muted-foreground">单词本 · {words.length}</p>
+          <div className="space-y-0.5">
+            {words.map((w, i) => (
+              <div key={i} className="text-sm">
+                <span className="font-medium">{w.en}</span>
+                <span className="ml-1 text-xs text-muted-foreground">{w.cn}</span>
+              </div>
+            ))}
+          </div>
+          {words.length > 0 && (
+            <button onClick={() => setMode(mode === "word" ? "none" : "word")} className="mt-2 w-full rounded-md px-2 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
+              默写单词{wordAtt.length ? ` (${wordAtt.length}/3)` : ""}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {mode === "word" && (
+        <WordDictation words={words} attempts={wordAtt} accent={accent} onSave={(a) => onPatch(entry.id, { wordAtt: [...wordAtt, a].slice(-3) })} />
+      )}
+      {mode === "article" && (
+        <ArticleDictation article={articleEn} attempts={artAtt} accent={accent} onSave={(a) => onPatch(entry.id, { artAtt: [...artAtt, a].slice(-3) })} />
+      )}
+    </div>
+  );
+}
+
+/** 英语板块：精读卡（ReadingCard）+ 其它（谚语等用 EntryDoc）；按日期折叠，今天展开 */
+function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
+  const today = todayStr();
+  const [open, setOpen] = useState<Record<string, boolean>>({ [today]: true });
+  const byDate = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const d = e.entry_date || "未标日期";
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(e);
+  }
+  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  if (dates.length === 0) {
+    return <p className="py-10 text-sm text-muted-foreground">还没有内容。晚上发我「英语学完了，换新的」，我更新进来。</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {dates.map((d) => {
+        const isToday = d === today;
+        const isOpen = open[d] ?? isToday;
+        const items = byDate.get(d)!;
+        return (
+          <section key={d} className="rounded-xl border bg-card">
+            <button onClick={() => setOpen((o) => ({ ...o, [d]: !isOpen }))} className="flex w-full items-center gap-2 px-4 py-3 text-left">
+              {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+              <span className="text-sm font-medium" style={{ color: isToday ? cfg.c.sub : undefined }}>{isToday ? "今天" : d}</span>
+              <span className="text-xs text-muted-foreground">{items.map((i) => i.kind).filter(Boolean).join(" · ")}</span>
+              {isToday && <span className="ml-auto rounded-full px-2 py-0.5 text-xs" style={{ background: cfg.c.bg, color: cfg.c.text }}>今日</span>}
+            </button>
+            {isOpen && (
+              <div className="space-y-2 px-4 pb-4">
+                {items.map((e) =>
+                  e.kind === "精读文章" ? (
+                    <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} onDelete={onDelete} />
+                  ) : (
+                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} />
+                  ),
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -640,7 +923,11 @@ function Page() {
 
       {!board && <Landing entries={all} onOpen={setBoard} />}
 
-      {board && cfg && (board === "english" || board === "chinese" || board === "ai" || board === "history" || board === "finance") && (
+      {board === "english" && cfg && (
+        <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} onDelete={del} />
+      )}
+
+      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance") && (
         <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onDelete={del} />
       )}
 

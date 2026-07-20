@@ -37,7 +37,9 @@ export default function App() {
       if (alive) setBooting(false);
     });
 
-    const onFocus = () => runSync().then(bump);
+    // 后台同步只推/拉数据，不 bump（不重挂载）——否则会打断正在进行的操作（如默写）、
+    // 把用户从当前板块弹回首页。拉到的新数据在下次进入页面时自然显示。
+    const onFocus = () => runSync();
     window.addEventListener("focus", onFocus);
     const iv = setInterval(onFocus, 30_000);
     return () => {
