@@ -103,6 +103,7 @@ export const SCHEMA_SQL = `
         id          TEXT PRIMARY KEY,
         item_id     TEXT NOT NULL REFERENCES plan_items(id),
         date        TEXT NOT NULL,
+        status      TEXT,
         created_at  TEXT NOT NULL,
         updated_at  TEXT NOT NULL,
         device_id   TEXT,
@@ -188,4 +189,5 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE treat_log ADD COLUMN calories INTEGER",
   "ALTER TABLE habits ADD COLUMN days TEXT",
   "ALTER TABLE habits ADD COLUMN sort_order REAL",
+  "ALTER TABLE plan_checks ADD COLUMN status TEXT",
 ];

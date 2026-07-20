@@ -35,9 +35,11 @@ create table if not exists public.plan_items (
   created_at text, updated_at text, device_id text, deleted_at text
 );
 create table if not exists public.plan_checks (
-  id text primary key, item_id text, date text,
+  id text primary key, item_id text, date text, status text,
   created_at text, updated_at text, device_id text, deleted_at text
 );
+-- 旧库补列（已建表的项目跑这一行；status: 'done'/'skip'，NULL 视作 done）：
+alter table public.plan_checks add column if not exists status text;
 create table if not exists public.plan_notes (
   id text primary key, item_id text, date text, note text,
   created_at text, updated_at text, device_id text, deleted_at text

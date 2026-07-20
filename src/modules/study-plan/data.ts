@@ -235,39 +235,67 @@ export async function setNote(itemId: string, date: string, note: string): Promi
   }
 }
 
-/** 某天已完成的条目 id 集合 */
+/** 计划打卡三态：'done'=已完成，'skip'=今天做不了；无行=待做。旧行 status 为 NULL，按 done 处理。 */
+export type CheckStatus = "done" | "skip";
+
+/** 某天「已完成」的条目 id 集合（skip 不计入；供完成计数/昨日宽限/待办镜像 done 用） */
 export async function listChecks(date: string): Promise<Set<string>> {
   const db = await getDb();
   const rows = await db.select<{ item_id: string }[]>(
-    "SELECT item_id FROM plan_checks WHERE date = $1 AND deleted_at IS NULL",
+    "SELECT item_id FROM plan_checks WHERE date = $1 AND deleted_at IS NULL AND (status IS NULL OR status = 'done')",
     [date],
   );
   return new Set(rows.map((r) => r.item_id));
 }
 
-/** 切换完成状态；返回切换后是否已完成 */
-export async function toggleCheck(itemId: string, date: string): Promise<boolean> {
+/** 某天各条目的决定状态：item_id -> 'done' | 'skip'（无行＝待做，不在 map 里） */
+export async function listCheckStatus(date: string): Promise<Map<string, CheckStatus>> {
   const db = await getDb();
-  const existing = await db.select<{ id: string; deleted_at: string | null }[]>(
-    "SELECT id, deleted_at FROM plan_checks WHERE item_id = $1 AND date = $2",
+  const rows = await db.select<{ item_id: string; status: string | null }[]>(
+    "SELECT item_id, status FROM plan_checks WHERE date = $1 AND deleted_at IS NULL",
+    [date],
+  );
+  const m = new Map<string, CheckStatus>();
+  for (const r of rows) m.set(r.item_id, r.status === "skip" ? "skip" : "done");
+  return m;
+}
+
+/** 设置某条目某天的决定状态；null＝撤销回「待做」（软删除该行） */
+export async function setCheckStatus(
+  itemId: string,
+  date: string,
+  status: CheckStatus | null,
+): Promise<void> {
+  const db = await getDb();
+  const existing = await db.select<{ id: string }[]>(
+    "SELECT id FROM plan_checks WHERE item_id = $1 AND date = $2",
     [itemId, date],
   );
   const ts = nowIso();
-  if (existing.length === 0) {
-    const f = newRecordFields();
-    await db.execute(
-      "INSERT INTO plan_checks (id, item_id, date, created_at, updated_at, device_id) VALUES ($1, $2, $3, $4, $5, $6)",
-      [f.id, itemId, date, f.created_at, f.updated_at, f.device_id],
-    );
-    return true;
+  if (existing[0]) {
+    if (status === null) {
+      await db.execute("UPDATE plan_checks SET deleted_at = $1, updated_at = $1 WHERE id = $2", [ts, existing[0].id]);
+    } else {
+      await db.execute(
+        "UPDATE plan_checks SET status = $1, deleted_at = NULL, updated_at = $2 WHERE id = $3",
+        [status, ts, existing[0].id],
+      );
+    }
+    return;
   }
-  const row = existing[0];
-  if (row.deleted_at) {
-    await db.execute("UPDATE plan_checks SET deleted_at = NULL, updated_at = $1 WHERE id = $2", [ts, row.id]);
-    return true;
-  }
-  await db.execute("UPDATE plan_checks SET deleted_at = $1, updated_at = $1 WHERE id = $2", [ts, row.id]);
-  return false;
+  if (status === null) return;
+  const f = newRecordFields();
+  await db.execute(
+    "INSERT INTO plan_checks (id, item_id, date, status, created_at, updated_at, device_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [f.id, itemId, date, status, f.created_at, f.updated_at, f.device_id],
+  );
+}
+
+/** 切换完成状态（用于昨日宽限「补勾」）；返回切换后是否已完成 */
+export async function toggleCheck(itemId: string, date: string): Promise<boolean> {
+  const done = (await listChecks(date)).has(itemId);
+  await setCheckStatus(itemId, date, done ? null : "done");
+  return !done;
 }
 
 // ---------- 4 周递进周期 ----------

@@ -19,10 +19,11 @@ import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
 import {
   dayNumOf,
-  listChecks as listPlanChecks,
+  listCheckStatus as listPlanStatus,
   matchesDay,
   seedIfEmpty as seedPlan,
-  toggleCheck as togglePlanCheck,
+  setCheckStatus as setPlanCheckStatus,
+  type CheckStatus,
   type PlanItem,
 } from "../study-plan/data";
 import {
@@ -117,26 +118,28 @@ function Page() {
   const [filterQ, setFilterQ] = useState<Quadrant | null>(null);
   const [filterToday, setFilterToday] = useState(false);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
-  const [planChecks, setPlanChecks] = useState<Set<string>>(new Set());
+  const [planStatus, setPlanStatus] = useState<Map<string, CheckStatus>>(new Map());
   const today = todayStr();
 
   useEffect(() => {
     listTodos().then(setTodos);
     seedPlan().then(setPlanItems);
-    listPlanChecks(today).then(setPlanChecks);
+    listPlanStatus(today).then(setPlanStatus);
   }, [today]);
 
-  // 今天的学练计划（活读取，镜像进「今天」）
-  const planToday = planItems.filter((i) => matchesDay(i, dayNumOf(today)));
+  // 今天的学练计划（活读取，镜像进「今天」）；待做排上面，已决定沉到下方
+  const planToday = planItems
+    .filter((i) => matchesDay(i, dayNumOf(today)))
+    .sort((a, b) => Number(planStatus.has(a.id)) - Number(planStatus.has(b.id)));
 
-  async function togglePlan(id: string) {
-    const checked = await togglePlanCheck(id, today);
-    setPlanChecks((prev) => {
-      const n = new Set(prev);
-      if (checked) n.add(id);
-      else n.delete(id);
-      return n;
+  async function setPlan(id: string, next: CheckStatus | null) {
+    setPlanStatus((prev) => {
+      const m = new Map(prev);
+      if (next === null) m.delete(id);
+      else m.set(id, next);
+      return m;
     });
+    await setPlanCheckStatus(id, today, next);
   }
 
   const patch = (id: string, p: Partial<Todo>) =>
@@ -384,12 +387,20 @@ function Page() {
               </div>
               <div className="space-y-1.5">
                 {planToday.map((i) => {
-                  const done = planChecks.has(i.id);
+                  const st = planStatus.get(i.id) ?? "pending";
+                  const done = st === "done";
+                  const decided = st !== "pending";
                   return (
                     <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
-                      <DoneToggle done={done} onToggle={() => togglePlan(i.id)} size="sm" />
+                      <DoneToggle
+                        state={st}
+                        onDone={() => setPlan(i.id, "done")}
+                        onSkip={() => setPlan(i.id, "skip")}
+                        onClear={() => setPlan(i.id, null)}
+                        size="sm"
+                      />
                       <span className="w-20 shrink-0 text-xs text-muted-foreground">{i.time_slot}</span>
-                      <span className={cn("min-w-0 flex-1 truncate text-sm", done && "text-muted-foreground line-through")}>
+                      <span className={cn("min-w-0 flex-1 truncate text-sm", decided && "text-muted-foreground", done && "line-through")}>
                         {i.title}
                       </span>
                     </div>

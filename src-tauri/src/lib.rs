@@ -266,6 +266,15 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE habits ADD COLUMN sort_order REAL;
         "#,
         },
+        Migration {
+            version: 11,
+            description: "plan_checks_status",
+            kind: MigrationKind::Up,
+            // 计划打卡三态：status 'done'/'skip'（NULL 视作 done，兼容旧行）
+            sql: r#"
+            ALTER TABLE plan_checks ADD COLUMN status TEXT;
+        "#,
+        },
     ]
 }
 

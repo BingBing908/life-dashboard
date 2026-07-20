@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DoneToggle } from "@/components/DoneToggle";
+import { DoneToggle, type PlanState } from "@/components/DoneToggle";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import {
@@ -27,16 +27,19 @@ import {
   getSeedVersion,
   latestSeedVersion,
   listChecks,
+  listCheckStatus,
   listItems,
   listNotes,
   matchesDay,
   resetToSeed,
   seedIfEmpty,
+  setCheckStatus,
   setNote,
   setPeriodOn,
   toggleCheck,
   TRACKS,
   updateItemTitle,
+  type CheckStatus,
   type PlanItem,
   type Track,
 } from "./data";
@@ -129,7 +132,7 @@ function Card() {
 
 function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
-  const [checks, setChecks] = useState<Set<string>>(new Set());
+  const [checkMap, setCheckMap] = useState<Map<string, CheckStatus>>(new Map());
   const [cycleStart, setCycleStart] = useState<string | null>(null);
   const [tab, setTab] = useState<"today" | "week" | "roadmap">("today");
   const [newDay, setNewDay] = useState("*");
@@ -152,7 +155,7 @@ function Page() {
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
-    listChecks(today).then(setChecks);
+    listCheckStatus(today).then(setCheckMap);
     getCycleStart().then(setCycleStart);
     getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
     getPeriodOn().then(setPeriodState);
@@ -180,14 +183,21 @@ function Page() {
     ) {
       const fresh = await resetToSeed();
       setItems(fresh);
-      setChecks(new Set());
+      setCheckMap(new Map());
       setSeedOutdated(false);
     }
   }
 
   const week = cycleStart ? cycleWeekOf(cycleStart, today) : 1;
   const todays = shown.filter((i) => matchesDay(i, todayNum));
-  const doneCount = todays.filter((i) => checks.has(i.id)).length;
+  const doneCount = todays.filter((i) => checkMap.get(i.id) === "done").length;
+
+  // 待做(pending)排上面，已决定(done/skip)沉到下面；同组保持原顺序
+  const stateOf = (id: string): PlanState => checkMap.get(id) ?? "pending";
+  const pendingFirst = (list: PlanItem[]) =>
+    [...list].sort(
+      (a, b) => Number(stateOf(a.id) !== "pending") - Number(stateOf(b.id) !== "pending"),
+    );
 
   // 今天视图：按当前时间自动定位的领域（可手动切换查看）
   const autoKey = autoDomainKey();
@@ -195,7 +205,7 @@ function Page() {
   const active = DOMAINS.find((d) => d.key === activeKey)!;
   const planCards =
     active.source === "plan"
-      ? todays.filter((i) => active.tracks!.includes(i.track))
+      ? pendingFirst(todays.filter((i) => active.tracks!.includes(i.track)))
       : [];
   const todoCards =
     active.source === "todo"
@@ -215,14 +225,14 @@ function Page() {
     setYChecks((prev) => new Set(prev).add(item.id));
   }
 
-  async function handleToggle(item: PlanItem) {
-    const checked = await toggleCheck(item.id, today);
-    setChecks((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(item.id);
-      else next.delete(item.id);
-      return next;
+  async function setStatus(item: PlanItem, next: CheckStatus | null) {
+    setCheckMap((prev) => {
+      const m = new Map(prev);
+      if (next === null) m.delete(item.id);
+      else m.set(item.id, next);
+      return m;
     });
+    await setCheckStatus(item.id, today, next);
   }
 
   async function toggleWork(t: Todo) {
@@ -273,7 +283,9 @@ function Page() {
     withCheck: boolean;
     hideTag?: boolean;
   }) {
-    const done = checks.has(item.id);
+    const st = stateOf(item.id);
+    const done = st === "done";
+    const decided = st !== "pending";
     // 英语/学习/阅读：写了「做了什么」才允许打勾
     const needsNote =
       item.track === "english" ||
@@ -290,13 +302,15 @@ function Page() {
           ? "今天做了什么？如：刷完001"
           : "看了哪个视频 / 做了什么？";
     return (
-      <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && done && "opacity-60")}>
+      <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && decided && "opacity-60")}>
         <div className="flex items-center gap-3.5">
           {withCheck && (
             <DoneToggle
-              done={done}
+              state={st}
               canComplete={canCheck}
-              onToggle={() => handleToggle(item)}
+              onDone={() => setStatus(item, "done")}
+              onSkip={() => setStatus(item, "skip")}
+              onClear={() => setStatus(item, null)}
               size="sm"
               disabledHint="先写「做了什么」才能标记完成"
             />
@@ -356,25 +370,31 @@ function Page() {
     timeSlot,
     detail,
     url,
-    done,
+    state,
     noteRequired,
     notePlaceholder,
-    onToggle,
+    onDone,
+    onSkip,
+    onClear,
   }: {
     id: string;
     title: string;
     timeSlot?: string | null;
     detail: string | null;
     url: string | null;
-    done: boolean;
+    state: PlanState;
     noteRequired: boolean;
     notePlaceholder: string;
-    onToggle: () => void;
+    onDone: () => void;
+    onSkip: () => void;
+    onClear: () => void;
   }) {
+    const done = state === "done";
+    const decided = state !== "pending";
     const noteVal = notes[id] ?? "";
     const canCheck = !noteRequired || done || noteVal.trim().length > 0;
     return (
-      <div className={cn("rounded-xl border bg-card p-4", done && "opacity-60")}>
+      <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
         {/* 第一行：明细时间 + 要做的事 + 跳转 + 完成状态 */}
         <div className="flex items-center gap-3">
           {timeSlot && (
@@ -393,9 +413,11 @@ function Page() {
             </button>
           )}
           <DoneToggle
-            done={done}
+            state={state}
             canComplete={canCheck}
-            onToggle={onToggle}
+            onDone={onDone}
+            onSkip={onSkip}
+            onClear={onClear}
             disabledHint="先写「做了什么」才能标记完成"
           />
         </div>
@@ -581,10 +603,12 @@ function Page() {
                       timeSlot={i.time_slot}
                       detail={i.detail}
                       url={i.url}
-                      done={checks.has(i.id)}
+                      state={stateOf(i.id)}
                       noteRequired={active.noteRequired}
                       notePlaceholder={placeholderFor(active, i.track)}
-                      onToggle={() => handleToggle(i)}
+                      onDone={() => setStatus(i, "done")}
+                      onSkip={() => setStatus(i, "skip")}
+                      onClear={() => setStatus(i, null)}
                     />
                   ))}
                 {active.source === "todo" &&
@@ -595,10 +619,12 @@ function Page() {
                       title={t.title}
                       detail={null}
                       url={null}
-                      done={!!t.done}
+                      state={t.done ? "done" : "pending"}
                       noteRequired={active.noteRequired}
                       notePlaceholder={placeholderFor(active)}
-                      onToggle={() => toggleWork(t)}
+                      onDone={() => toggleWork(t)}
+                      onSkip={() => {}}
+                      onClear={() => toggleWork(t)}
                     />
                   ))}
                 {((active.source === "plan" && planCards.length === 0) ||

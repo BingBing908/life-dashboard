@@ -1,41 +1,47 @@
 import { cn } from "@/lib/utils";
 
+export type PlanState = "pending" | "done" | "skip";
+
 /**
- * 计划项的完成状态开关：两个按钮【已完成】【未完成】，替代原来的单个方框勾。
- * 底层仍是「切换」语义——只有点击会改变当前状态的那个按钮才触发 onToggle：
- *   · 点【已完成】：仅当当前未完成、且允许完成(canComplete)时切换
- *   · 点【未完成】：仅当当前已完成时切换
+ * 计划项的三态开关：两个按钮【已完成】【未完成(今天做不了)】。
+ *   · 初始「待做」(pending)：两个按钮都不高亮
+ *   · 点【已完成】→ done（绿）；再点一次撤销回 pending
+ *   · 点【未完成】→ skip（琥珀，＝今天做不了）；再点一次撤销回 pending
+ * 「已决定」(done/skip) 的项由调用方排到列表下方，上方只留待做项。
  * 全应用「计划」处共用（学练计划今日卡片 / 一周列表 / 待办页镜像），别再各写一份。
  */
 export function DoneToggle({
-  done,
+  state,
   canComplete = true,
-  onToggle,
+  onDone,
+  onSkip,
+  onClear,
   size = "md",
   disabledHint,
 }: {
-  done: boolean;
-  /** 门控：为 false 时禁用【已完成】（如英语/学习需先写「做了什么」） */
+  state: PlanState;
+  /** 门控：false 时禁用【已完成】（如英语/学习需先写「做了什么」） */
   canComplete?: boolean;
-  onToggle: () => void;
+  onDone: () => void;
+  onSkip: () => void;
+  onClear: () => void;
   size?: "sm" | "md";
-  /** canComplete 为 false 时鼠标悬停在【已完成】上的提示 */
   disabledHint?: string;
 }) {
   const pad = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm";
+  const isDone = state === "done";
+  const isSkip = state === "skip";
   return (
     <div className="inline-flex shrink-0 overflow-hidden rounded-md border">
       <button
         type="button"
-        disabled={!done && !canComplete}
-        title={!done && !canComplete ? disabledHint : undefined}
-        onClick={() => {
-          if (!done && canComplete) onToggle();
-        }}
+        disabled={!isDone && !canComplete}
+        title={!isDone && !canComplete ? disabledHint : undefined}
+        onClick={() => (isDone ? onClear() : canComplete && onDone())}
         className={cn(
           pad,
           "font-medium transition-colors",
-          done
+          isDone
             ? "bg-emerald-500 text-white"
             : canComplete
               ? "bg-background text-muted-foreground hover:bg-accent"
@@ -46,13 +52,13 @@ export function DoneToggle({
       </button>
       <button
         type="button"
-        onClick={() => {
-          if (done) onToggle();
-        }}
+        onClick={() => (isSkip ? onClear() : onSkip())}
         className={cn(
           pad,
           "border-l font-medium transition-colors",
-          !done ? "bg-muted text-foreground" : "bg-background text-muted-foreground hover:bg-accent",
+          isSkip
+            ? "bg-amber-500 text-white"
+            : "bg-background text-muted-foreground hover:bg-accent",
         )}
       >
         未完成
