@@ -63,7 +63,7 @@ interface Domain {
 const DOMAINS: Domain[] = [
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false },
   { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: true },
+  { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false },
   { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
   { key: "sport", name: "运动", start: 1180, time: "19:40", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
   { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
@@ -395,8 +395,16 @@ function Page() {
     const canCheck = !noteRequired || done || noteVal.trim().length > 0;
     return (
       <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
-        {/* 第一行：明细时间 + 要做的事 + 跳转 + 完成状态 */}
+        {/* 第一行：完成状态（最前）+ 明细时间 + 要做的事 + 跳转 */}
         <div className="flex items-center gap-3">
+          <DoneToggle
+            state={state}
+            canComplete={canCheck}
+            onDone={onDone}
+            onSkip={onSkip}
+            onClear={onClear}
+            disabledHint="先写「做了什么」才能标记完成"
+          />
           {timeSlot && (
             <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
               {timeSlot}
@@ -412,14 +420,6 @@ function Page() {
               <ExternalLink className="size-4" /> 打开
             </button>
           )}
-          <DoneToggle
-            state={state}
-            canComplete={canCheck}
-            onDone={onDone}
-            onSkip={onSkip}
-            onClear={onClear}
-            disabledHint="先写「做了什么」才能标记完成"
-          />
         </div>
         {/* 第二行：详细解释 */}
         {detail && (
@@ -438,7 +438,7 @@ function Page() {
         <input
           value={noteVal}
           onChange={(e) => saveNote(id, e.target.value)}
-          placeholder={done ? "已完成" : noteRequired ? notePlaceholder + "（写了才能打勾）" : "我做了什么（选填）"}
+          placeholder={done ? "已完成" : notePlaceholder + (noteRequired ? "（写了才能打勾）" : "（选填）")}
           className="mt-2.5 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
         />
       </div>

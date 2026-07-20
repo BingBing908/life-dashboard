@@ -20,9 +20,11 @@ import { getCheckins, listHabits } from "../habit-checkin/data";
 import {
   dayNumOf,
   listCheckStatus as listPlanStatus,
+  listNotes,
   matchesDay,
   seedIfEmpty as seedPlan,
   setCheckStatus as setPlanCheckStatus,
+  setNote,
   type CheckStatus,
   type PlanItem,
 } from "../study-plan/data";
@@ -120,13 +122,20 @@ function Page() {
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [planStatus, setPlanStatus] = useState<Map<string, CheckStatus>>(new Map());
   const [planOpen, setPlanOpen] = useState(false); // 今日学练计划镜像默认折叠，免得挤掉待办
+  const [notes, setNotes] = useState<Record<string, string>>({}); // 待办的「我做了什么」，存 plan_notes（与工作卡片共用同一份）
   const today = todayStr();
 
   useEffect(() => {
     listTodos().then(setTodos);
     seedPlan().then(setPlanItems);
     listPlanStatus(today).then(setPlanStatus);
+    listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
   }, [today]);
+
+  function saveTodoNote(id: string, v: string) {
+    setNotes((s) => ({ ...s, [id]: v }));
+    setNote(id, today, v);
+  }
 
   // 今天的学练计划（活读取，镜像进「今天」）；待做排上面，已决定沉到下方
   const planToday = planItems
@@ -310,34 +319,48 @@ function Page() {
             {pendingShown.map((t) => {
               const today_ = isToday(t);
               return (
-                <div key={t.id} className="group flex items-center gap-3 rounded-lg border px-4 py-3.5 hover:bg-accent/40">
-                  <Checkbox checked={!!t.done} onCheckedChange={() => handleToggle(t)} className="size-6" />
-                  <EditableText
-                    value={t.title}
-                    onSave={(v) => handleRename(t.id, v)}
-                    className="min-w-0 flex-1 truncate text-[15px] font-medium"
-                    inputClassName="flex-1 text-[15px]"
+                <div key={t.id} className="group rounded-lg border px-4 py-3.5 hover:bg-accent/40">
+                  <div className="flex items-center gap-3">
+                    <DoneToggle
+                      state={t.done ? "done" : "pending"}
+                      onDone={() => handleToggle(t)}
+                      onSkip={() => {}}
+                      onClear={() => handleToggle(t)}
+                      size="sm"
+                    />
+                    <EditableText
+                      value={t.title}
+                      onSave={(v) => handleRename(t.id, v)}
+                      className="min-w-0 flex-1 truncate text-[15px] font-medium"
+                      inputClassName="flex-1 text-[15px]"
+                    />
+                    <button
+                      onClick={() => toggleToday(t)}
+                      title={today_ ? "移出今天" : "标记今天做"}
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors",
+                        today_
+                          ? "bg-blue-50 text-blue-700"
+                          : "border border-dashed text-muted-foreground opacity-60 hover:opacity-100",
+                      )}
+                    >
+                      今天
+                    </button>
+                    <QuadrantTag q={t.quadrant} />
+                    <button
+                      className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                      title="删除"
+                      onClick={() => handleDelete(t.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                  <input
+                    value={notes[t.id] ?? ""}
+                    onChange={(e) => saveTodoNote(t.id, e.target.value)}
+                    placeholder="我具体做了什么？（选填）"
+                    className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
                   />
-                  <button
-                    onClick={() => toggleToday(t)}
-                    title={today_ ? "移出今天" : "标记今天做"}
-                    className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[11px] transition-colors",
-                      today_
-                        ? "bg-blue-50 text-blue-700"
-                        : "border border-dashed text-muted-foreground opacity-60 hover:opacity-100",
-                    )}
-                  >
-                    今天
-                  </button>
-                  <QuadrantTag q={t.quadrant} />
-                  <button
-                    className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                    title="删除"
-                    onClick={() => handleDelete(t.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
                 </div>
               );
             })}
@@ -362,7 +385,13 @@ function Page() {
               <div className="space-y-1.5">
                 {finishedShown.map((t) => (
                   <div key={t.id} className="group flex items-center gap-2.5 rounded-md border px-3 py-2">
-                    <Checkbox checked onCheckedChange={() => handleToggle(t)} className="size-5" />
+                    <DoneToggle
+                      state="done"
+                      onDone={() => {}}
+                      onSkip={() => {}}
+                      onClear={() => handleToggle(t)}
+                      size="sm"
+                    />
                     <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground line-through">
                       {t.title}
                     </span>
