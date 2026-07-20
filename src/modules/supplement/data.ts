@@ -1,6 +1,24 @@
 import { getDb, newRecordFields, nowIso } from "@/lib/db";
 import { todayStr } from "@/lib/dates";
 
+/** 每日卡路里目标（存 app_settings，跨设备同步；默认 1400） */
+export async function getCalTarget(): Promise<number> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key = 'cal_target'",
+  );
+  return rows[0] ? Number(rows[0].value) : 1400;
+}
+
+export async function setCalTarget(v: number): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ('cal_target', $1, $2)
+     ON CONFLICT(key) DO UPDATE SET value = $1, updated_at = $2`,
+    [String(v), nowIso()],
+  );
+}
+
 export type DrinkSubtype = "奶茶" | "果茶" | "酸奶";
 
 export interface Drink {

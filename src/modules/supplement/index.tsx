@@ -8,14 +8,19 @@ import type { AppModule } from "../types";
 import { dayNumOf, getPeriodOn } from "../study-plan/data";
 import {
   deleteDrink,
+  getCalTarget,
   getMeals,
   listDrinks,
   logDrink,
+  setCalTarget,
   setMeal,
   type Drink,
   type DrinkSubtype,
   type MealKey,
 } from "./data";
+
+/** 基础代谢（Mifflin-St Jeor，女 164cm/68kg/24岁，往低估）；低于它有掉发风险 */
+const BMR = 1420;
 
 /** 1=周一 … 7=周日；按 Rosie 作息表的补剂安排 */
 const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: string[] }> = {
@@ -175,6 +180,7 @@ function Page() {
   const todayNum = dayNumOf(todayStr());
   const [periodOn, setPeriodOn] = useState(false);
   const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [calTarget, setCalTargetState] = useState(1400);
   const [meals, setMeals] = useState<Record<MealKey, { content: string; calories: string }>>({
     早: { content: "", calories: "" },
     午: { content: "", calories: "" },
@@ -195,6 +201,7 @@ function Page() {
 
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
+    getCalTarget().then(setCalTargetState).catch(() => {});
     reloadDrinks();
     getMeals(today).then((m) => {
       setMeals({
@@ -231,10 +238,75 @@ function Page() {
   const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
   const todaySupp = SCHEDULE[todayNum];
 
+  function changeTarget(v: string) {
+    const n = Math.round(Number(v));
+    setCalTargetState(n);
+    if (n > 0) setCalTarget(n);
+  }
+
+  // 卡路里预算：早/午填进去，晚餐可吃 = 目标 − 早 − 午（实时）
+  const num = (s: string) => Number(s) || 0;
+  const bf = num(meals.早.calories);
+  const lu = num(meals.午.calories);
+  const dn = num(meals.晚.calories);
+  const eaten = bf + lu + dn;
+  const dinnerAllow = calTarget - bf - lu;
+  const scaleMax = Math.max(calTarget, BMR, eaten, 1) * 1.08;
+  const pctOf = (v: number) => `${Math.min(100, (v / scaleMax) * 100)}%`;
+  const belowBmr = calTarget > 0 && calTarget < BMR;
+
+  const caloriePanel = (
+    <section className="rounded-xl border bg-card p-4">
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <h2 className="text-lg font-semibold">今日卡路里</h2>
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          目标
+          <input
+            type="number"
+            value={calTarget || ""}
+            onChange={(e) => changeTarget(e.target.value)}
+            className="h-8 w-20 rounded-md border bg-transparent px-2 text-sm"
+          />
+          kcal
+        </label>
+        <span className="ml-auto text-sm">
+          晚餐还能吃{" "}
+          <b className={cn("font-medium", dinnerAllow < 0 ? "text-red-600" : "text-emerald-600")}>
+            {dinnerAllow < 0 ? `超 ${-dinnerAllow}` : dinnerAllow}
+          </b>{" "}
+          kcal
+        </span>
+      </div>
+      <div className="relative h-4 overflow-hidden rounded-full bg-muted">
+        <div className="absolute inset-y-0 left-0 bg-sky-500" style={{ width: pctOf(bf) }} />
+        <div className="absolute inset-y-0 bg-sky-300" style={{ left: pctOf(bf), width: pctOf(lu) }} />
+        <div className="absolute inset-y-0 bg-violet-400" style={{ left: pctOf(bf + lu), width: pctOf(dn) }} />
+        <div className="absolute inset-y-0 z-10 w-0.5 bg-foreground/70" style={{ left: pctOf(calTarget) }} title="今日目标" />
+        <div className="absolute inset-y-0 z-10 w-0.5 bg-red-500" style={{ left: pctOf(BMR) }} title="基础代谢，别低于" />
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+        <span><span className="text-red-500">│</span> 基代 {BMR}（别低于）</span>
+        <span>│ 目标 {calTarget}</span>
+        <span className="text-emerald-600">减脂安全区 {BMR}–1550</span>
+        <span>已吃 {eaten}</span>
+      </div>
+      {belowBmr && (
+        <p className="mt-1.5 text-xs text-red-600">
+          ⚠ 目标低于基础代谢（{BMR}），长期这样当心掉发/停经；想减脂建议压在 {BMR}–1550、配够蛋白。
+        </p>
+      )}
+    </section>
+  );
+
   return (
-    <div className="mx-auto max-w-3xl space-y-8 p-6">
-      {/* 补剂 */}
-      <section>
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
+      {caloriePanel}
+      <div
+        className="grid gap-6"
+        style={{ gridTemplateColumns: "minmax(0,1.3fr) minmax(240px,1fr)" }}
+      >
+      {/* 补剂：右上 */}
+      <section style={{ gridColumn: 2, gridRow: 1 }}>
         <h2 className="mb-1 text-lg font-semibold">补剂（今天 · {DAY_NAMES[todayNum]}）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
@@ -257,8 +329,8 @@ function Page() {
         )}
       </section>
 
-      {/* 三餐：推荐 + 记录 */}
-      <section>
+      {/* 三餐：左侧，纵跨两行 */}
+      <section style={{ gridColumn: 1, gridRow: "1 / 3" }}>
         <h2 className="mb-1 text-lg font-semibold">三餐（今天）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
@@ -301,8 +373,8 @@ function Page() {
         </div>
       </section>
 
-      {/* 饮品打卡 */}
-      <section>
+      {/* 饮品打卡：右下 */}
+      <section style={{ gridColumn: 2, gridRow: 2 }}>
         <div className="mb-1 flex items-baseline gap-2">
           <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
           <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
@@ -375,6 +447,7 @@ function Page() {
           <DrinkCalendar drinks={drinks} />
         </div>
       </section>
+      </div>
     </div>
   );
 }
