@@ -105,6 +105,34 @@ export function uuid(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * 确定性 id：同一 key 在任意设备都生成同一个 UUID 格式字符串。
+ * 专给**预置种子**用——两台设备播种同一模板会得到相同 id，云同步时 upsert
+ * 相互覆盖而非翻倍（修 #25 种子重复）。用户手动录入的数据仍用随机 `uuid()`。
+ * 非加密哈希（4 轮 FNV-1a 拼 128 位），只需在小规模种子集内稳定不撞即可。
+ */
+export function seedUuid(key: string): string {
+  const bytes = new Uint8Array(16);
+  for (let r = 0; r < 4; r++) {
+    const s = `${r}:${key}`;
+    let h = 0x811c9dc5; // FNV offset basis
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193); // FNV prime
+    }
+    h >>>= 0;
+    bytes[r * 4] = (h >>> 24) & 0xff;
+    bytes[r * 4 + 1] = (h >>> 16) & 0xff;
+    bytes[r * 4 + 2] = (h >>> 8) & 0xff;
+    bytes[r * 4 + 3] = h & 0xff;
+  }
+  // 置 version(5) / variant 位，确保是合法 UUID 格式
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }

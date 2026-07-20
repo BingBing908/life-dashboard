@@ -1,4 +1,4 @@
-import { getDb, newRecordFields, nowIso } from "@/lib/db";
+import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { addDays, todayStr } from "@/lib/dates";
 
 export interface Habit {
@@ -56,9 +56,11 @@ export function seedHabitsIfEmpty(): Promise<Habit[]> {
       let order = 1;
       for (const s of SEED_HABITS) {
         const f = newRecordFields();
+        // 确定性 id：按习惯名（已验证唯一）生成，任意设备一致 → 云同步去重（#25）
+        const id = seedUuid(`habit:${s.name}`);
         await db.execute(
           "INSERT INTO habits (id, name, days, sort_order, created_at, updated_at, device_id) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-          [f.id, s.name, s.days, order++, f.created_at, f.updated_at, f.device_id],
+          [id, s.name, s.days, order++, f.created_at, f.updated_at, f.device_id],
         );
       }
       return listHabits();

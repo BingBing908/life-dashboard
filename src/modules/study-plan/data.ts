@@ -1,4 +1,4 @@
-import { getDb, newRecordFields, nowIso } from "@/lib/db";
+import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { mondayOf, todayStr } from "@/lib/dates";
 import { SEED_ITEMS, SEED_VERSION } from "./seed";
 
@@ -63,10 +63,12 @@ export function seedIfEmpty(): Promise<PlanItem[]> {
       let order = 1;
       for (const s of SEED_ITEMS) {
         const f = newRecordFields();
+        // 确定性 id：按内容（track|title|time_slot，已验证唯一）生成，任意设备一致 → 云同步去重（#25）
+        const id = seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`);
         await db.execute(
           `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, created_at, updated_at, device_id)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          [f.id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, s.period_action ?? null, s.period_title ?? null, s.period_detail ?? null, order++, f.created_at, f.updated_at, f.device_id],
+          [id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, s.period_action ?? null, s.period_title ?? null, s.period_detail ?? null, order++, f.created_at, f.updated_at, f.device_id],
         );
       }
       await setCycleStart(mondayOf(todayStr()));
