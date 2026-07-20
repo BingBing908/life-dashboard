@@ -1,7 +1,7 @@
 import { getDb, newRecordFields, nowIso } from "@/lib/db";
 
 /** 六大板块 */
-export type Board = "english" | "chinese" | "ai" | "history" | "book" | "movie";
+export type Board = "english" | "chinese" | "ai" | "history" | "finance" | "book" | "movie";
 
 /** 通用学习条目：一条 = 一篇文章 / 一条新闻 / 一本书 / 一部电影……
  *  内容由 Claude 在对话里生成后，Rosie 贴进 body（meta 存结构化附加信息 JSON） */
