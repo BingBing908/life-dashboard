@@ -31,8 +31,7 @@ const SEED_HABITS: { name: string; days: string }[] = [
   { name: "眼保健操2次", days: "1,2,3,4,5" },
   { name: "肩颈拉伸", days: "1,2,3,4,5" },
   { name: "午休", days: "1,2,3,4,5" },
-  { name: "打扫卫生", days: "6,7" },
-  { name: "搓澡", days: "6,7" },
+  { name: "打扫卫生", days: "7" },
 ];
 
 export async function listHabits(): Promise<Habit[]> {
