@@ -169,6 +169,23 @@ export const SCHEMA_SQL = `
         device_id   TEXT,
         deleted_at  TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS study_entries (
+        id          TEXT PRIMARY KEY,
+        board       TEXT NOT NULL,
+        kind        TEXT,
+        entry_date  TEXT,
+        title       TEXT,
+        body        TEXT,
+        meta        TEXT,
+        status      TEXT,
+        sort_order  REAL NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL,
+        device_id   TEXT,
+        deleted_at  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_study_entries_board ON study_entries(board);
 `;
 
 /**

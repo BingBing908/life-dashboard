@@ -60,6 +60,11 @@ create table if not exists public.todos (
 create table if not exists public.app_settings (
   key text primary key, value text, updated_at text
 );
+create table if not exists public.study_entries (
+  id text primary key, board text, kind text, entry_date text, title text, body text,
+  meta text, status text, sort_order real,
+  created_at text, updated_at text, device_id text, deleted_at text
+);
 
 -- 档位 A：开启 RLS，给 anon（publishable key 对应的角色）全权限。
 do $$
@@ -68,7 +73,7 @@ begin
   foreach t in array array[
     'mini_tables','mini_table_rows','study_subjects','study_sessions','habits',
     'habit_checkins','plan_items','plan_checks','plan_notes','treat_log',
-    'meal_log','todos','app_settings'
+    'meal_log','todos','app_settings','study_entries'
   ]
   loop
     execute format('alter table public.%I enable row level security;', t);

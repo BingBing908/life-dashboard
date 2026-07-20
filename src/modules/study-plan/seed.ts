@@ -134,8 +134,8 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "19:40–19:50",
     title: "腰椎稳定 10 分钟（每晚开场）",
-    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停",
-    url: "https://www.bilibili.com/video/BV11f421Q7ZU/",
+    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停。（视频待换成 Rosie 收藏的腰椎稳定跟练）",
+    // url 待定：原 BV11f421Q7ZU 非 Rosie 收藏，已移除；Rosie 提供她收藏的链接后再填
     period_action: "swap",
     period_title: "腰椎稳定·经期版 10 分钟",
     period_detail: "猫牛式 + 臀桥 + 髋部轻拉伸（不做任何卷腹/侧桥/平板）；⚠️ 出现放射性疼痛立即停",
