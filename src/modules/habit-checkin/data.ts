@@ -86,6 +86,15 @@ export async function updateHabitName(id: string, name: string): Promise<void> {
   );
 }
 
+/** 改习惯的重复星期（days: '*' 或 '1,3,5'） */
+export async function updateHabitDays(id: string, days: string): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    "UPDATE habits SET days = $1, updated_at = $2 WHERE id = $3",
+    [days, nowIso(), id],
+  );
+}
+
 export async function deleteHabit(id: string): Promise<void> {
   const db = await getDb();
   const ts = nowIso();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, CircleCheck, Flame, Plus, Trash2 } from "lucide-react";
+import { Check, CircleCheck, Flame, Plus, Repeat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   habitOnDay,
   seedHabitsIfEmpty,
   toggleCheckin,
+  updateHabitDays,
   updateHabitName,
   type Habit,
 } from "./data";
@@ -81,6 +82,7 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
   // 新习惯的重复星期（默认每天全选）；空集=不能添加
   const [newDays, setNewDays] = useState<Set<number>>(new Set([1, 2, 3, 4, 5, 6, 7]));
   const [addHint, setAddHint] = useState("");
+  const [editDaysId, setEditDaysId] = useState<string | null>(null); // 正在改重复日的习惯
   const today = todayStr();
   // 只显示今天该打卡的（工作日/周末不同）
   const todayHabits = habits.filter((h) => habitOnDay(h, dayNum(today)));
@@ -122,6 +124,20 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
   async function handleRename(id: string, name: string) {
     setHabits((hs) => hs.map((h) => (h.id === id ? { ...h, name } : h)));
     await updateHabitName(id, name);
+  }
+
+  // 改某习惯的某个重复星期（至少保留一天）
+  async function toggleHabitDay(habit: Habit, d: number) {
+    const set =
+      habit.days && habit.days !== "*"
+        ? new Set(habit.days.split(",").map(Number))
+        : new Set([1, 2, 3, 4, 5, 6, 7]);
+    if (set.has(d)) set.delete(d);
+    else set.add(d);
+    if (set.size === 0) return;
+    const daysStr = set.size === 7 ? "*" : [...set].sort((a, b) => a - b).join(",");
+    setHabits((hs) => hs.map((h) => (h.id === habit.id ? { ...h, days: daysStr } : h)));
+    await updateHabitDays(habit.id, daysStr);
   }
 
   async function handleToggle(habitId: string, date: string) {
@@ -202,56 +218,94 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
                 {DAY_LABELS[i]}
               </span>
             ))}
-            <span className="w-5" />
+            <span className="w-10" />
           </div>
           {habits.map((habit) => {
             const dates = checkins.get(habit.id) ?? new Set<string>();
+            const editing = editDaysId === habit.id;
+            const habitDaySet =
+              habit.days && habit.days !== "*"
+                ? new Set(habit.days.split(",").map(Number))
+                : new Set([1, 2, 3, 4, 5, 6, 7]);
             return (
-              <div key={habit.id} className="group flex items-center gap-1">
-                <EditableText
-                  value={habit.name}
-                  onSave={(v) => handleRename(habit.id, v)}
-                  className="min-w-0 flex-1 truncate text-sm"
-                  inputClassName="flex-1 text-sm"
-                />
-                {weekDates.map((d, i) => {
-                  const applies = habitOnDay(habit, i + 1);
-                  const checked = dates.has(d);
-                  const disabled = d > today && !checked; // 未来未打卡不可点
-                  if (!applies) {
+              <div key={habit.id}>
+                <div className="group flex items-center gap-1">
+                  <EditableText
+                    value={habit.name}
+                    onSave={(v) => handleRename(habit.id, v)}
+                    className="min-w-0 flex-1 truncate text-sm"
+                    inputClassName="flex-1 text-sm"
+                  />
+                  {weekDates.map((d, i) => {
+                    const applies = habitOnDay(habit, i + 1);
+                    const checked = dates.has(d);
+                    const disabled = d > today && !checked; // 未来未打卡不可点
+                    if (!applies) {
+                      return (
+                        <span key={d} className="flex w-7 justify-center text-muted-foreground/30" title="这天不排这条">
+                          ·
+                        </span>
+                      );
+                    }
                     return (
-                      <span key={d} className="flex w-7 justify-center text-muted-foreground/30" title="这天不排这条">
-                        ·
-                      </span>
+                      <button
+                        key={d}
+                        disabled={disabled}
+                        onClick={() => handleToggle(habit.id, d)}
+                        title={d}
+                        className={cn(
+                          "flex size-7 items-center justify-center rounded-md border transition-colors",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : disabled
+                              ? "border-dashed opacity-40"
+                              : "hover:bg-accent",
+                          d === today && !checked && "ring-2 ring-primary/30",
+                        )}
+                      >
+                        {checked && <Check className="size-3.5" />}
+                      </button>
                     );
-                  }
-                  return (
-                    <button
-                      key={d}
-                      disabled={disabled}
-                      onClick={() => handleToggle(habit.id, d)}
-                      title={d}
-                      className={cn(
-                        "flex size-7 items-center justify-center rounded-md border transition-colors",
-                        checked
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : disabled
-                            ? "border-dashed opacity-40"
-                            : "hover:bg-accent",
-                        d === today && !checked && "ring-2 ring-primary/30",
-                      )}
-                    >
-                      {checked && <Check className="size-3.5" />}
-                    </button>
-                  );
-                })}
-                <button
-                  className="invisible w-5 shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                  title="删除习惯"
-                  onClick={() => handleDelete(habit.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+                  })}
+                  <button
+                    className={cn(
+                      "w-5 shrink-0",
+                      editing ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                    )}
+                    title="改重复星期"
+                    onClick={() => setEditDaysId(editing ? null : habit.id)}
+                  >
+                    <Repeat className="size-3.5" />
+                  </button>
+                  <button
+                    className="invisible w-5 shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                    title="删除习惯"
+                    onClick={() => handleDelete(habit.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+                {editing && (
+                  <div className="mb-2 mt-1 flex flex-wrap items-center gap-1 pl-1">
+                    <span className="text-xs text-muted-foreground">重复：</span>
+                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => toggleHabitDay(habit, d)}
+                        className={cn(
+                          "flex size-6 items-center justify-center rounded-md border text-xs transition-colors",
+                          habitDaySet.has(d)
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-accent",
+                        )}
+                      >
+                        {DAY_LABELS[d - 1]}
+                      </button>
+                    ))}
+                    <span className="ml-1 text-xs text-muted-foreground">{daysLabel(habit.days)}</span>
+                  </div>
+                )}
               </div>
             );
           })}
