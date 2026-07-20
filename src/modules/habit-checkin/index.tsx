@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { CircleCheck, Flame, Plus, Trash2 } from "lucide-react";
+import { Check, CircleCheck, Flame, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import { cn } from "@/lib/utils";
-import { addDays, todayStr } from "@/lib/dates";
+import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
   calcStreak,
@@ -75,7 +75,7 @@ function Card() {
  * 打卡面板：可独立成页，也可嵌入其他模块（如 To Do List 右栏）。
  * compact = 窄栏模式：隐藏近 7 天方块和副标题，控件缩小。
  */
-export function HabitPanel({ compact = false }: { compact?: boolean }) {
+export function HabitPanel({ compact = false, weekly = false }: { compact?: boolean; weekly?: boolean }) {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
   // 新习惯的重复星期（默认每天全选）；空集=不能添加
@@ -86,6 +86,8 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
   const todayHabits = habits.filter((h) => habitOnDay(h, dayNum(today)));
   // 近 7 天，最左是 6 天前
   const recentDays = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  // 本周一~周日（周表格用）
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(mondayOf(today), i));
 
   function toggleNewDay(d: number) {
     setNewDays((prev) => {
@@ -184,6 +186,79 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
         {addHint && <p className="mt-1.5 text-xs text-primary">{addHint}</p>}
       </div>
 
+      {weekly && (
+        <div className="space-y-1">
+          {/* 表头：本周一~日 */}
+          <div className="flex items-center gap-1 pb-1">
+            <span className="min-w-0 flex-1" />
+            {weekDates.map((d, i) => (
+              <span
+                key={d}
+                className={cn(
+                  "w-7 text-center text-xs",
+                  d === today ? "font-medium text-primary" : "text-muted-foreground",
+                )}
+              >
+                {DAY_LABELS[i]}
+              </span>
+            ))}
+            <span className="w-5" />
+          </div>
+          {habits.map((habit) => {
+            const dates = checkins.get(habit.id) ?? new Set<string>();
+            return (
+              <div key={habit.id} className="group flex items-center gap-1">
+                <EditableText
+                  value={habit.name}
+                  onSave={(v) => handleRename(habit.id, v)}
+                  className="min-w-0 flex-1 truncate text-sm"
+                  inputClassName="flex-1 text-sm"
+                />
+                {weekDates.map((d, i) => {
+                  const applies = habitOnDay(habit, i + 1);
+                  const checked = dates.has(d);
+                  const disabled = d > today && !checked; // 未来未打卡不可点
+                  if (!applies) {
+                    return (
+                      <span key={d} className="flex w-7 justify-center text-muted-foreground/30" title="这天不排这条">
+                        ·
+                      </span>
+                    );
+                  }
+                  return (
+                    <button
+                      key={d}
+                      disabled={disabled}
+                      onClick={() => handleToggle(habit.id, d)}
+                      title={d}
+                      className={cn(
+                        "flex size-7 items-center justify-center rounded-md border transition-colors",
+                        checked
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : disabled
+                            ? "border-dashed opacity-40"
+                            : "hover:bg-accent",
+                        d === today && !checked && "ring-2 ring-primary/30",
+                      )}
+                    >
+                      {checked && <Check className="size-3.5" />}
+                    </button>
+                  );
+                })}
+                <button
+                  className="invisible w-5 shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+                  title="删除习惯"
+                  onClick={() => handleDelete(habit.id)}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!weekly && (
       <div className={cn(compact ? "space-y-1" : "space-y-2")}>
         {todayHabits.map((habit) => {
           const dates = checkins.get(habit.id) ?? new Set<string>();
@@ -260,10 +335,11 @@ export function HabitPanel({ compact = false }: { compact?: boolean }) {
           );
         })}
       </div>
+      )}
 
-      {loaded && todayHabits.length === 0 && (
+      {loaded && (weekly ? habits.length === 0 : todayHabits.length === 0) && (
         <p className={cn("text-muted-foreground", compact ? "mt-4 text-sm" : "mt-8")}>
-          今天没有打卡项。
+          {weekly ? "还没有打卡项，上面添加。" : "今天没有打卡项。"}
         </p>
       )}
     </section>

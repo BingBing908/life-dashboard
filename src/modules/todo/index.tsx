@@ -234,7 +234,7 @@ function Page() {
     <div className="p-6">
       <ReviewBanner />
 
-      <div className="grid items-start gap-6 xl:grid-cols-[1.6fr_260px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
         <section className="rounded-xl border bg-card p-4">
           <div className="mb-3 flex items-baseline gap-2">
@@ -448,7 +448,7 @@ function Page() {
 
         {/* 打卡（窄） */}
         <section className="rounded-xl border bg-card p-4">
-          <HabitPanel compact />
+          <HabitPanel compact weekly />
         </section>
       </div>
     </div>
