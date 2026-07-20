@@ -220,12 +220,14 @@ function LearningBoard({
 /** 一条学习内容（展示为主，可删）。body 里 [[术语]] 会渲染成下划线，点开看 meta.glossary 里的释义。 */
 function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; onDelete: (id: string) => void }) {
   const [term, setTerm] = useState<string | null>(null);
-  let glossary: Record<string, string> = {};
+  let meta: Record<string, unknown> = {};
   try {
-    glossary = entry.meta ? JSON.parse(entry.meta).glossary ?? {} : {};
+    meta = entry.meta ? JSON.parse(entry.meta) : {};
   } catch {
-    glossary = {};
+    meta = {};
   }
+  const glossary = (meta.glossary as Record<string, string>) ?? {};
+  const image = meta.image as string | undefined;
   const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\])/g);
   return (
     <div className="group rounded-lg border bg-background p-3">
@@ -266,6 +268,7 @@ function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; o
           })}
         </p>
       )}
+      {image && <img src={image} alt="配图" className="mt-2 w-full max-w-xl rounded-md border" />}
       {term && glossary[term] && (
         <div className="mt-2 rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "12", borderColor: accent + "44" }}>
           <span className="font-medium" style={{ color: accent }}>{term}</span>
