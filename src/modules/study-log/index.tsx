@@ -473,9 +473,15 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
 
       <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
         <div className="min-w-0">
-          <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{articleEn}</p>
-          {notes && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">📝 {notes}</p>}
-          {recite && <p className="mt-1.5 text-sm" style={{ color: accent }}>🔖 背这句：{recite}</p>}
+          {/* 默写文章时把原文/学习点/背诵句/翻译都高糊，杜绝偷看 */}
+          <div className={cn("transition", mode === "article" && "pointer-events-none select-none blur-md")}>
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{articleEn}</p>
+            {notes && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">📝 {notes}</p>}
+            {recite && <p className="mt-1.5 text-sm" style={{ color: accent }}>🔖 背这句：{recite}</p>}
+          </div>
+          {mode === "article" && (
+            <p className="mt-2 text-xs text-muted-foreground">✍️ 默写中，原文已模糊——写完点「批改」再看。（点「收起默写」可退出）</p>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             {articleCn && (
               <button onClick={() => setShowCn((v) => !v)} className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent">
@@ -483,11 +489,11 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
               </button>
             )}
             <button onClick={() => setMode(mode === "article" ? "none" : "article")} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
-              默写文章{artAtt.length ? ` (${artAtt.length}/3)` : ""}
+              {mode === "article" ? "收起默写" : `默写文章${artAtt.length ? ` (${artAtt.length}/3)` : ""}`}
             </button>
           </div>
           {showCn && articleCn && (
-            <p className="mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
+            <p className={cn("mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground", mode === "article" && "pointer-events-none select-none blur-md")} style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
           )}
         </div>
 
