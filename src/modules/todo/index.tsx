@@ -218,7 +218,11 @@ function Page() {
       count: pending.filter((t) => t.quadrant === q.key).length,
       style: Q_STYLE[q.key],
       active: filterQ === q.key,
-      onClick: () => setFilterQ(filterQ === q.key ? null : q.key),
+      onClick: () => {
+        const next = filterQ === q.key ? null : q.key;
+        setFilterQ(next);
+        if (next) setNewQuadrant(next); // 联动：选了哪个象限框，添加默认就加到该象限
+      },
     })),
     {
       key: "today" as const,
@@ -226,7 +230,11 @@ function Page() {
       count: pending.filter(isToday).length,
       style: null,
       active: filterToday,
-      onClick: () => setFilterToday((v) => !v),
+      onClick: () => {
+        const nv = !filterToday;
+        setFilterToday(nv);
+        setNewToToday(nv); // 联动：选了「今天」框，添加默认勾今天
+      },
     },
   ];
 
