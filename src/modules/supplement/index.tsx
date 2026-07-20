@@ -27,7 +27,7 @@ const SCHEDULE: Record<number, { morning: string[]; noon: string[]; evening: str
   6: { morning: [],                noon: ["鱼油", "辅酶Q10"], evening: [] },
   7: { morning: ["复合维B", "维C"], noon: ["鱼油", "辅酶Q10"], evening: [] },
 };
-const PERIOD_SCHEDULE = { morning: [] as string[], noon: [] as string[], evening: ["小红镁"] };
+const PERIOD_SCHEDULE = { morning: [] as string[], noon: [] as string[], evening: [] as string[] };
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
 const MEALS: { key: MealKey; label: string; cook: string; takeout: string }[] = [
@@ -83,7 +83,7 @@ function Card() {
       <Slot label="早" items={s.morning} />
       <Slot label="午" items={s.noon} />
       <Slot label="晚" items={s.evening} />
-      {periodOn && <p className="text-xs text-pink-700">🩸 经期：停鱼油等，仅保留小红镁</p>}
+      {periodOn && <p className="text-xs text-pink-700">🩸 经期：已暂停所有保健品</p>}
     </div>
   );
 }
@@ -239,7 +239,7 @@ function Page() {
         </p>
         {periodOn && (
           <div className="mb-3 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-sm text-pink-700">
-            🩸 经期中：停鱼油等，仅保留晚间小红镁（下表为平时安排）
+            🩸 经期中：已暂停所有保健品（下表为平时安排）
           </div>
         )}
         <div className="overflow-hidden rounded-xl border">

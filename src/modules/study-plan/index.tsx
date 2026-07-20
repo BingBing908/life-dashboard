@@ -35,7 +35,6 @@ import {
   seedIfEmpty,
   setCheckStatus,
   setNote,
-  setPeriodOn,
   toggleCheck,
   TRACKS,
   updateItemTitle,
@@ -164,12 +163,6 @@ function Page() {
     listChecks(yesterday).then(setYChecks);
   }, [today, yesterday]);
 
-  async function togglePeriod() {
-    const next = !periodOn;
-    setPeriodState(next);
-    await setPeriodOn(next);
-  }
-
   // 经期开关打开时：隐藏 skip 项、把 swap 项换成经期版
   const shown = items
     .map((i) => applyPeriod(i, periodOn))
@@ -209,7 +202,9 @@ function Page() {
       : [];
   const todoCards =
     active.source === "todo"
-      ? todos.filter((t) => !t.done && t.due_date && t.due_date <= today)
+      ? todos
+          .filter((t) => t.due_date && t.due_date <= today)
+          .sort((a, b) => Number(!!a.done) - Number(!!b.done)) // 已完成沉到最下，不消失
       : [];
 
   // 「今天没勾=没完成」，唯一例外是睡前拉伸：昨天该做却没打勾的，今早还能补一勾
@@ -461,19 +456,12 @@ function Page() {
           周期第 {week} 周
         </span>
         <span className="text-sm text-muted-foreground">{CYCLE_PHASES[week - 1]}</span>
-        <button
-          onClick={togglePeriod}
-          title="经期模式：打开后自动隐藏/替换腹部相关内容"
-          className={cn(
-            "ml-auto rounded-full border px-3 py-1 text-sm transition-colors",
-            periodOn
-              ? "border-pink-300 bg-pink-50 text-pink-700"
-              : "text-muted-foreground hover:bg-accent",
-          )}
-        >
-          🩸 经期{periodOn ? "中·已避开腹部" : "模式"}
-        </button>
-        <div className="flex overflow-hidden rounded-md border">
+        {periodOn && (
+          <span className="rounded-full border border-pink-300 bg-pink-50 px-3 py-0.5 text-sm text-pink-700">
+            🩸 经期中 · 已避开腹部
+          </span>
+        )}
+        <div className="ml-auto flex overflow-hidden rounded-md border">
           {(["today", "week", "roadmap"] as const).map((t) => (
             <button
               key={t}
