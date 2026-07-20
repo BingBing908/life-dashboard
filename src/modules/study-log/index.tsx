@@ -150,7 +150,7 @@ function LearningBoard({
   onDelete: (id: string) => void;
 }) {
   const today = todayStr();
-  const [open, setOpen] = useState<Record<string, boolean>>({ [today]: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
 
   const byDate = new Map<string, Entry[]>();
@@ -160,6 +160,7 @@ function LearningBoard({
     byDate.get(d)!.push(e);
   }
   const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const primary = dates.includes(today) ? today : dates[0]; // 有今天开今天，否则开最新那天
 
   return (
     <div>
@@ -183,7 +184,7 @@ function LearningBoard({
       <div className="space-y-3">
         {dates.map((d) => {
           const isToday = d === today;
-          const isOpen = open[d] ?? isToday;
+          const isOpen = open[d] ?? d === primary;
           const items = byDate.get(d)!;
           return (
             <section key={d} className="rounded-xl border bg-card">
@@ -521,7 +522,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
 /** 英语板块：精读卡（ReadingCard）+ 其它（谚语等用 EntryDoc）；按日期折叠，今天展开 */
 function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
   const today = todayStr();
-  const [open, setOpen] = useState<Record<string, boolean>>({ [today]: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   const byDate = new Map<string, Entry[]>();
   for (const e of entries) {
     const d = e.entry_date || "未标日期";
@@ -529,6 +530,7 @@ function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entr
     byDate.get(d)!.push(e);
   }
   const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const primary = dates.includes(today) ? today : dates[0]; // 有今天开今天，否则开最新那天
   if (dates.length === 0) {
     return <p className="py-10 text-sm text-muted-foreground">还没有内容。晚上发我「英语学完了，换新的」，我更新进来。</p>;
   }
@@ -536,7 +538,7 @@ function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entr
     <div className="space-y-3">
       {dates.map((d) => {
         const isToday = d === today;
-        const isOpen = open[d] ?? isToday;
+        const isOpen = open[d] ?? d === primary;
         const items = byDate.get(d)!;
         return (
           <section key={d} className="rounded-xl border bg-card">
