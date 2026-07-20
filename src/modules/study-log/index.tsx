@@ -314,6 +314,11 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** 默写时把内容「高糊」（看不清→不会偷看）；文章和单词本复用同一个组件 */
+function Blurred({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return <div className={cn("transition", active && "pointer-events-none select-none blur-md")}>{children}</div>;
+}
+
 /** 单词默写：英译中 → 批改 → 中译英 → 批改 → 完成本遍；三遍留存对比 */
 function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; attempts: WordAtt[]; onSave: (a: WordAtt) => void; accent: string }) {
   const [order, setOrder] = useState<Word[]>(() => shuffle(words));
@@ -473,12 +478,12 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
 
       <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
         <div className="min-w-0">
-          {/* 默写文章时把原文/学习点/背诵句/翻译都高糊，杜绝偷看 */}
-          <div className={cn("transition", mode === "article" && "pointer-events-none select-none blur-md")}>
+          {/* 默写文章时把原文/学习点/背诵句都高糊，杜绝偷看 */}
+          <Blurred active={mode === "article"}>
             <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{articleEn}</p>
             {notes && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">📝 {notes}</p>}
             {recite && <p className="mt-1.5 text-sm" style={{ color: accent }}>🔖 背这句：{recite}</p>}
-          </div>
+          </Blurred>
           {mode === "article" && (
             <p className="mt-2 text-xs text-muted-foreground">✍️ 默写中，原文已模糊——写完点「批改」再看。（点「收起默写」可退出）</p>
           )}
@@ -493,23 +498,29 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
             </button>
           </div>
           {showCn && articleCn && (
-            <p className={cn("mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground", mode === "article" && "pointer-events-none select-none blur-md")} style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
+            <Blurred active={mode === "article"}>
+              <p className="mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
+            </Blurred>
           )}
         </div>
 
         <div className="rounded-md border p-2.5" style={{ background: accent + "0d" }}>
           <p className="mb-1.5 text-xs text-muted-foreground">单词本 · {words.length}</p>
-          <div className="space-y-0.5">
-            {words.map((w, i) => (
-              <div key={i} className="text-sm">
-                <span className="font-medium">{w.en}</span>
-                <span className="ml-1 text-xs text-muted-foreground">{w.cn}</span>
-              </div>
-            ))}
-          </div>
+          {/* 默写单词时单词本高糊，杜绝偷看答案 */}
+          <Blurred active={mode === "word"}>
+            <div className="space-y-0.5">
+              {words.map((w, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-medium">{w.en}</span>
+                  <span className="ml-1 text-xs text-muted-foreground">{w.cn}</span>
+                </div>
+              ))}
+            </div>
+          </Blurred>
+          {mode === "word" && <p className="mt-1 text-[11px] text-muted-foreground">默写中，单词本已模糊</p>}
           {words.length > 0 && (
             <button onClick={() => setMode(mode === "word" ? "none" : "word")} className="mt-2 w-full rounded-md px-2 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
-              默写单词{wordAtt.length ? ` (${wordAtt.length}/3)` : ""}
+              {mode === "word" ? "收起默写" : `默写单词${wordAtt.length ? ` (${wordAtt.length}/3)` : ""}`}
             </button>
           )}
         </div>
