@@ -41,7 +41,7 @@ type BoardCfg = {
 
 const BOARDS: BoardCfg[] = [
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
-  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "古诗", "练笔"], hint: "成语配典故 · 古诗 · 练笔", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
+  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔"], hint: "每日成语+谚语 · 古诗背诵 · 练笔输出", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "术语卡"], hint: "每日 5 条新闻 + 术语卡", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
   { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "时间线框架 + 每日一卡", c: { bg: "#FAEEDA", text: "#633806", sub: "#854F0B", accent: "#BA7517" } },
   { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "看懂日线 · 基金入门（教知识、不荐买卖）", c: { bg: "#EAF3DE", text: "#27500A", sub: "#3B6D11", accent: "#639922" } },
