@@ -129,6 +129,181 @@ function Card() {
   return <p className="text-sm text-muted-foreground">{text ?? "加载中…"}</p>;
 }
 
+function ItemRow({
+  item,
+  withCheck,
+  hideTag = false,
+  state,
+  noteVal,
+  onNote,
+  onDone,
+  onSkip,
+  onClear,
+  onRename,
+  onDelete,
+}: {
+  item: PlanItem;
+  withCheck: boolean;
+  hideTag?: boolean;
+  state: PlanState;
+  noteVal: string;
+  onNote: (v: string) => void;
+  onDone: () => void;
+  onSkip: () => void;
+  onClear: () => void;
+  onRename: (v: string) => void;
+  onDelete: () => void;
+}) {
+  const done = state === "done";
+  const decided = state !== "pending";
+  const needsNote =
+    item.track === "english" ||
+    item.track === "cert" ||
+    item.track === "ai" ||
+    item.track === "reading";
+  const canCheck = !needsNote || done || noteVal.trim().length > 0;
+  const showNote = withCheck && needsNote;
+  const notePlaceholder =
+    item.track === "reading"
+      ? "看到哪本书的哪里？如：《她对此感到厌烦》第3章"
+      : item.track === "english"
+        ? "今天做了什么？如：刷完001"
+        : "看了哪个视频 / 做了什么？";
+  return (
+    <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && decided && "opacity-60")}>
+      <div className="flex items-center gap-3.5">
+        {withCheck && (
+          <DoneToggle
+            state={state}
+            canComplete={canCheck}
+            onDone={onDone}
+            onSkip={onSkip}
+            onClear={onClear}
+            size="sm"
+            disabledHint="先写「做了什么」才能标记完成"
+          />
+        )}
+        <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
+        {!hideTag && <TrackTag t={item.track} />}
+        <div className="min-w-0 flex-1">
+          <EditableText
+            value={item.title}
+            onSave={onRename}
+            className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
+            inputClassName="w-full text-[15px]"
+          />
+          {item.detail && (
+            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
+              {item.detail}
+            </p>
+          )}
+        </div>
+        {item.url && (
+          <button
+            className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
+            title="打开跟练视频"
+            onClick={() => openLink(item.url!)}
+          >
+            <ExternalLink className="size-4" /> 跟练
+          </button>
+        )}
+        <button
+          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+          title="删除"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+      {showNote && (
+        <input
+          value={noteVal}
+          onChange={(e) => onNote(e.target.value)}
+          placeholder={done ? "已完成" : notePlaceholder + "（写了才能打勾）"}
+          className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+        />
+      )}
+    </div>
+  );
+}
+
+/** 今天视图的大卡片：完成状态 + 明细时间 + 标题 + 打开 / 详解 / 网址 / 我做了什么 */
+function ThreeRowCard({
+  title,
+  timeSlot,
+  detail,
+  url,
+  state,
+  noteRequired,
+  notePlaceholder,
+  noteVal,
+  onNote,
+  onDone,
+  onSkip,
+  onClear,
+}: {
+  title: string;
+  timeSlot?: string | null;
+  detail: string | null;
+  url: string | null;
+  state: PlanState;
+  noteRequired: boolean;
+  notePlaceholder: string;
+  noteVal: string;
+  onNote: (v: string) => void;
+  onDone: () => void;
+  onSkip: () => void;
+  onClear: () => void;
+}) {
+  const done = state === "done";
+  const decided = state !== "pending";
+  const canCheck = !noteRequired || done || noteVal.trim().length > 0;
+  return (
+    <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
+      <div className="flex items-center gap-3">
+        <DoneToggle
+          state={state}
+          canComplete={canCheck}
+          onDone={onDone}
+          onSkip={onSkip}
+          onClear={onClear}
+          disabledHint="先写「做了什么」才能标记完成"
+        />
+        {timeSlot && (
+          <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+            {timeSlot}
+          </span>
+        )}
+        <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
+        {url && (
+          <button
+            onClick={() => openLink(url)}
+            title="打开"
+            className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
+          >
+            <ExternalLink className="size-4" /> 打开
+          </button>
+        )}
+      </div>
+      {detail && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>}
+      {url && (
+        <button
+          onClick={() => openLink(url)}
+          className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
+        >
+          {url}
+        </button>
+      )}
+      <input
+        value={noteVal}
+        onChange={(e) => onNote(e.target.value)}
+        placeholder={done ? "已完成" : notePlaceholder + (noteRequired ? "（写了才能打勾）" : "（选填）")}
+        className="mt-2.5 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+      />
+    </div>
+  );
+}
+
 function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [checkMap, setCheckMap] = useState<Map<string, CheckStatus>>(new Map());
@@ -267,177 +442,6 @@ function Page() {
     setItems((its) => [...its, item]);
     setNewTitle("");
     setNewUrl("");
-  }
-
-  function ItemRow({
-    item,
-    withCheck,
-    hideTag = false,
-  }: {
-    item: PlanItem;
-    withCheck: boolean;
-    hideTag?: boolean;
-  }) {
-    const st = stateOf(item.id);
-    const done = st === "done";
-    const decided = st !== "pending";
-    // 英语/学习/阅读：写了「做了什么」才允许打勾
-    const needsNote =
-      item.track === "english" ||
-      item.track === "cert" ||
-      item.track === "ai" ||
-      item.track === "reading";
-    const noteVal = notes[item.id] ?? "";
-    const canCheck = !needsNote || done || noteVal.trim().length > 0;
-    const showNote = withCheck && needsNote;
-    const notePlaceholder =
-      item.track === "reading"
-        ? "看到哪本书的哪里？如：《她对此感到厌烦》第3章"
-        : item.track === "english"
-          ? "今天做了什么？如：刷完001"
-          : "看了哪个视频 / 做了什么？";
-    return (
-      <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && decided && "opacity-60")}>
-        <div className="flex items-center gap-3.5">
-          {withCheck && (
-            <DoneToggle
-              state={st}
-              canComplete={canCheck}
-              onDone={() => setStatus(item, "done")}
-              onSkip={() => setStatus(item, "skip")}
-              onClear={() => setStatus(item, null)}
-              size="sm"
-              disabledHint="先写「做了什么」才能标记完成"
-            />
-          )}
-          <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
-          {!hideTag && <TrackTag t={item.track} />}
-          <div className="min-w-0 flex-1">
-            <EditableText
-              value={item.title}
-              onSave={(v) => handleRename(item.id, v)}
-              className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
-              inputClassName="w-full text-[15px]"
-            />
-            {item.detail && (
-              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
-                {item.detail}
-              </p>
-            )}
-          </div>
-          {item.url && (
-            <button
-              className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
-              title="打开跟练视频"
-              onClick={() => openLink(item.url!)}
-            >
-              <ExternalLink className="size-4" /> 跟练
-            </button>
-          )}
-          <button
-            className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-            title="删除"
-            onClick={() => handleDelete(item.id)}
-          >
-            <Trash2 className="size-4" />
-          </button>
-        </div>
-        {showNote && (
-          <input
-            value={noteVal}
-            onChange={(e) => {
-              const v = e.target.value;
-              setNotes((s) => ({ ...s, [item.id]: v }));
-              setNote(item.id, today, v);
-            }}
-            placeholder={done ? "已完成" : notePlaceholder + "（写了才能打勾）"}
-            className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-          />
-        )}
-      </div>
-    );
-  }
-
-  /** 今天视图的大卡片：勾选+标题+打开 / 详细解释 / 网址 / 我做了什么 */
-  function ThreeRowCard({
-    id,
-    title,
-    timeSlot,
-    detail,
-    url,
-    state,
-    noteRequired,
-    notePlaceholder,
-    onDone,
-    onSkip,
-    onClear,
-  }: {
-    id: string;
-    title: string;
-    timeSlot?: string | null;
-    detail: string | null;
-    url: string | null;
-    state: PlanState;
-    noteRequired: boolean;
-    notePlaceholder: string;
-    onDone: () => void;
-    onSkip: () => void;
-    onClear: () => void;
-  }) {
-    const done = state === "done";
-    const decided = state !== "pending";
-    const noteVal = notes[id] ?? "";
-    const canCheck = !noteRequired || done || noteVal.trim().length > 0;
-    return (
-      <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
-        {/* 第一行：完成状态（最前）+ 明细时间 + 要做的事 + 跳转 */}
-        <div className="flex items-center gap-3">
-          <DoneToggle
-            state={state}
-            canComplete={canCheck}
-            onDone={onDone}
-            onSkip={onSkip}
-            onClear={onClear}
-            disabledHint="先写「做了什么」才能标记完成"
-          />
-          {timeSlot && (
-            <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-              {timeSlot}
-            </span>
-          )}
-          <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
-          {url && (
-            <button
-              onClick={() => openLink(url)}
-              title="打开"
-              className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
-            >
-              <ExternalLink className="size-4" /> 打开
-            </button>
-          )}
-        </div>
-        {/* 第二行：详细解释 */}
-        {detail && (
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>
-        )}
-        {/* 第三行：网址 */}
-        {url && (
-          <button
-            onClick={() => openLink(url)}
-            className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
-          >
-            {url}
-          </button>
-        )}
-        {/* 第四行：我做了什么 */}
-        <input
-          value={noteVal}
-          onChange={(e) => saveNote(id, e.target.value)}
-          placeholder={done ? "已完成" : notePlaceholder + (noteRequired ? "（写了才能打勾）" : "（选填）")}
-          className="mt-2.5 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-        />
-      </div>
-    );
   }
 
   /** 领域内条目的「我做了什么」提示语 */
@@ -586,7 +590,6 @@ function Page() {
                   planCards.map((i) => (
                     <ThreeRowCard
                       key={i.id}
-                      id={i.id}
                       title={i.title}
                       timeSlot={i.time_slot}
                       detail={i.detail}
@@ -594,6 +597,8 @@ function Page() {
                       state={stateOf(i.id)}
                       noteRequired={active.noteRequired}
                       notePlaceholder={placeholderFor(active, i.track)}
+                      noteVal={notes[i.id] ?? ""}
+                      onNote={(v) => saveNote(i.id, v)}
                       onDone={() => setStatus(i, "done")}
                       onSkip={() => setStatus(i, "skip")}
                       onClear={() => setStatus(i, null)}
@@ -603,13 +608,14 @@ function Page() {
                   todoCards.map((t) => (
                     <ThreeRowCard
                       key={t.id}
-                      id={t.id}
                       title={t.title}
                       detail={null}
                       url={null}
                       state={t.done ? "done" : "pending"}
                       noteRequired={active.noteRequired}
                       notePlaceholder={placeholderFor(active)}
+                      noteVal={notes[t.id] ?? ""}
+                      onNote={(v) => saveNote(t.id, v)}
                       onDone={() => toggleWork(t)}
                       onSkip={() => {}}
                       onClear={() => toggleWork(t)}
@@ -691,7 +697,19 @@ function Page() {
                 </h2>
                 <div className="space-y-1.5">
                   {dayItems.map((item) => (
-                    <ItemRow key={`${d}-${item.id}`} item={item} withCheck={d === todayNum} />
+                    <ItemRow
+                      key={`${d}-${item.id}`}
+                      item={item}
+                      withCheck={d === todayNum}
+                      state={stateOf(item.id)}
+                      noteVal={notes[item.id] ?? ""}
+                      onNote={(v) => saveNote(item.id, v)}
+                      onDone={() => setStatus(item, "done")}
+                      onSkip={() => setStatus(item, "skip")}
+                      onClear={() => setStatus(item, null)}
+                      onRename={(v) => handleRename(item.id, v)}
+                      onDelete={() => handleDelete(item.id)}
+                    />
                   ))}
                 </div>
               </section>
