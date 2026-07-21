@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { seedUuid } from "@/lib/db";
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
 import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
@@ -38,6 +39,7 @@ import {
   toggleCheck,
   TRACKS,
   updateItemTitle,
+  updateItemUrl,
   type CheckStatus,
   type PlanItem,
   type Track,
@@ -45,12 +47,16 @@ import {
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 
-/** 是否原定计划条目（在种子模板里）——是则不允许删除，只有自己加的「计划外」才能删。
- *  ⚠️ 经期开关会把标题换成 period_title，所以两者都要比对，否则经期版会被误判成「计划外」。 */
+/** 所有种子条目的确定性 id 集合（与 seedIfEmpty 的生成方式完全一致）。
+ *  ⚠️ 用 id 判定「是否原定计划」，不用名字——名字会被经期开关换成 period_title、也会被就地改名，
+ *  按名字判定会误伤（Rosie 踩过：经期版腰椎稳定被当成计划外给删了）；id 建库起就固定，最稳。 */
+const SEED_IDS = new Set(
+  SEED_ITEMS.map((s) => seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`)),
+);
+
+/** 是否原定计划条目——是则不允许删除，只有自己加的「计划外」（随机 id）才能删。 */
 function isSeedItem(item: PlanItem): boolean {
-  return SEED_ITEMS.some(
-    (s) => s.track === item.track && (s.title === item.title || s.period_title === item.title),
-  );
+  return SEED_IDS.has(item.id);
 }
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
@@ -172,7 +178,7 @@ function ItemRow({
   onSkip: () => void;
   onClear: () => void;
   onRename: (v: string) => void;
-  onDelete: () => void;
+  onDelete?: () => void; // 仅计划外（自己加的）传；原定计划不给删
   noteGate?: boolean; // 补卡过去的天不门控笔记
 }) {
   const done = state === "done";
@@ -228,13 +234,15 @@ function ItemRow({
             <ExternalLink className="size-4" /> 跟练
           </button>
         )}
-        <button
-          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-          title="删除"
-          onClick={onDelete}
-        >
-          <Trash2 className="size-4" />
-        </button>
+        {onDelete && (
+          <button
+            className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+            title="删除（计划外·自己加的）"
+            onClick={onDelete}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        )}
       </div>
       {showNote && (
         <input
@@ -263,6 +271,7 @@ function ThreeRowCard({
   onSkip,
   onClear,
   onDelete,
+  onSetUrl,
 }: {
   title: string;
   timeSlot?: string | null;
@@ -277,6 +286,7 @@ function ThreeRowCard({
   onSkip: () => void;
   onClear: () => void;
   onDelete?: () => void; // 仅计划外（自己加的）传，用来删除
+  onSetUrl?: (v: string) => void; // 仅计划外传，点「＋加链接」就地写链接
 }) {
   const done = state === "done";
   const decided = state !== "pending";
@@ -314,13 +324,27 @@ function ThreeRowCard({
         )}
       </div>
       {detail && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>}
-      {url && (
-        <button
-          onClick={() => openLink(url)}
-          className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
-        >
-          {url}
-        </button>
+      {onSetUrl ? (
+        // 计划外（自己加的）：给一行可就地编辑的链接，点一下即可写/改
+        <div className="mt-1.5 flex items-center gap-2 text-xs">
+          <span className="shrink-0 text-muted-foreground">链接</span>
+          <EditableText
+            value={url ?? ""}
+            onSave={onSetUrl}
+            placeholder="＋ 加个链接（可选）"
+            className="min-w-0 flex-1 truncate text-primary/80"
+            inputClassName="w-full text-xs"
+          />
+        </div>
+      ) : (
+        url && (
+          <button
+            onClick={() => openLink(url)}
+            className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
+          >
+            {url}
+          </button>
+        )
       )}
       <input
         value={noteVal}
@@ -518,6 +542,11 @@ function Page() {
     await deleteItem(id);
   }
 
+  async function handleSetUrl(id: string, url: string) {
+    setItems((its) => its.map((i) => (i.id === id ? { ...i, url: url || null } : i)));
+    await updateItemUrl(id, url);
+  }
+
   async function handleCreate() {
     const title = newTitle.trim();
     if (!title) return;
@@ -708,6 +737,7 @@ function Page() {
                       onSkip={() => setStatus(i, "skip")}
                       onClear={() => setStatus(i, null)}
                       onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
+                      onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
                     />
                   ))}
                 {active.source === "todo" &&
@@ -834,7 +864,7 @@ function Page() {
                       onSkip={() => setStatusForDate(item, dateD, "skip")}
                       onClear={() => setStatusForDate(item, dateD, null)}
                       onRename={(v) => handleRename(item.id, v)}
-                      onDelete={() => handleDelete(item.id)}
+                      onDelete={isSeedItem(item) ? undefined : () => handleDelete(item.id)}
                     />
                   ))}
                 </div>

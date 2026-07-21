@@ -195,6 +195,15 @@ export async function updateItemDetail(id: string, detail: string): Promise<void
   ]);
 }
 
+export async function updateItemUrl(id: string, url: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE plan_items SET url = $1, updated_at = $2 WHERE id = $3", [
+    url || null,
+    nowIso(),
+    id,
+  ]);
+}
+
 export async function deleteItem(id: string): Promise<void> {
   const db = await getDb();
   const ts = nowIso();
