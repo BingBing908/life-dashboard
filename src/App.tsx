@@ -72,7 +72,7 @@ export default function App() {
         <nav className="flex flex-col gap-1 px-2">
           <SidebarItem
             icon={LayoutDashboard}
-            label="仪表盘"
+            label="今日总览"
             active={view === "dashboard"}
             onClick={() => setView("dashboard")}
           />

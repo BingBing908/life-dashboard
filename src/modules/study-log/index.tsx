@@ -1201,11 +1201,11 @@ function Page() {
       <div className="mb-4 flex items-center gap-2">
         {board && (
           <button onClick={() => { setBoard(null); setOpenBookId(null); }} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" /> 学习记录
+            <ArrowLeft className="size-4" /> 日日学
           </button>
         )}
         <h1 className="text-2xl font-semibold" style={{ color: cfg?.c.text }}>
-          {cfg ? cfg.name : "学习记录"}
+          {cfg ? cfg.name : "日日学"}
         </h1>
         {cfg && <span className="text-sm text-muted-foreground">{cfg.hint}</span>}
         {!board && (
@@ -1264,7 +1264,7 @@ function Page() {
 const studyLogModule: AppModule = {
   manifest: {
     id: "study-log",
-    name: "学习记录",
+    name: "日日学",
     icon: BookOpen,
     description: "英语/语文/AI/历史/书籍/电影 六大板块",
     defaultSize: { w: 1, h: 1 },
