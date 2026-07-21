@@ -247,6 +247,9 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
   // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
   const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
   const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
+  // 只默写「诗本身」：优先 meta.recite；否则从 body 里抽【原诗】段；都没有才退回整段
+  const poemMatch = (entry.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
+  const dictTarget = (meta.recite as string) || (poemMatch ? poemMatch[1].trim() : (entry.body ?? ""));
   return (
     <div className="group rounded-lg border bg-background p-3">
       <div className="flex items-center gap-2">
@@ -302,7 +305,7 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
           </button>
           {dict && (
             <ArticleDictation
-              article={entry.body!}
+              article={dictTarget}
               attempts={artAtt}
               accent={accent}
               onSave={(a) => onPatch!(entry.id, { artAtt: [...artAtt, a].slice(-3) })}

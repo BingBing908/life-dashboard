@@ -83,9 +83,18 @@ export async function updateEntry(id: string, patch: EntryPatch): Promise<void> 
   const cols = Object.keys(patch) as (keyof EntryPatch)[];
   if (cols.length === 0) return;
   const db = await getDb();
+  // 时间戳单调递增：内容常由 Claude 用固定/未来时间戳注入，用户的编辑（如默写记录）
+  // 必须严格比它新，否则同步「最后写入胜出」会用注入版盖回、记录丢失。
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM study_entries WHERE id = $1",
+    [id],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
   const sets = cols.map((c, i) => `${c} = $${i + 1}`);
   sets.push(`updated_at = $${cols.length + 1}`);
-  const params: unknown[] = [...cols.map((c) => patch[c] ?? null), nowIso(), id];
+  const params: unknown[] = [...cols.map((c) => patch[c] ?? null), ts, id];
   await db.execute(
     `UPDATE study_entries SET ${sets.join(", ")} WHERE id = $${cols.length + 2}`,
     params,
