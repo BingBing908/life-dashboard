@@ -370,8 +370,45 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
 // ---- 英语精读：双译 + 单词本 + 默写（方案 A）----
 
 interface Word { en: string; cn: string }
-interface WordAtt { e2c: { c: number; t: number }; c2e: { c: number; t: number } }
-interface ArtAtt { score: number; mode?: string }
+interface WordItem { en: string; cn: string; a1: string; ok1: boolean; a2: string; ok2: boolean }
+interface WordAtt { e2c: { c: number; t: number }; c2e: { c: number; t: number }; items?: WordItem[] }
+interface ArtAtt { score: number; mode?: string; text?: string; ref?: string }
+
+/** 把参考原文渲染出来、红标出「答案里没写到」的字/词（中文按字、英文按词）。默写回顾复用。 */
+function renderMistakes(ref: string, answer: string) {
+  const hasCjk = /[一-鿿]/.test(ref);
+  const tokSet = new Set(
+    hasCjk ? (answer.match(/[一-鿿]/g) ?? []) : (answer.toLowerCase().match(/[a-z']+/g) ?? []),
+  );
+  const segs = hasCjk ? [...ref] : ref.split(/([a-zA-Z']+)/);
+  return segs.map((seg, i) => {
+    const isTok = hasCjk ? /[一-鿿]/.test(seg) : /[a-zA-Z']/.test(seg);
+    const miss = isTok && !tokSet.has(hasCjk ? seg : seg.toLowerCase());
+    return miss ? (
+      <mark key={i} className="rounded bg-red-100 px-0.5 font-medium text-red-700">{seg}</mark>
+    ) : (
+      <span key={i}>{seg}</span>
+    );
+  });
+}
+
+/** 默写回顾：显示「你写的」+ 参考原文（红＝漏/错）。古诗/英语文章默写复用。 */
+function DictReview({ answer, refText, refLabel = "原文" }: { answer: string; refText?: string; refLabel?: string }) {
+  return (
+    <div className="mt-2 space-y-1.5 text-sm">
+      <div>
+        <span className="text-muted-foreground">你写的：</span>
+        <span className="whitespace-pre-wrap">{answer?.trim() ? answer : "（空）"}</span>
+      </div>
+      {refText && (
+        <div>
+          <span className="text-muted-foreground">{refLabel}（红＝你漏写/写错的）：</span>
+          <p className="mt-1 whitespace-pre-wrap rounded-md border bg-background p-2.5 leading-relaxed">{renderMistakes(refText, answer)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function parseMetaObj(e: Entry): Record<string, unknown> {
   try {
@@ -488,9 +525,16 @@ function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; att
     setOrder(shuffle(words)); setPhase("e2c"); setE2c({}); setC2e({}); setGE(false); setGC(false); setView(null);
   }
   function finish() {
-    const ec = order.filter((w, i) => cnOk(e2c[i] ?? "", w.cn)).length;
-    const ce = order.filter((w, i) => enOk(c2e[i] ?? "", w.en)).length;
-    onSave({ e2c: { c: ec, t: order.length }, c2e: { c: ce, t: order.length } });
+    const items: WordItem[] = order.map((w, i) => ({
+      en: w.en, cn: w.cn,
+      a1: e2c[i] ?? "", ok1: cnOk(e2c[i] ?? "", w.cn),
+      a2: c2e[i] ?? "", ok2: enOk(c2e[i] ?? "", w.en),
+    }));
+    onSave({
+      e2c: { c: items.filter((x) => x.ok1).length, t: order.length },
+      c2e: { c: items.filter((x) => x.ok2).length, t: order.length },
+      items,
+    });
     reset();
   }
 
@@ -515,7 +559,20 @@ function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; att
       <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
         {tabs}
         <p className="text-sm">第 {view + 1} 遍：英译中 <b>{a.e2c.c}/{a.e2c.t}</b> · 中译英 <b>{a.c2e.c}/{a.c2e.t}</b></p>
-        {attempts.length > 1 && <p className="mt-1 text-xs text-muted-foreground">切换标签对比各遍，看有没有进步。</p>}
+        {a.items && a.items.length > 0 && (
+          <div className="mt-2 space-y-1.5">
+            {a.items.map((it, i) => (
+              <div key={i} className="rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                <span className="font-medium">{it.en}</span> · {it.cn}
+                <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5">
+                  <span>英译中：{it.ok1 ? <span className="text-emerald-600">✓ {it.a1 || "（空）"}</span> : <span className="text-red-600">✗ 你写「{it.a1 || "空"}」，应「{it.cn}」</span>}</span>
+                  <span>中译英：{it.ok2 ? <span className="text-emerald-600">✓ {it.a2 || "（空）"}</span> : <span className="text-red-600">✗ 你写「{it.a2 || "空"}」，应「{it.en}」</span>}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {attempts.length > 1 && <p className="mt-1.5 text-xs text-muted-foreground">切换标签对比各遍，看有没有进步。</p>}
       </div>
     );
   }
@@ -568,25 +625,8 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   const gotSet = new Set(tok(text));
   const missing = [...expSet].filter((w) => !gotSet.has(w));
   const score = expSet.size ? Math.round(((expSet.size - missing.length) / expSet.size) * 100) : 0;
-  const hasCjk = /[一-鿿]/.test(article);
-  const missSet = new Set(missing);
-
-  /** 批改后把原文显示出来，红色标出你漏写/写错的字（词），一眼看懂错哪了 */
-  function renderChecked() {
-    const segs = hasCjk ? [...article] : article.split(/([a-zA-Z']+)/);
-    return segs.map((seg, i) => {
-      const isTok = hasCjk ? /[一-鿿]/.test(seg) : /[a-zA-Z']/.test(seg);
-      const miss = isTok && missSet.has(hasCjk ? seg : seg.toLowerCase());
-      return miss ? (
-        <mark key={i} className="rounded bg-red-100 px-0.5 font-medium text-red-700">{seg}</mark>
-      ) : (
-        <span key={i}>{seg}</span>
-      );
-    });
-  }
-
   function finish() {
-    onSave({ score });
+    onSave({ score, text, ref: article });
     setText(""); setGraded(false); setView(null);
   }
   const tabs = (
@@ -604,10 +644,12 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
     </div>
   );
   if (view !== null && attempts[view]) {
+    const a = attempts[view];
     return (
       <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
         {tabs}
-        <p className="text-sm">第 {view + 1} 遍命中 <b>{attempts[view].score}%</b>{attempts.length > 1 && "（切标签对比进步）"}</p>
+        <p className="text-sm">第 {view + 1} 遍命中 <b>{a.score}%</b>{attempts.length > 1 && "（切标签对比进步）"}</p>
+        {a.text != null && <DictReview answer={a.text} refText={a.ref ?? article} />}
       </div>
     );
   }
@@ -618,15 +660,8 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="在这里默写整篇……" className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p className="mb-1.5">
-            命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）
-            {missing.length > 0 ? "，下面是原文，红色＝你漏写或写错的：" : "，全对，太棒了！"}
-          </p>
-          {missing.length > 0 && (
-            <p className="whitespace-pre-wrap rounded-md border bg-background p-2.5 leading-relaxed">
-              {renderChecked()}
-            </p>
-          )}
+          <p className="mb-1">命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）{missing.length === 0 && "，全对，太棒了！"}</p>
+          {missing.length > 0 && <DictReview answer={text} refText={article} />}
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
@@ -644,6 +679,7 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
   const hasCn = !!articleCn.trim();
   const pass = attempts.length; // 0=第1遍
   const mode: "en2cn" | "cn2en" | "blind" = !hasCn ? "blind" : pass === 0 ? "en2cn" : pass === 1 ? "cn2en" : "blind";
+  const ref = mode === "en2cn" ? articleCn : articleEn; // 回顾时对照的原文
 
   const enTok = (s: string) => (s.toLowerCase().match(/[a-z']+/g) ?? []);
   const cnTok = (s: string) => (s.match(/[一-鿿]/g) ?? []);
@@ -662,7 +698,7 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
   }
 
   function finish() {
-    onSave({ score, mode });
+    onSave({ score, mode, text, ref });
     setText(""); setGraded(false); setView(null);
   }
   const label = (m?: string) => (m === "en2cn" ? "译中" : m === "cn2en" ? "写英" : "默写");
@@ -681,10 +717,13 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
     </div>
   );
   if (view !== null && attempts[view]) {
+    const a = attempts[view];
+    const aRef = a.ref ?? (a.mode === "en2cn" ? articleCn : articleEn);
     return (
       <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
         {tabs}
-        <p className="text-sm">第 {view + 1} 遍（{label(attempts[view].mode)}）命中 <b>{attempts[view].score}%</b></p>
+        <p className="text-sm">第 {view + 1} 遍（{label(a.mode)}）命中 <b>{a.score}%</b></p>
+        {a.text != null && <DictReview answer={a.text} refText={aRef} refLabel={a.mode === "en2cn" ? "中文原意" : "英文原文"} />}
       </div>
     );
   }
@@ -698,7 +737,8 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={mode === "en2cn" ? "写中文翻译……" : "写英文……"} className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p>命中 <b>{score}%</b>。{mode !== "en2cn" && missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}{mode === "en2cn" && <span className="text-muted-foreground">（中文按关键词覆盖，意思到了就算过）</span>}</p>
+          <p className="mb-1">命中 <b>{score}%</b>{mode === "en2cn" && <span className="text-muted-foreground">（中文按关键词覆盖，意思到了就算过）</span>}</p>
+          <DictReview answer={text} refText={ref} refLabel={mode === "en2cn" ? "中文原意" : "英文原文"} />
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
