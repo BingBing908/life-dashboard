@@ -114,9 +114,18 @@ export async function updateRowData(
   data: Record<string, unknown>,
 ): Promise<void> {
   const db = await getDb();
+  // 时间戳单调递增：若该行旧 updated_at 被（误）设成未来（如种子行写死的未来值），
+  // 本次编辑也要严格比它新，否则同步「最后写入胜出」会用那条未来空行盖回用户刚填的内容。
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM mini_table_rows WHERE id = $1",
+    [rowId],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
   await db.execute(
     "UPDATE mini_table_rows SET data = $1, updated_at = $2 WHERE id = $3",
-    [JSON.stringify(data), nowIso(), rowId],
+    [JSON.stringify(data), ts, rowId],
   );
 }
 
