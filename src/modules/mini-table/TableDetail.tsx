@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Cell } from "./cells";
+import { TABLE_SOURCES, currentWeekDates } from "./sources";
 import {
   addRow,
   deleteRow,
@@ -53,10 +54,20 @@ interface Props {
 export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   const [rows, setRows] = useState<MiniRow[]>([]);
   const columns = table.columns;
+  const source = TABLE_SOURCES[table.id]; // 绑定了数据源的表（如三餐/运动）
+  const [auto, setAuto] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     listRows(table.id).then(setRows);
   }, [table.id]);
+
+  useEffect(() => {
+    if (!source) {
+      setAuto({});
+      return;
+    }
+    source.compute(currentWeekDates()).then(setAuto).catch(() => {});
+  }, [table.id, source]);
 
   async function handleAddRow() {
     const row = await addRow(table.id);
@@ -125,15 +136,32 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id} className="group">
-                {columns.map((col) => (
-                  <TableCell key={col.id} className="p-1">
-                    <Cell
-                      column={col}
-                      value={row.data[col.id]}
-                      onChange={(v) => handleCellChange(row, col.id, v)}
-                    />
-                  </TableCell>
-                ))}
+                {columns.map((col) => {
+                  const label = source ? (row.data[source.itemCol] as string | undefined) : undefined;
+                  const isAuto =
+                    !!source &&
+                    !!label &&
+                    source.autoItems.includes(label) &&
+                    source.dayCols.includes(col.id);
+                  return (
+                    <TableCell key={col.id} className="p-1">
+                      {isAuto ? (
+                        <div
+                          className="rounded bg-muted/40 px-2 py-1.5 text-sm text-muted-foreground"
+                          title="自动来自源模块（饮食 / 学练计划）"
+                        >
+                          {auto[label!]?.[col.id] || "—"}
+                        </div>
+                      ) : (
+                        <Cell
+                          column={col}
+                          value={row.data[col.id]}
+                          onChange={(v) => handleCellChange(row, col.id, v)}
+                        />
+                      )}
+                    </TableCell>
+                  );
+                })}
                 <TableCell className="p-1 text-center">
                   <button
                     className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
