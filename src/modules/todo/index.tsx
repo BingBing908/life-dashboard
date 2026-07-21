@@ -18,18 +18,7 @@ import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
-import {
-  dayNumOf,
-  listCheckStatus as listPlanStatus,
-  listLatestNotes,
-  listNotes,
-  matchesDay,
-  seedIfEmpty as seedPlan,
-  setCheckStatus as setPlanCheckStatus,
-  setNote,
-  type CheckStatus,
-  type PlanItem,
-} from "../study-plan/data";
+import { listLatestNotes, listNotes, setNote } from "../study-plan/data";
 import {
   clearDone,
   createTodo,
@@ -147,16 +136,12 @@ function Page() {
   const [newToToday, setNewToToday] = useState(false);
   const [filterQ, setFilterQ] = useState<Quadrant | null>(null);
   const [filterToday, setFilterToday] = useState(false);
-  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
-  const [planStatus, setPlanStatus] = useState<Map<string, CheckStatus>>(new Map());
   const [notes, setNotes] = useState<Record<string, string>>({}); // 今天的「我做了什么」，存 plan_notes（可编辑）
   const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
   useEffect(() => {
     listTodos().then(setTodos);
-    seedPlan().then(setPlanItems);
-    listPlanStatus(today).then(setPlanStatus);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listLatestNotes().then(setHistNotes);
   }, [today]);
@@ -164,21 +149,6 @@ function Page() {
   function saveTodoNote(id: string, v: string) {
     setNotes((s) => ({ ...s, [id]: v }));
     setNote(id, today, v);
-  }
-
-  // 今天的学练计划（活读取，镜像进「今天」）；待做排上面，已决定沉到下方
-  const planToday = planItems
-    .filter((i) => matchesDay(i, dayNumOf(today)))
-    .sort((a, b) => Number(planStatus.has(a.id)) - Number(planStatus.has(b.id)));
-
-  async function setPlan(id: string, next: CheckStatus | null) {
-    setPlanStatus((prev) => {
-      const m = new Map(prev);
-      if (next === null) m.delete(id);
-      else m.set(id, next);
-      return m;
-    });
-    await setPlanCheckStatus(id, today, next);
   }
 
   const patch = (id: string, p: Partial<Todo>) =>
@@ -421,35 +391,6 @@ function Page() {
             <p className="py-6 text-sm text-muted-foreground">
               {filterQ || filterToday ? "这个筛选下没有待办。" : "待办清空啦，想到什么先记进来。"}
             </p>
-          )}
-
-          {/* 今天的学练计划（镜像，来自学练计划，可勾选）——默认收起免得挤掉待办 */}
-          {planToday.length > 0 && (
-            <div className="mt-5">
-              <Collapse title="今天的学练计划" count={planToday.length} hint="来自学练计划 · 自动同步">
-                <div className="space-y-1.5">
-                  {planToday.map((i) => {
-                    const st = planStatus.get(i.id) ?? "pending";
-                    const done = st === "done";
-                    const decided = st !== "pending";
-                    return (
-                      <div key={i.id} className="flex items-center gap-2.5 rounded-md border border-dashed px-3 py-2">
-                        <DoneToggle
-                          state={st}
-                          onDone={() => setPlan(i.id, "done")}
-                          onSkip={() => setPlan(i.id, "skip")}
-                          onClear={() => setPlan(i.id, null)}
-                          size="sm"
-                        />
-                        <span className={cn("min-w-0 flex-1 truncate text-sm", decided && "text-muted-foreground", done && "line-through")}>
-                          {i.title}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Collapse>
-            </div>
           )}
 
           {/* 历史已完成：只收「今天以前」完成的，默认收起，标完成日期 + 保留「做了什么」 */}

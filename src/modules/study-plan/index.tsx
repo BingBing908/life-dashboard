@@ -42,7 +42,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
-import { listTodos, toggleTodo, type Todo } from "../todo/data";
+import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
@@ -432,6 +432,17 @@ function Page() {
     await toggleTodo(t.id, !t.done);
   }
 
+  // 在「工作」域加一条 → 建一条今天·重要紧急待办（待办↔工作双向）
+  const [newWork, setNewWork] = useState("");
+  async function addWorkTodo() {
+    const title = newWork.trim();
+    if (!title) return;
+    const order = Math.max(0, ...todos.map((x) => x.sort_order)) + 1;
+    const t = await createTodo(title, "iu", today, order);
+    setTodos((ts) => [...ts, t]);
+    setNewWork("");
+  }
+
   function saveNote(id: string, v: string) {
     setNotes((s) => ({ ...s, [id]: v }));
     setNote(id, today, v);
@@ -608,6 +619,18 @@ function Page() {
                 </span>
               </div>
               <div className="space-y-3">
+                {active.source === "todo" && (
+                  <div className="flex gap-2">
+                    <input
+                      value={newWork}
+                      onChange={(e) => setNewWork(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addWorkTodo()}
+                      placeholder="加一件今天的工作（→ 待办·重要紧急）"
+                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <Button size="sm" onClick={addWorkTodo}>加</Button>
+                  </div>
+                )}
                 {active.source === "plan" &&
                   planCards.map((i) => (
                     <ThreeRowCard
@@ -647,7 +670,7 @@ function Page() {
                   (active.source === "todo" && todoCards.length === 0)) && (
                   <p className="py-10 text-sm text-muted-foreground">
                     {active.source === "todo"
-                      ? "今天没有安排到「今天」的待办——去待办把要做的点进今天。"
+                      ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
                       : "这个时段今天没有安排。"}
                   </p>
                 )}
