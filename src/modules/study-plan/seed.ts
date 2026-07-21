@@ -52,11 +52,11 @@ export const SEED_ITEMS: {
     url: "https://www.bilibili.com/video/BV1jG411c7yo/",
   },
   {
-    track: "sport",
+    track: "wellness",
     days: "2,4,6",
     time_slot: "07:05–07:25",
     title: "足弓重建（跟国局八段锦同日）",
-    detail: "拯救扁平足 / 优化下肢力线",
+    detail: "拯救扁平足 / 优化下肢力线（量小，归养生）",
     url: "https://www.bilibili.com/video/BV1ofKEzjEUd/",
   },
   {

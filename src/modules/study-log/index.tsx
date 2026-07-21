@@ -70,6 +70,26 @@ function withMeta(e: Entry, patch: Record<string, unknown>): string {
   return JSON.stringify({ ...m, ...patch });
 }
 
+/** 需要默写的内容（古诗/英语精读） */
+function needsDictation(e: Entry): boolean {
+  return e.kind === "古诗" || e.kind === "精读文章";
+}
+/** 是否「今天看完」：要默写的＝默写过≥1遍才算；其余＝手动标 meta.done */
+function entryDone(e: Entry): boolean {
+  let m: Record<string, unknown> = {};
+  try {
+    m = e.meta ? JSON.parse(e.meta) : {};
+  } catch {
+    m = {};
+  }
+  if (needsDictation(e)) {
+    const art = (m.artAtt as unknown[]) ?? [];
+    const word = (m.wordAtt as unknown[]) ?? [];
+    return art.length >= 1 || word.length >= 1;
+  }
+  return !!m.done;
+}
+
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
 /** 主界面：六个彩色方框，右侧露出内容预览 */
@@ -87,13 +107,7 @@ function Landing({
       e.entry_date === yest &&
       ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
   ).length;
-  const isDone = (e: Entry) => {
-    try {
-      return !!(e.meta && JSON.parse(e.meta).done);
-    } catch {
-      return false;
-    }
-  };
+  const isDone = entryDone;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {BOARDS.map((b) => {
@@ -266,7 +280,9 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
   // 只默写「诗本身」：优先 meta.recite；否则从 body 里抽【原诗】段；都没有才退回整段
   const poemMatch = (entry.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
   const dictTarget = (meta.recite as string) || (poemMatch ? poemMatch[1].trim() : (entry.body ?? ""));
-  const done = !!meta.done; // 今日看完标记（没标=没来得及看）
+  // 要默写的（古诗）＝默写过才算看完，只读显示；其余＝手动标
+  const dictKind = needsDictation(entry);
+  const done = entryDone(entry);
   return (
     <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
       <div className="flex items-center gap-2">
@@ -277,7 +293,7 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
         )}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {onPatch && (
+          {onPatch && !dictKind && (
             <button
               onClick={() => onPatch(entry.id, { done: !done })}
               className={cn(
@@ -287,6 +303,14 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
             >
               {done ? "✓ 已看完" : "标看完"}
             </button>
+          )}
+          {dictKind && (
+            <span
+              className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
+              title="默写过≥1遍才算看完"
+            >
+              {done ? "✓ 已默写" : "默写后算看完"}
+            </span>
           )}
           <button
             className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
@@ -674,7 +698,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
   const recite = (m.recite as string) || "";
   const wordAtt = (m.wordAtt as WordAtt[]) || [];
   const artAtt = (m.artAtt as ArtAtt[]) || [];
-  const done = !!m.done;
+  const done = entryDone(entry); // 精读＝默写过（文章或单词）才算看完
   const [showCn, setShowCn] = useState(false);
   const [mode, setMode] = useState<"none" | "word" | "article">("none");
 
@@ -684,12 +708,12 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => onPatch(entry.id, { done: !done })}
-            className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors", done ? "bg-emerald-500 text-white" : "border text-muted-foreground hover:bg-accent")}
+          <span
+            className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
+            title="默写过≥1遍（文章或单词）才算看完"
           >
-            {done ? "✓ 已看完" : "标看完"}
-          </button>
+            {done ? "✓ 已默写" : "默写后算看完"}
+          </span>
           <button className="invisible text-muted-foreground hover:text-destructive group-hover:visible" title="删除" onClick={() => onDelete(entry.id)}>
             <Trash2 className="size-4" />
           </button>
