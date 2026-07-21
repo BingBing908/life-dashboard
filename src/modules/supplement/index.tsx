@@ -55,6 +55,17 @@ const MEALS: { key: MealKey; label: string; cook: string; takeout: string }[] = 
   },
 ];
 
+/** 经期饮食建议：经期开关打开时显示在三餐区顶部（水肿是水不是脂肪，别靠饿减） */
+const PERIOD_MEAL_TIPS: string[] = [
+  "体重涨 1–2kg 是经期存水，不是长胖——结束后几天自己掉回来，别焦虑。",
+  "热量守在基代 1420、别再少吃：水肿靠饿减不掉，只会掉肌肉和头发。",
+  "少盐少酱：钠让身体存更多水，肿得更明显。",
+  "多喝温水：喝够反而帮排水，别不敢喝。",
+  "多蛋白 + 含钾食物（香蕉 / 菠菜 / 土豆）帮平衡水分。",
+  "适量红肉 / 动物肝补铁（经期失血），配维C 吸收更好。",
+  "这几天先别每天称重，等经期结束再看空腹体重趋势。",
+];
+
 const SUBTYPES: DrinkSubtype[] = ["奶茶", "果茶", "酸奶"];
 const SUGARS = ["无糖", "三分糖", "五分糖", "七分糖", "全糖"];
 const DRINK_COLOR: Record<DrinkSubtype, { dot: string; chip: string }> = {
@@ -335,6 +346,19 @@ function Page() {
         <p className="mb-3 text-sm text-muted-foreground">
           写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
         </p>
+        {periodOn && (
+          <div className="mb-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
+            <p className="mb-1.5 text-sm font-medium text-pink-800">🩸 经期饮食建议</p>
+            <ul className="space-y-1 text-sm text-pink-700">
+              {PERIOD_MEAL_TIPS.map((t) => (
+                <li key={t} className="flex gap-1.5">
+                  <span className="shrink-0">·</span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="space-y-3">
           {MEALS.map((m) => (
             <div key={m.key} className="rounded-lg border p-4">
