@@ -11,6 +11,7 @@ import {
   LineChart,
   PenLine,
   Plus,
+  RotateCcw,
   Sparkles,
   Star,
   Trash2,
@@ -19,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { todayStr } from "@/lib/dates";
+import { addDays, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
   createEntry,
@@ -41,6 +42,7 @@ type BoardCfg = {
 };
 
 const BOARDS: BoardCfg[] = [
+  { key: "review", name: "复习", icon: RotateCcw, hint: "先默写昨天的古诗 + 英语精读，再看答案", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } },
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
   { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔"], hint: "每日成语+谚语 · 古诗背诵 · 练笔输出", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "术语卡"], hint: "每日 5 条新闻 + 术语卡", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
@@ -78,6 +80,12 @@ function Landing({
   entries: Entry[];
   onOpen: (b: Board) => void;
 }) {
+  const yest = addDays(todayStr(), -1);
+  const reviewCount = entries.filter(
+    (e) =>
+      e.entry_date === yest &&
+      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
+  ).length;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {BOARDS.map((b) => {
@@ -99,7 +107,7 @@ function Landing({
                 {b.name}
               </div>
               <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>
-                {mine.filter((e) => e.kind !== "note").length} 条
+                {b.key === "review" ? `${reviewCount} 条待复习` : `${mine.filter((e) => e.kind !== "note").length} 条`}
               </div>
             </div>
             <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
@@ -144,11 +152,13 @@ function LearningBoard({
   entries,
   onAdd,
   onDelete,
+  onPatch,
 }: {
   cfg: BoardCfg;
   entries: Entry[];
   onAdd: (kind: string, title: string, body: string) => void;
   onDelete: (id: string) => void;
+  onPatch: (id: string, patch: Record<string, unknown>) => void;
 }) {
   const today = todayStr();
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -209,7 +219,7 @@ function LearningBoard({
               {isOpen && (
                 <div className="space-y-2 px-4 pb-4">
                   {items.map((e) => (
-                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} />
+                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
                   ))}
                 </div>
               )}
@@ -222,8 +232,9 @@ function LearningBoard({
 }
 
 /** 一条学习内容（展示为主，可删）。body 里 [[术语]] 会渲染成下划线，点开看 meta.glossary 里的释义。 */
-function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; onDelete: (id: string) => void }) {
+function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: string; onDelete: (id: string) => void; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
   const [term, setTerm] = useState<string | null>(null);
+  const [dict, setDict] = useState(false);
   let meta: Record<string, unknown> = {};
   try {
     meta = entry.meta ? JSON.parse(entry.meta) : {};
@@ -233,6 +244,9 @@ function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; o
   const glossary = (meta.glossary as Record<string, string>) ?? {};
   const image = meta.image as string | undefined;
   const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\])/g);
+  // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
+  const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
+  const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
   return (
     <div className="group rounded-lg border bg-background p-3">
       <div className="flex items-center gap-2">
@@ -251,32 +265,49 @@ function EntryDoc({ entry, accent, onDelete }: { entry: Entry; accent: string; o
         </button>
       </div>
       {entry.body && (
-        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-          {parts.map((p, i) => {
-            const m = p.match(/^\[\[([^\]]+)\]\]$/);
-            if (m) {
-              const t = m[1];
-              const active = term === t;
-              return (
-                <button
-                  key={i}
-                  onClick={() => setTerm(active ? null : t)}
-                  className="font-medium"
-                  style={{ color: accent, borderBottom: `1.5px dotted ${accent}`, background: active ? accent + "18" : "transparent" }}
-                >
-                  {t}
-                </button>
-              );
-            }
-            return <span key={i}>{p}</span>;
-          })}
-        </p>
+        <Blurred active={isPoem && dict}>
+          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+            {parts.map((p, i) => {
+              const m = p.match(/^\[\[([^\]]+)\]\]$/);
+              if (m) {
+                const t = m[1];
+                const active = term === t;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setTerm(active ? null : t)}
+                    className="font-medium"
+                    style={{ color: accent, borderBottom: `1.5px dotted ${accent}`, background: active ? accent + "18" : "transparent" }}
+                  >
+                    {t}
+                  </button>
+                );
+              }
+              return <span key={i}>{p}</span>;
+            })}
+          </p>
+        </Blurred>
       )}
       {image && <img src={image} alt="配图" className="mt-2 w-full max-w-xl rounded-md border" />}
       {term && glossary[term] && (
         <div className="mt-2 rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "12", borderColor: accent + "44" }}>
           <span className="font-medium" style={{ color: accent }}>{term}</span>
           <span className="text-foreground/85">：{glossary[term]}</span>
+        </div>
+      )}
+      {isPoem && (
+        <div className="mt-2">
+          <button onClick={() => setDict((v) => !v)} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
+            {dict ? "收起默写" : `默写这首${artAtt.length ? ` (${artAtt.length}/3)` : ""}`}
+          </button>
+          {dict && (
+            <ArticleDictation
+              article={entry.body!}
+              attempts={artAtt}
+              accent={accent}
+              onSave={(a) => onPatch!(entry.id, { artAtt: [...artAtt, a].slice(-3) })}
+            />
+          )}
         </div>
       )}
     </div>
@@ -475,9 +506,13 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   const [graded, setGraded] = useState(false);
   const [view, setView] = useState<number | null>(null);
 
-  const expWords = (article.toLowerCase().match(/[a-z']+/g) ?? []);
-  const expSet = new Set(expWords);
-  const gotSet = new Set(text.toLowerCase().match(/[a-z']+/g) ?? []);
+  // 中文按「字」判、英文按「词」判：有汉字就按汉字命中率，否则按英文单词
+  const tok = (s: string) => {
+    const cjk = s.match(/[一-鿿]/g);
+    return cjk && cjk.length ? cjk : (s.toLowerCase().match(/[a-z']+/g) ?? []);
+  };
+  const expSet = new Set(tok(article));
+  const gotSet = new Set(tok(text));
   const missing = [...expSet].filter((w) => !gotSet.has(w));
   const score = expSet.size ? Math.round(((expSet.size - missing.length) / expSet.size) * 100) : 0;
 
@@ -510,11 +545,11 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   return (
     <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
       {tabs}
-      <p className="mb-2 text-sm font-medium">默写文章（凭记忆写英文原文）</p>
+      <p className="mb-2 text-sm font-medium">默写（凭记忆写出原文）</p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="在这里默写整篇……" className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p>命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个词）。{missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}</p>
+          <p>命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）。{missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}</p>
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
@@ -938,6 +973,36 @@ function Card() {
   return <p className="text-sm text-muted-foreground">{n === null ? "加载中…" : `六大板块共 ${n} 条记录`}</p>;
 }
 
+/** 复习板块：第二天先默写「前一天」背的——昨天的古诗 + 英语精读，复用各自的默写 */
+function ReviewBoard({ entries, onPatch, onDelete }: { entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
+  const yest = addDays(todayStr(), -1);
+  const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
+  const items = entries.filter(
+    (e) =>
+      e.entry_date === yest &&
+      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
+  );
+  if (items.length === 0) {
+    return (
+      <p className="py-10 text-sm text-muted-foreground">
+        昨天（{yest}）没有要复习的古诗/精读。今天在语文里背的古诗、英语里学的精读，明天会自动出现在这里让你先默写。
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">先默写昨天（{yest}）背的，再看答案对比。下面各板块的「今天」才是新一天的内容。</p>
+      {items.map((e) =>
+        e.board === "english" ? (
+          <ReadingCard key={e.id} entry={e} accent={acc("english")} onPatch={onPatch} onDelete={onDelete} />
+        ) : (
+          <EntryDoc key={e.id} entry={e} accent={acc("chinese")} onDelete={onDelete} onPatch={onPatch} />
+        ),
+      )}
+    </div>
+  );
+}
+
 function Page() {
   const [all, setAll] = useState<Entry[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
@@ -1006,12 +1071,16 @@ function Page() {
 
       {!board && <Landing entries={all} onOpen={setBoard} />}
 
+      {board === "review" && (
+        <ReviewBoard entries={all} onPatch={patchEntry} onDelete={del} />
+      )}
+
       {board === "english" && cfg && (
         <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} onDelete={del} />
       )}
 
       {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm") && (
-        <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onDelete={del} />
+        <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onDelete={del} onPatch={patchEntry} />
       )}
 
       {board === "book" && cfg && (
