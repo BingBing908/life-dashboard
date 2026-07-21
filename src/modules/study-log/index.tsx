@@ -321,7 +321,7 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
 
 interface Word { en: string; cn: string }
 interface WordAtt { e2c: { c: number; t: number }; c2e: { c: number; t: number } }
-interface ArtAtt { score: number }
+interface ArtAtt { score: number; mode?: string }
 
 function parseMetaObj(e: Entry): Record<string, unknown> {
   try {
@@ -562,6 +562,78 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   );
 }
 
+/** 英语精读 5 遍递进默写：①看英写中（中文按关键词覆盖，宽松）②看中写英 ③④⑤直接默写英文（按词严格）。留 5 遍对比 */
+function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { articleEn: string; articleCn: string; attempts: ArtAtt[]; onSave: (a: ArtAtt) => void; accent: string }) {
+  const [text, setText] = useState("");
+  const [graded, setGraded] = useState(false);
+  const [view, setView] = useState<number | null>(null);
+  const hasCn = !!articleCn.trim();
+  const pass = attempts.length; // 0=第1遍
+  const mode: "en2cn" | "cn2en" | "blind" = !hasCn ? "blind" : pass === 0 ? "en2cn" : pass === 1 ? "cn2en" : "blind";
+
+  const enTok = (s: string) => (s.toLowerCase().match(/[a-z']+/g) ?? []);
+  const cnTok = (s: string) => (s.match(/[一-鿿]/g) ?? []);
+  let score = 0;
+  let missing: string[] = [];
+  if (mode === "en2cn") {
+    const exp = new Set(cnTok(articleCn));
+    const got = new Set(cnTok(text));
+    const hit = [...exp].filter((c) => got.has(c)).length;
+    score = exp.size ? Math.round((hit / exp.size) * 100) : 0;
+  } else {
+    const exp = new Set(enTok(articleEn));
+    const got = new Set(enTok(text));
+    missing = [...exp].filter((w) => !got.has(w));
+    score = exp.size ? Math.round(((exp.size - missing.length) / exp.size) * 100) : 0;
+  }
+
+  function finish() {
+    onSave({ score, mode });
+    setText(""); setGraded(false); setView(null);
+  }
+  const label = (m?: string) => (m === "en2cn" ? "译中" : m === "cn2en" ? "写英" : "默写");
+  const tabs = (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      {attempts.map((a, i) => (
+        <button key={i} onClick={() => setView(i)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === i ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
+          第{i + 1}遍·{label(a.mode)} {a.score}%
+        </button>
+      ))}
+      {attempts.length < 5 && (
+        <button onClick={() => setView(null)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === null ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
+          ✏️ 第{attempts.length + 1}遍
+        </button>
+      )}
+    </div>
+  );
+  if (view !== null && attempts[view]) {
+    return (
+      <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+        {tabs}
+        <p className="text-sm">第 {view + 1} 遍（{label(attempts[view].mode)}）命中 <b>{attempts[view].score}%</b></p>
+      </div>
+    );
+  }
+  const prompt = mode === "en2cn" ? "① 看英文，写中文翻译（意思到了就行）" : mode === "cn2en" ? "② 看中文，写出英文" : "凭记忆默写英文（什么都不看）";
+  return (
+    <div className="mt-3 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+      {tabs}
+      <p className="mb-2 text-sm font-medium">{prompt}</p>
+      {mode === "en2cn" && <p className="mb-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleEn}</p>}
+      {mode === "cn2en" && <p className="mb-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>}
+      <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={mode === "en2cn" ? "写中文翻译……" : "写英文……"} className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
+      {graded && (
+        <div className="mt-2 text-sm">
+          <p>命中 <b>{score}%</b>。{mode !== "en2cn" && missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}{mode === "en2cn" && <span className="text-muted-foreground">（中文按关键词覆盖，意思到了就算过）</span>}</p>
+        </div>
+      )}
+      <div className="mt-3 flex justify-end gap-2">
+        {!graded ? <Button size="sm" onClick={() => setGraded(true)}>批改</Button> : <Button size="sm" onClick={finish}>完成本遍</Button>}
+      </div>
+    </div>
+  );
+}
+
 /** 英语精读卡：左文章（可展开整段中文 + 默写），右竖排单词本（可默写） */
 function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accent: string; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
   const m = parseMetaObj(entry);
@@ -603,7 +675,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
               </button>
             )}
             <button onClick={() => setMode(mode === "article" ? "none" : "article")} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
-              {mode === "article" ? "收起默写" : `默写文章${artAtt.length ? ` (${artAtt.length}/3)` : ""}`}
+              {mode === "article" ? "收起默写" : `默写文章${artAtt.length ? ` (${artAtt.length}/5)` : ""}`}
             </button>
           </div>
           {showCn && articleCn && (
@@ -627,7 +699,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
         <WordDictation words={words} attempts={wordAtt} accent={accent} onSave={(a) => onPatch(entry.id, { wordAtt: [...wordAtt, a].slice(-3) })} />
       )}
       {mode === "article" && (
-        <ArticleDictation article={articleEn} attempts={artAtt} accent={accent} onSave={(a) => onPatch(entry.id, { artAtt: [...artAtt, a].slice(-3) })} />
+        <ReadingDictation articleEn={articleEn} articleCn={articleCn} attempts={artAtt} accent={accent} onSave={(a) => onPatch(entry.id, { artAtt: [...artAtt, a].slice(-5) })} />
       )}
     </div>
   );
