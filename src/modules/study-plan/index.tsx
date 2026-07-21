@@ -522,7 +522,7 @@ function Page() {
   return (
     <div className="mx-auto max-w-6xl p-6">
       <div className="mb-1 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold">学练计划</h1>
+        <h1 className="text-2xl font-semibold">时间轴</h1>
         <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
           周期第 {week} 周
         </span>
@@ -868,9 +868,9 @@ function Page() {
 const studyPlanModule: AppModule = {
   manifest: {
     id: "study-plan",
-    name: "学练计划",
+    name: "时间轴",
     icon: CalendarCheck,
-    description: "运动/英语/HCIP/AI/阅读 五线周计划",
+    description: "一天的时间轴：养生/英语/工作/学习/运动/阅读",
     defaultSize: { w: 2, h: 1 },
   },
   Card,

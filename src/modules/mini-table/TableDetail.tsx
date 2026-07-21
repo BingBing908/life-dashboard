@@ -148,7 +148,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                       {isAuto ? (
                         <div
                           className="rounded bg-muted/40 px-2 py-1.5 text-sm text-muted-foreground"
-                          title="自动来自源模块（饮食 / 学练计划）"
+                          title="自动来自源模块（饮食 / 时间轴）"
                         >
                           {auto[label!]?.[col.id] || "—"}
                         </div>
