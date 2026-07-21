@@ -77,7 +77,7 @@ function needsDictation(e: Entry): boolean {
   return e.kind === "古诗" || e.kind === "精读文章";
 }
 /** 是否「今天看完」：要默写的＝默写过≥1遍才算；其余＝手动标 meta.done */
-function entryDone(e: Entry): boolean {
+export function entryDone(e: Entry): boolean {
   let m: Record<string, unknown> = {};
   try {
     m = e.meta ? JSON.parse(e.meta) : {};
