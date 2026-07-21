@@ -1,6 +1,7 @@
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayCalories, getMeals } from "../supplement/data";
 import { listCheckStatus, listItems } from "../study-plan/data";
+import { listTodos } from "../todo/data";
 
 /**
  * 小表格「数据源绑定」：按**表 id**把某张表的部分行接到其它模块的数据上，实现自动填。
@@ -46,25 +47,36 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
       return res;
     },
   },
-  // 运动表格：养生/健身行 = 当天学练计划里点了「已完成」的养生(wellness)/运动(sport)条目
-  "tbl-exercise-week": {
+  // 时间轴周表：六条线 = 当天时间轴里点了「已完成」的条目（运动表格已并入这里）
+  // 养生/英语/学习/运动/阅读 走 plan_checks；工作走 todos（当天 done_at）
+  "tbl-plan-week": {
     itemCol: "item",
     dayCols: DAY_COLS,
-    autoItems: ["养生", "健身"],
+    autoItems: ["养生", "英语", "工作", "学习", "运动", "阅读"],
     async compute(weekDates) {
       const items = await listItems();
-      const res: Record<string, Record<string, string>> = { 养生: {}, 健身: {} };
+      const todos = await listTodos();
+      const res: Record<string, Record<string, string>> = {
+        养生: {}, 英语: {}, 工作: {}, 学习: {}, 运动: {}, 阅读: {},
+      };
       for (let i = 0; i < 7; i++) {
         const date = weekDates[i];
         const col = DAY_COLS[i];
         const status = await listCheckStatus(date);
-        const doneTitles = (track: string) =>
+        const done = (...tracks: string[]) =>
           items
-            .filter((it) => it.track === track && status.get(it.id) === "done")
+            .filter((it) => tracks.includes(it.track) && status.get(it.id) === "done")
             .map((it) => it.title)
             .join("、");
-        res.养生[col] = doneTitles("wellness");
-        res.健身[col] = doneTitles("sport");
+        res.养生[col] = done("wellness");
+        res.英语[col] = done("english");
+        res.学习[col] = done("cert", "ai");
+        res.运动[col] = done("sport");
+        res.阅读[col] = done("reading");
+        res.工作[col] = todos
+          .filter((t) => t.done && (t.done_at ?? "").slice(0, 10) === date)
+          .map((t) => t.title)
+          .join("、");
       }
       return res;
     },
