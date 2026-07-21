@@ -80,12 +80,20 @@ function Landing({
   entries: Entry[];
   onOpen: (b: Board) => void;
 }) {
-  const yest = addDays(todayStr(), -1);
+  const today = todayStr();
+  const yest = addDays(today, -1);
   const reviewCount = entries.filter(
     (e) =>
       e.entry_date === yest &&
       ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
   ).length;
+  const isDone = (e: Entry) => {
+    try {
+      return !!(e.meta && JSON.parse(e.meta).done);
+    } catch {
+      return false;
+    }
+  };
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {BOARDS.map((b) => {
@@ -109,6 +117,14 @@ function Landing({
               <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>
                 {b.key === "review" ? `${reviewCount} 条待复习` : `${mine.filter((e) => e.kind !== "note").length} 条`}
               </div>
+              {b.kinds && (() => {
+                const todays = mine.filter((e) => e.entry_date === today && e.kind !== "note");
+                return todays.length > 0 ? (
+                  <div className="mt-0.5 text-xs" style={{ color: b.c.sub }}>
+                    今日 {todays.filter(isDone).length}/{todays.length} 看完
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
               {b.key === "book" || b.key === "movie" ? (
@@ -250,8 +266,9 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
   // 只默写「诗本身」：优先 meta.recite；否则从 body 里抽【原诗】段；都没有才退回整段
   const poemMatch = (entry.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
   const dictTarget = (meta.recite as string) || (poemMatch ? poemMatch[1].trim() : (entry.body ?? ""));
+  const done = !!meta.done; // 今日看完标记（没标=没来得及看）
   return (
-    <div className="group rounded-lg border bg-background p-3">
+    <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
       <div className="flex items-center gap-2">
         {entry.kind && (
           <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>
@@ -259,13 +276,26 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
           </span>
         )}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
-        <button
-          className="invisible ml-auto text-muted-foreground hover:text-destructive group-hover:visible"
-          title="删除"
-          onClick={() => onDelete(entry.id)}
-        >
-          <Trash2 className="size-4" />
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {onPatch && (
+            <button
+              onClick={() => onPatch(entry.id, { done: !done })}
+              className={cn(
+                "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors",
+                done ? "bg-emerald-500 text-white" : "border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {done ? "✓ 已看完" : "标看完"}
+            </button>
+          )}
+          <button
+            className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
+            title="删除"
+            onClick={() => onDelete(entry.id)}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
       {entry.body && (
         <Blurred active={isPoem && dict}>
@@ -644,17 +674,26 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
   const recite = (m.recite as string) || "";
   const wordAtt = (m.wordAtt as WordAtt[]) || [];
   const artAtt = (m.artAtt as ArtAtt[]) || [];
+  const done = !!m.done;
   const [showCn, setShowCn] = useState(false);
   const [mode, setMode] = useState<"none" | "word" | "article">("none");
 
   return (
-    <div className="group rounded-lg border bg-background p-3">
+    <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
       <div className="mb-2 flex items-center gap-2">
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
-        <button className="invisible ml-auto text-muted-foreground hover:text-destructive group-hover:visible" title="删除" onClick={() => onDelete(entry.id)}>
-          <Trash2 className="size-4" />
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => onPatch(entry.id, { done: !done })}
+            className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors", done ? "bg-emerald-500 text-white" : "border text-muted-foreground hover:bg-accent")}
+          >
+            {done ? "✓ 已看完" : "标看完"}
+          </button>
+          <button className="invisible text-muted-foreground hover:text-destructive group-hover:visible" title="删除" onClick={() => onDelete(entry.id)}>
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-[1fr_190px]">
