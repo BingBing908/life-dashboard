@@ -43,7 +43,12 @@ import {
   type Track,
 } from "./data";
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
-import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
+import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
+
+/** 是否原定计划条目（在种子模板里）——是则不允许删除，只有自己加的「计划外」才能删 */
+function isSeedItem(item: PlanItem): boolean {
+  return SEED_ITEMS.some((s) => s.track === item.track && s.title === item.title);
+}
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
 interface Domain {
@@ -254,6 +259,7 @@ function ThreeRowCard({
   onDone,
   onSkip,
   onClear,
+  onDelete,
 }: {
   title: string;
   timeSlot?: string | null;
@@ -267,6 +273,7 @@ function ThreeRowCard({
   onDone: () => void;
   onSkip: () => void;
   onClear: () => void;
+  onDelete?: () => void; // 仅计划外（自己加的）传，用来删除
 }) {
   const done = state === "done";
   const decided = state !== "pending";
@@ -295,6 +302,11 @@ function ThreeRowCard({
             className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
           >
             <ExternalLink className="size-4" /> 打开
+          </button>
+        )}
+        {onDelete && (
+          <button onClick={onDelete} title="删除（计划外·自己加的）" className="shrink-0 text-muted-foreground hover:text-destructive">
+            <Trash2 className="size-4" />
           </button>
         )}
       </div>
@@ -475,6 +487,17 @@ function Page() {
     const t = await createTodo(title, "iu", today, order);
     setTodos((ts) => [...ts, t]);
     setNewWork("");
+  }
+
+  // 在计划领域加一条「计划外」（自己练/做的，今天该 track），可删；原定计划不可删
+  const [newExtra, setNewExtra] = useState("");
+  async function addExtra(track: Track) {
+    const title = newExtra.trim();
+    if (!title) return;
+    const order = Math.max(0, ...items.map((i) => i.sort_order)) + 1;
+    const item = await createItem({ track, days: String(dayNumOf(today)), time_slot: null, title }, order);
+    setItems((its) => [...its, item]);
+    setNewExtra("");
   }
 
   function saveNote(id: string, v: string) {
@@ -681,6 +704,7 @@ function Page() {
                       onDone={() => setStatus(i, "done")}
                       onSkip={() => setStatus(i, "skip")}
                       onClear={() => setStatus(i, null)}
+                      onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
                     />
                   ))}
                 {active.source === "todo" &&
@@ -707,6 +731,20 @@ function Page() {
                       ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
                       : "这个时段今天没有安排。"}
                   </p>
+                )}
+                {active.source === "plan" && active.tracks && (
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      value={newExtra}
+                      onChange={(e) => setNewExtra(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addExtra(active.tracks![0])}
+                      placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
+                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <Button size="sm" variant="outline" onClick={() => addExtra(active.tracks![0])}>
+                      <Plus className="size-4" /> 新增
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
