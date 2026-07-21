@@ -45,9 +45,12 @@ import {
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 
-/** 是否原定计划条目（在种子模板里）——是则不允许删除，只有自己加的「计划外」才能删 */
+/** 是否原定计划条目（在种子模板里）——是则不允许删除，只有自己加的「计划外」才能删。
+ *  ⚠️ 经期开关会把标题换成 period_title，所以两者都要比对，否则经期版会被误判成「计划外」。 */
 function isSeedItem(item: PlanItem): boolean {
-  return SEED_ITEMS.some((s) => s.track === item.track && s.title === item.title);
+  return SEED_ITEMS.some(
+    (s) => s.track === item.track && (s.title === item.title || s.period_title === item.title),
+  );
 }
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
