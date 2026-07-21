@@ -568,6 +568,22 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   const gotSet = new Set(tok(text));
   const missing = [...expSet].filter((w) => !gotSet.has(w));
   const score = expSet.size ? Math.round(((expSet.size - missing.length) / expSet.size) * 100) : 0;
+  const hasCjk = /[一-鿿]/.test(article);
+  const missSet = new Set(missing);
+
+  /** 批改后把原文显示出来，红色标出你漏写/写错的字（词），一眼看懂错哪了 */
+  function renderChecked() {
+    const segs = hasCjk ? [...article] : article.split(/([a-zA-Z']+)/);
+    return segs.map((seg, i) => {
+      const isTok = hasCjk ? /[一-鿿]/.test(seg) : /[a-zA-Z']/.test(seg);
+      const miss = isTok && missSet.has(hasCjk ? seg : seg.toLowerCase());
+      return miss ? (
+        <mark key={i} className="rounded bg-red-100 px-0.5 font-medium text-red-700">{seg}</mark>
+      ) : (
+        <span key={i}>{seg}</span>
+      );
+    });
+  }
 
   function finish() {
     onSave({ score });
@@ -602,7 +618,15 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="在这里默写整篇……" className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p>命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）。{missing.length > 0 && <span className="text-red-600">漏/错：{missing.slice(0, 20).join(" · ")}</span>}</p>
+          <p className="mb-1.5">
+            命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）
+            {missing.length > 0 ? "，下面是原文，红色＝你漏写或写错的：" : "，全对，太棒了！"}
+          </p>
+          {missing.length > 0 && (
+            <p className="whitespace-pre-wrap rounded-md border bg-background p-2.5 leading-relaxed">
+              {renderChecked()}
+            </p>
+          )}
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
