@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { addDays, formatDateCn, todayStr } from "@/lib/dates";
+import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
 import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
 import {
@@ -152,6 +152,7 @@ function ItemRow({
   onClear,
   onRename,
   onDelete,
+  noteGate = true,
 }: {
   item: PlanItem;
   withCheck: boolean;
@@ -164,6 +165,7 @@ function ItemRow({
   onClear: () => void;
   onRename: (v: string) => void;
   onDelete: () => void;
+  noteGate?: boolean; // 补卡过去的天不门控笔记
 }) {
   const done = state === "done";
   const decided = state !== "pending";
@@ -172,7 +174,7 @@ function ItemRow({
     item.track === "cert" ||
     item.track === "ai" ||
     item.track === "reading";
-  const canCheck = !needsNote || done || noteVal.trim().length > 0;
+  const canCheck = !noteGate || !needsNote || done || noteVal.trim().length > 0;
   const showNote = withCheck && needsNote;
   const notePlaceholder =
     item.track === "reading"
@@ -337,6 +339,10 @@ function Page() {
   const [yChecks, setYChecks] = useState<Set<string>>(new Set()); // 昨天的打卡（睡前拉伸可次日补勾）
 
   const yesterday = addDays(today, -1);
+  // 本周一~日日期（一周视图 + 补卡用）
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(mondayOf(today), i));
+  // 本周各天的打卡状态（补卡：可改「今天及以前」任意一天）
+  const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
@@ -347,7 +353,35 @@ function Page() {
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listTodos().then(setTodos);
     listChecks(yesterday).then(setYChecks);
+    // 载入本周「今天及以前」各天的打卡状态，供一周视图补卡
+    (async () => {
+      const wk: Record<string, Map<string, CheckStatus>> = {};
+      for (const d of weekDates) {
+        if (d <= today) wk[d] = await listCheckStatus(d);
+      }
+      setWeekChecks(wk);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [today, yesterday]);
+
+  // 补卡：改某天某条目的打卡状态（写对应日期，并更新本地）
+  async function setStatusForDate(item: PlanItem, date: string, next: CheckStatus | null) {
+    setWeekChecks((prev) => {
+      const m = new Map(prev[date] ?? []);
+      if (next === null) m.delete(item.id);
+      else m.set(item.id, next);
+      return { ...prev, [date]: m };
+    });
+    if (date === today) {
+      setCheckMap((prev) => {
+        const m = new Map(prev);
+        if (next === null) m.delete(item.id);
+        else m.set(item.id, next);
+        return m;
+      });
+    }
+    await setCheckStatus(item.id, date, next);
+  }
 
   // 经期开关打开时：隐藏 skip 项、把 swap 项换成经期版
   const shown = items
@@ -727,17 +761,22 @@ function Page() {
         </div>
       ) : (
         <div className="mt-4 space-y-6">
+          <p className="text-xs text-muted-foreground">「今天及以前」的天都能补勾（漏打卡了倒回来补）；将来的天不能勾。</p>
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
             const dayItems = shown.filter((i) => matchesDay(i, d));
+            const dateD = weekDates[d - 1];
+            const canBackfill = dateD <= today; // 今天及以前可勾/补卡
+            const dayState = weekChecks[dateD] ?? new Map<string, CheckStatus>();
             return (
               <section key={d}>
                 <h2
                   className={cn(
-                    "mb-1.5 text-sm font-semibold",
+                    "mb-1.5 flex items-baseline gap-2 text-sm font-semibold",
                     d === todayNum ? "text-primary" : "text-muted-foreground",
                   )}
                 >
                   {DAY_NAMES[d]}
+                  <span className="text-xs font-normal text-muted-foreground/70">{dateD.slice(5)}</span>
                   {d === todayNum && "（今天）"}
                 </h2>
                 <div className="space-y-1.5">
@@ -745,13 +784,14 @@ function Page() {
                     <ItemRow
                       key={`${d}-${item.id}`}
                       item={item}
-                      withCheck={d === todayNum}
-                      state={stateOf(item.id)}
+                      withCheck={canBackfill}
+                      noteGate={dateD === today}
+                      state={dayState.get(item.id) ?? "pending"}
                       noteVal={notes[item.id] ?? ""}
                       onNote={(v) => saveNote(item.id, v)}
-                      onDone={() => setStatus(item, "done")}
-                      onSkip={() => setStatus(item, "skip")}
-                      onClear={() => setStatus(item, null)}
+                      onDone={() => setStatusForDate(item, dateD, "done")}
+                      onSkip={() => setStatusForDate(item, dateD, "skip")}
+                      onClear={() => setStatusForDate(item, dateD, null)}
                       onRename={(v) => handleRename(item.id, v)}
                       onDelete={() => handleDelete(item.id)}
                     />

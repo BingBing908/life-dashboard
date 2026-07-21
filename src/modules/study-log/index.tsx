@@ -41,8 +41,10 @@ type BoardCfg = {
   c: Palette;
 };
 
+// 复习不进 BOARDS（不占大磁贴），单独一个小按钮进入
+const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "先默写昨天的古诗 + 英语精读，再看答案", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
+
 const BOARDS: BoardCfg[] = [
-  { key: "review", name: "复习", icon: RotateCcw, hint: "先默写昨天的古诗 + 英语精读，再看答案", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } },
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
   { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔"], hint: "每日成语+谚语 · 古诗背诵 · 练笔输出", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "术语卡"], hint: "每日 5 条新闻 + 术语卡", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
@@ -101,12 +103,6 @@ function Landing({
   onOpen: (b: Board) => void;
 }) {
   const today = todayStr();
-  const yest = addDays(today, -1);
-  const reviewCount = entries.filter(
-    (e) =>
-      e.entry_date === yest &&
-      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
-  ).length;
   const isDone = entryDone;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -129,7 +125,7 @@ function Landing({
                 {b.name}
               </div>
               <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>
-                {b.key === "review" ? `${reviewCount} 条待复习` : `${mine.filter((e) => e.kind !== "note").length} 条`}
+                {mine.filter((e) => e.kind !== "note").length} 条
               </div>
               {b.kinds && (() => {
                 const todays = mine.filter((e) => e.entry_date === today && e.kind !== "note");
@@ -1153,7 +1149,14 @@ function Page() {
     reload();
   }, [reload]);
 
-  const cfg = board ? BOARDS.find((b) => b.key === board)! : null;
+  const cfg = board ? (board === "review" ? REVIEW_CFG : BOARDS.find((b) => b.key === board)!) : null;
+  const rvToday = todayStr();
+  const rvYest = addDays(rvToday, -1);
+  const reviewCount = all.filter(
+    (e) =>
+      e.entry_date === rvYest &&
+      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
+  ).length;
 
   async function addLearning(kind: string, title: string, body: string) {
     const e = await createEntry({ board: board!, kind, entry_date: todayStr(), title, body });
@@ -1205,6 +1208,16 @@ function Page() {
           {cfg ? cfg.name : "学习记录"}
         </h1>
         {cfg && <span className="text-sm text-muted-foreground">{cfg.hint}</span>}
+        {!board && (
+          <button
+            onClick={() => setBoard("review")}
+            className="ml-auto flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors"
+            style={{ borderColor: REVIEW_CFG.c.accent, color: REVIEW_CFG.c.text, background: REVIEW_CFG.c.bg }}
+            title="先默写昨天背的古诗 / 英语精读"
+          >
+            <RotateCcw className="size-4" /> 复习{reviewCount > 0 ? ` (${reviewCount})` : ""}
+          </button>
+        )}
       </div>
 
       {!board && <Landing entries={all} onOpen={setBoard} />}
