@@ -159,8 +159,8 @@ export function DashboardShell({ onOpenModule }: Props) {
       <div className="mb-6 rounded-xl border bg-card p-4">
         <div className="mb-3 flex items-baseline gap-2">
           <h2 className="text-sm font-medium">本周时间轴完成</h2>
-          <button onClick={() => onOpenModule("todo")} className="ml-auto text-xs text-primary hover:underline">
-            本周复盘 →
+          <button onClick={() => onOpenModule("mini-table")} className="ml-auto text-xs text-primary hover:underline">
+            本周复盘（小表格）→
           </button>
         </div>
         <div className="flex items-end justify-between gap-2" style={{ height: 72 }}>
