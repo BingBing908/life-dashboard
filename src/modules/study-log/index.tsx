@@ -545,7 +545,7 @@ function WordDictation({ words, attempts, onSave, accent }: { words: Word[]; att
           第{i + 1}遍 {a.e2c.c + a.c2e.c}/{a.e2c.t + a.c2e.t}
         </button>
       ))}
-      {attempts.length < 3 && (
+      {(
         <button onClick={() => setView(null)} className={cn("rounded-full border px-2.5 py-0.5 text-xs", view === null ? "text-primary-foreground" : "")} style={view === null ? { background: accent, borderColor: accent } : undefined}>
           ✏️ 写{attempts.length ? "新一遍" : ""}
         </button>
@@ -636,7 +636,7 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
           第{i + 1}遍 {a.score}%
         </button>
       ))}
-      {attempts.length < 3 && (
+      {(
         <button onClick={() => setView(null)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === null ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
           ✏️ 写{attempts.length ? "新一遍" : ""}
         </button>
@@ -709,7 +709,7 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
           第{i + 1}遍·{label(a.mode)} {a.score}%
         </button>
       ))}
-      {attempts.length < 5 && (
+      {(
         <button onClick={() => setView(null)} className="rounded-full border px-2.5 py-0.5 text-xs" style={view === null ? { background: accent, borderColor: accent, color: "#fff" } : undefined}>
           ✏️ 第{attempts.length + 1}遍
         </button>
@@ -863,7 +863,7 @@ function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entr
                   e.kind === "精读文章" ? (
                     <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} onDelete={onDelete} />
                   ) : (
-                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} />
+                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
                   ),
                 )}
               </div>
