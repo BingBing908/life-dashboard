@@ -397,8 +397,11 @@ function Page() {
   const todoCards =
     active.source === "todo"
       ? todos
-          .filter((t) => t.due_date && t.due_date <= today)
-          .sort((a, b) => Number(!!a.done) - Number(!!b.done)) // 已完成沉到最下，不消失
+          // 只显示：未完成的（due≤今天）+ 今天完成的；今天以前完成的归到待办的「历史已完成」
+          .filter(
+            (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+          )
+          .sort((a, b) => Number(!!a.done) - Number(!!b.done)) // 今天完成的沉到最下，不消失
       : [];
 
   // 「今天没勾=没完成」，唯一例外是睡前拉伸：昨天该做却没打勾的，今早还能补一勾

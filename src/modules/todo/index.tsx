@@ -21,6 +21,7 @@ import { getCheckins, listHabits } from "../habit-checkin/data";
 import {
   dayNumOf,
   listCheckStatus as listPlanStatus,
+  listLatestNotes,
   listNotes,
   matchesDay,
   seedIfEmpty as seedPlan,
@@ -65,6 +66,32 @@ function QuadrantTag({ q }: { q: Quadrant }) {
       <span className={cn("size-1.5 rounded-full", s.dot)} />
       {name}
     </span>
+  );
+}
+
+/** 已完成的待办行：勾态 + 标题划线 + 「做了：…」笔记（今天完成的留主列表底部、更早的进历史已完成，两处同一展示） */
+function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo; note: string; dateLabel?: string; onClear: () => void; onDelete: () => void }) {
+  return (
+    <div className="group rounded-lg border px-4 py-3 hover:bg-accent/40">
+      <div className="flex items-center gap-3">
+        <DoneToggle state="done" onDone={() => {}} onSkip={() => {}} onClear={onClear} size="sm" />
+        <span className="min-w-0 flex-1 truncate text-[15px] text-muted-foreground line-through">{todo.title}</span>
+        {dateLabel && <span className="shrink-0 text-[11px] text-muted-foreground/70">{dateLabel}</span>}
+        <button
+          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+          title="删除"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+      {note.trim() && (
+        <p className="mt-1.5 pl-1 text-xs text-muted-foreground">
+          <span className="text-muted-foreground/70">做了：</span>
+          {note}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -122,7 +149,8 @@ function Page() {
   const [filterToday, setFilterToday] = useState(false);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [planStatus, setPlanStatus] = useState<Map<string, CheckStatus>>(new Map());
-  const [notes, setNotes] = useState<Record<string, string>>({}); // 待办的「我做了什么」，存 plan_notes（与工作卡片共用同一份）
+  const [notes, setNotes] = useState<Record<string, string>>({}); // 今天的「我做了什么」，存 plan_notes（可编辑）
+  const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
   useEffect(() => {
@@ -130,6 +158,7 @@ function Page() {
     seedPlan().then(setPlanItems);
     listPlanStatus(today).then(setPlanStatus);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
+    listLatestNotes().then(setHistNotes);
   }, [today]);
 
   function saveTodoNote(id: string, v: string) {
@@ -156,13 +185,17 @@ function Page() {
     setTodos((ts) => ts.map((t) => (t.id === id ? { ...t, ...p } : t)));
 
   const isToday = (t: Todo) => !!t.due_date && t.due_date <= today;
+  const doneDate = (t: Todo) => (t.done_at ? t.done_at.slice(0, 10) : "");
   const pending = todos.filter((t) => !t.done);
   const finished = todos.filter((t) => t.done);
+  const finishedToday = finished.filter((t) => doneDate(t) === today); // 今天完成的：留在待办列表最下面
+  const finishedHistory = finished.filter((t) => doneDate(t) !== today); // 今天以前完成的：收进历史已完成
 
   const match = (t: Todo) =>
     (!filterQ || t.quadrant === filterQ) && (!filterToday || isToday(t));
   const pendingShown = pending.filter(match);
-  const finishedShown = finished.filter(match);
+  const finishedTodayShown = finishedToday.filter(match);
+  const finishedHistoryShown = finishedHistory.filter(match);
 
   async function handleCreate() {
     const title = newTitle.trim();
@@ -372,9 +405,19 @@ function Page() {
                 </div>
               );
             })}
+            {/* 今天完成的：留在列表最下面（超过今天的才进历史已完成） */}
+            {finishedTodayShown.map((t) => (
+              <FinishedRow
+                key={t.id}
+                todo={t}
+                note={notes[t.id] ?? ""}
+                onClear={() => handleToggle(t)}
+                onDelete={() => handleDelete(t.id)}
+              />
+            ))}
           </div>
 
-          {pendingShown.length === 0 && (
+          {pendingShown.length === 0 && finishedTodayShown.length === 0 && (
             <p className="py-6 text-sm text-muted-foreground">
               {filterQ || filterToday ? "这个筛选下没有待办。" : "待办清空啦，想到什么先记进来。"}
             </p>
@@ -409,12 +452,12 @@ function Page() {
             </div>
           )}
 
-          {/* 历史已完成（默认收起，放最下面，标完成日期） */}
-          {finishedShown.length > 0 && (
+          {/* 历史已完成：只收「今天以前」完成的，默认收起，标完成日期 + 保留「做了什么」 */}
+          {finishedHistoryShown.length > 0 && (
             <div className="mt-4">
               <Collapse
                 title="历史已完成"
-                count={finishedShown.length}
+                count={finishedHistoryShown.length}
                 right={
                   <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleClearDone}>
                     清除已完成
@@ -422,27 +465,15 @@ function Page() {
                 }
               >
                 <div className="space-y-1.5">
-                  {finishedShown.map((t) => (
-                    <div key={t.id} className="group rounded-md border px-3 py-2">
-                      <div className="flex items-center gap-2.5">
-                        <DoneToggle state="done" onDone={() => {}} onSkip={() => {}} onClear={() => handleToggle(t)} size="sm" />
-                        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground line-through">{t.title}</span>
-                        {t.done_at && <span className="shrink-0 text-[11px] text-muted-foreground/70">{t.done_at.slice(0, 10)}</span>}
-                        <button
-                          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                          title="删除"
-                          onClick={() => handleDelete(t.id)}
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                      {(notes[t.id] ?? "").trim() && (
-                        <p className="mt-1.5 pl-1 text-xs text-muted-foreground">
-                          <span className="text-muted-foreground/70">做了：</span>
-                          {notes[t.id]}
-                        </p>
-                      )}
-                    </div>
+                  {finishedHistoryShown.map((t) => (
+                    <FinishedRow
+                      key={t.id}
+                      todo={t}
+                      note={notes[t.id] ?? histNotes[t.id] ?? ""}
+                      dateLabel={t.done_at ? t.done_at.slice(0, 10) : undefined}
+                      onClear={() => handleToggle(t)}
+                      onDelete={() => handleDelete(t.id)}
+                    />
                   ))}
                 </div>
               </Collapse>

@@ -201,6 +201,17 @@ export async function deleteItem(id: string): Promise<void> {
   await db.execute("UPDATE plan_items SET deleted_at = $1, updated_at = $1 WHERE id = $2", [ts, id]);
 }
 
+/** 每个条目「最近一天」的进度笔记：item_id -> note（跨日期取最新；用于待办历史已完成回看「做了什么」） */
+export async function listLatestNotes(): Promise<Record<string, string>> {
+  const db = await getDb();
+  const rows = await db.select<{ item_id: string; note: string | null }[]>(
+    "SELECT item_id, note FROM plan_notes WHERE deleted_at IS NULL ORDER BY date ASC",
+  );
+  const m: Record<string, string> = {};
+  for (const r of rows) if (r.note) m[r.item_id] = r.note; // 日期升序，后写覆盖=保留最新
+  return m;
+}
+
 /** 某天各条目的进度笔记：item_id -> note */
 export async function listNotes(date: string): Promise<Map<string, string>> {
   const db = await getDb();
