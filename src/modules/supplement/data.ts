@@ -19,6 +19,45 @@ export async function setCalTarget(v: number): Promise<void> {
   );
 }
 
+/** 体重记录：按日期存 app_settings（key `weight:<date>:am|pm`），无需迁移、跨设备同步。
+ *  空腹(am)/睡前(pm) 两个；空腹用于减重趋势。 */
+export interface DayWeight {
+  am: number | null;
+  pm: number | null;
+}
+export async function getWeightLog(): Promise<Record<string, DayWeight>> {
+  const db = await getDb();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    "SELECT key, value FROM app_settings WHERE key LIKE 'weight:%'",
+  );
+  const m: Record<string, DayWeight> = {};
+  for (const r of rows) {
+    const [, date, slot] = r.key.split(":");
+    if (!m[date]) m[date] = { am: null, pm: null };
+    const v = r.value === "" ? null : Number(r.value);
+    if (slot === "am") m[date].am = v;
+    else if (slot === "pm") m[date].pm = v;
+  }
+  return m;
+}
+export async function setWeightEntry(date: string, slot: "am" | "pm", value: number | null): Promise<void> {
+  const db = await getDb();
+  const key = `weight:${date}:${slot}`;
+  // 单调递增时间戳：防注入/其它设备的未来时间戳把这条盖回
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM app_settings WHERE key = $1",
+    [key],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
+    [key, value == null ? "" : String(value), ts],
+  );
+}
+
 export type DrinkSubtype = "奶茶" | "果茶" | "酸奶";
 
 export interface Drink {

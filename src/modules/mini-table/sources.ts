@@ -1,5 +1,5 @@
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
-import { dayCalories, getMeals } from "../supplement/data";
+import { dayCalories, getMeals, getWeightLog } from "../supplement/data";
 import { listCheckStatus, listItems } from "../study-plan/data";
 import { listTodos } from "../todo/data";
 
@@ -26,14 +26,17 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
   "tbl-meals-week": {
     itemCol: "item",
     dayCols: DAY_COLS,
-    autoItems: ["早餐", "午餐", "晚餐", "总摄入卡路里"],
+    autoItems: ["空腹体重", "早餐", "午餐", "晚餐", "总摄入卡路里", "睡前体重"],
     async compute(weekDates) {
       const res: Record<string, Record<string, string>> = {
+        空腹体重: {},
         早餐: {},
         午餐: {},
         晚餐: {},
         总摄入卡路里: {},
+        睡前体重: {},
       };
+      const weights = await getWeightLog();
       for (let i = 0; i < 7; i++) {
         const date = weekDates[i];
         const col = DAY_COLS[i];
@@ -43,6 +46,8 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
         res.午餐[col] = meals.午.content ?? "";
         res.晚餐[col] = meals.晚.content ?? "";
         res.总摄入卡路里[col] = total ? String(total) : "";
+        res.空腹体重[col] = weights[date]?.am != null ? String(weights[date].am) : "";
+        res.睡前体重[col] = weights[date]?.pm != null ? String(weights[date].pm) : "";
       }
       return res;
     },

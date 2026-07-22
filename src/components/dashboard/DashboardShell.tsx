@@ -12,7 +12,7 @@ import {
   setPeriodOn,
 } from "@/modules/study-plan/data";
 import { listTodos } from "@/modules/todo/data";
-import { dayCalories, getCalTarget, getMeals } from "@/modules/supplement/data";
+import { dayCalories, getCalTarget, getMeals, getWeightLog, setWeightEntry, type DayWeight } from "@/modules/supplement/data";
 import { getCheckins, habitOnDay, listHabits } from "@/modules/habit-checkin/data";
 import { listAllEntries } from "@/modules/study-log/data";
 import { entryDone } from "@/modules/study-log";
@@ -34,12 +34,23 @@ interface Stats {
 const DAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 
 /** 今日总览：今日各模块完成度 + 本周学练完成 + 模块入口 */
+const WEIGHT_GOAL = 58; // 12/27 减重验收目标（kg）
+
 export function DashboardShell({ onOpenModule }: Props) {
   const [periodOn, setPeriodState] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [weightLog, setWeightLog] = useState<Record<string, DayWeight>>({});
+  const [wAm, setWAm] = useState("");
+  const [wPm, setWPm] = useState("");
+  const today = todayStr();
 
   useEffect(() => {
     getPeriodOn().then(setPeriodState).catch(() => {});
+    getWeightLog().then((w) => {
+      setWeightLog(w);
+      setWAm(w[today]?.am != null ? String(w[today].am) : "");
+      setWPm(w[today]?.pm != null ? String(w[today].pm) : "");
+    }).catch(() => {});
     (async () => {
       const today = todayStr();
       const tNum = dayNumOf(today);
@@ -99,6 +110,25 @@ export function DashboardShell({ onOpenModule }: Props) {
     setPeriodState(next);
     await setPeriodOn(next);
   }
+
+  async function saveWeight(slot: "am" | "pm", str: string) {
+    const v = str.trim() === "" ? null : Number(str);
+    if (v != null && !isFinite(v)) return;
+    await setWeightEntry(today, slot, v);
+    setWeightLog((prev) => ({
+      ...prev,
+      [today]: {
+        am: slot === "am" ? v : prev[today]?.am ?? null,
+        pm: slot === "pm" ? v : prev[today]?.pm ?? null,
+      },
+    }));
+  }
+
+  // 空腹体重按日期排序，画趋势
+  const wPts = Object.entries(weightLog)
+    .filter(([, w]) => w.am != null)
+    .map(([d, w]) => ({ d, v: w.am as number }))
+    .sort((a, b) => (a.d < b.d ? -1 : 1));
 
   const s = stats;
   const metrics: { label: string; value: string; sub: string; id: string }[] = s
@@ -182,6 +212,58 @@ export function DashboardShell({ onOpenModule }: Props) {
             );
           })}
         </div>
+      </div>
+
+      {/* 体重趋势（空腹体重，朝 12/27 目标线） */}
+      <div className="mb-6 rounded-xl border bg-card p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="text-sm font-medium">体重趋势</h2>
+          <span className="text-xs text-muted-foreground">目标 12/27 ≤ {WEIGHT_GOAL}kg</span>
+          <label className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+            今日空腹
+            <input type="number" step="0.1" value={wAm} onChange={(e) => setWAm(e.target.value)} onBlur={(e) => saveWeight("am", e.target.value)}
+              className="h-7 w-16 rounded-md border bg-transparent px-2 text-sm" /> kg
+          </label>
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            睡前
+            <input type="number" step="0.1" value={wPm} onChange={(e) => setWPm(e.target.value)} onBlur={(e) => saveWeight("pm", e.target.value)}
+              className="h-7 w-16 rounded-md border bg-transparent px-2 text-sm" /> kg
+          </label>
+        </div>
+        {wPts.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">记两天空腹体重就有趋势线了。</p>
+        ) : (
+          (() => {
+            const W = 640, H = 120, pad = 24;
+            const vals = wPts.map((p) => p.v);
+            const yMin = Math.min(WEIGHT_GOAL, ...vals) - 0.5;
+            const yMax = Math.max(WEIGHT_GOAL, ...vals) + 0.5;
+            const x = (i: number) => (wPts.length === 1 ? W / 2 : pad + (i * (W - pad * 2)) / (wPts.length - 1));
+            const y = (v: number) => H - pad - ((v - yMin) / (yMax - yMin)) * (H - pad * 2);
+            const line = wPts.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+            const goalY = y(WEIGHT_GOAL);
+            const last = wPts[wPts.length - 1];
+            return (
+              <div>
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }} preserveAspectRatio="none">
+                  <line x1={pad} y1={goalY} x2={W - pad} y2={goalY} stroke="var(--color-text-success, #1D9E75)" strokeWidth={1} strokeDasharray="4 4" />
+                  <path d={line} fill="none" stroke="var(--color-text-info, #378ADD)" strokeWidth={2} />
+                  {wPts.map((p, i) => (
+                    <circle key={p.d} cx={x(i)} cy={y(p.v)} r={2.5} fill="var(--color-text-info, #378ADD)" />
+                  ))}
+                </svg>
+                <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                  <span>{wPts[0].d.slice(5)}</span>
+                  <span>
+                    最新 <b className="text-foreground">{last.v}kg</b>
+                    {last.v > WEIGHT_GOAL ? `（离目标 ${(last.v - WEIGHT_GOAL).toFixed(1)}）` : "（已达标 🎉）"}
+                  </span>
+                  <span>{last.d.slice(5)}</span>
+                </div>
+              </div>
+            );
+          })()
+        )}
       </div>
 
       {/* 模块入口（摘要卡） */}
