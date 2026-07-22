@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DoneToggle, type PlanState } from "@/components/DoneToggle";
+import { QuickAdd } from "@/components/QuickAdd";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import {
@@ -506,25 +507,17 @@ function Page() {
   }
 
   // 在「工作」域加一条 → 建一条今天·重要紧急待办（待办↔工作双向）
-  const [newWork, setNewWork] = useState("");
-  async function addWorkTodo() {
-    const title = newWork.trim();
-    if (!title) return;
+  async function addWorkTodo(title: string) {
     const order = Math.max(0, ...todos.map((x) => x.sort_order)) + 1;
     const t = await createTodo(title, "iu", today, order);
     setTodos((ts) => [...ts, t]);
-    setNewWork("");
   }
 
   // 在计划领域加一条「计划外」（自己练/做的，今天该 track），可删；原定计划不可删
-  const [newExtra, setNewExtra] = useState("");
-  async function addExtra(track: Track) {
-    const title = newExtra.trim();
-    if (!title) return;
+  async function addExtra(track: Track, title: string) {
     const order = Math.max(0, ...items.map((i) => i.sort_order)) + 1;
     const item = await createItem({ track, days: String(dayNumOf(today)), time_slot: null, title }, order);
     setItems((its) => [...its, item]);
-    setNewExtra("");
   }
 
   function saveNote(id: string, v: string) {
@@ -709,30 +702,15 @@ function Page() {
               </div>
               <div className="space-y-3">
                 {active.source === "todo" && (
-                  <div className="flex gap-2">
-                    <input
-                      value={newWork}
-                      onChange={(e) => setNewWork(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addWorkTodo()}
-                      placeholder="加一件今天的工作（→ 待办·重要紧急）"
-                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-                    />
-                    <Button size="sm" onClick={addWorkTodo}>加</Button>
-                  </div>
+                  <QuickAdd placeholder="加一件今天的工作（→ 待办·重要紧急）" cta="加" onAdd={addWorkTodo} />
                 )}
                 {active.source === "plan" && active.tracks && (
-                  <div className="flex gap-2">
-                    <input
-                      value={newExtra}
-                      onChange={(e) => setNewExtra(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addExtra(active.tracks![0])}
-                      placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
-                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-                    />
-                    <Button size="sm" variant="outline" onClick={() => addExtra(active.tracks![0])}>
-                      <Plus className="size-4" /> 新增
-                    </Button>
-                  </div>
+                  <QuickAdd
+                    placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
+                    cta="新增"
+                    variant="outline"
+                    onAdd={(title) => addExtra(active.tracks![0], title)}
+                  />
                 )}
                 {active.source === "plan" &&
                   planCards.map((i) => (
