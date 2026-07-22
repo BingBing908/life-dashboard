@@ -720,6 +720,20 @@ function Page() {
                     <Button size="sm" onClick={addWorkTodo}>加</Button>
                   </div>
                 )}
+                {active.source === "plan" && active.tracks && (
+                  <div className="flex gap-2">
+                    <input
+                      value={newExtra}
+                      onChange={(e) => setNewExtra(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addExtra(active.tracks![0])}
+                      placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
+                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                    <Button size="sm" variant="outline" onClick={() => addExtra(active.tracks![0])}>
+                      <Plus className="size-4" /> 新增
+                    </Button>
+                  </div>
+                )}
                 {active.source === "plan" &&
                   planCards.map((i) => (
                     <ThreeRowCard
@@ -764,20 +778,6 @@ function Page() {
                       ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
                       : "这个时段今天没有安排。"}
                   </p>
-                )}
-                {active.source === "plan" && active.tracks && (
-                  <div className="flex gap-2 pt-1">
-                    <input
-                      value={newExtra}
-                      onChange={(e) => setNewExtra(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addExtra(active.tracks![0])}
-                      placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
-                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-                    />
-                    <Button size="sm" variant="outline" onClick={() => addExtra(active.tracks![0])}>
-                      <Plus className="size-4" /> 新增
-                    </Button>
-                  </div>
                 )}
               </div>
             </div>
