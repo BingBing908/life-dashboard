@@ -82,6 +82,31 @@ function Card() {
  * 打卡面板：可独立成页，也可嵌入其他模块（如 To Do List 右栏）。
  * compact = 窄栏模式：隐藏近 7 天方块和副标题，控件缩小。
  */
+/** 一~日 七个星期方块（加习惯 / 改重复日共用），selected 里的高亮，点击 onToggle */
+function WeekdayPicker({ selected, onToggle, size = "md" }: { selected: Set<number>; onToggle: (d: number) => void; size?: "sm" | "md" }) {
+  return (
+    <>
+      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => onToggle(d)}
+          title={"周" + DAY_LABELS[d - 1]}
+          className={cn(
+            "flex items-center justify-center rounded-md border text-xs transition-colors",
+            size === "sm" ? "size-6" : "size-7",
+            selected.has(d)
+              ? "border-primary bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent",
+          )}
+        >
+          {DAY_LABELS[d - 1]}
+        </button>
+      ))}
+    </>
+  );
+}
+
 export function HabitPanel({ compact = false, weekly = false }: { compact?: boolean; weekly?: boolean }) {
   const { habits, setHabits, checkins, setCheckins, loaded } = useHabits();
   const [newName, setNewName] = useState("");
@@ -200,26 +225,7 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
         </div>
         {/* 重复星期：全选=每天；例如搓澡只选「日」，泡脚选一/五/六/日 */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-            const on = newDays.has(d);
-            return (
-              <button
-                key={d}
-                type="button"
-                onClick={() => toggleNewDay(d)}
-                title={"周" + DAY_LABELS[d - 1]}
-                className={cn(
-                  "flex items-center justify-center rounded-md border text-xs transition-colors",
-                  compact ? "size-6" : "size-7",
-                  on
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent",
-                )}
-              >
-                {DAY_LABELS[d - 1]}
-              </button>
-            );
-          })}
+          <WeekdayPicker selected={newDays} onToggle={toggleNewDay} size={compact ? "sm" : "md"} />
           <span className="ml-1 text-xs text-muted-foreground">
             {newDays.size === 7 ? "每天" : newDays.size === 0 ? "选个星期" : `每周${daysLabel([...newDays].sort((a, b) => a - b).join(","))}`}
           </span>
@@ -324,21 +330,7 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
                       </button>
                     ))}
                     <span className="mx-0.5 text-muted-foreground/40">|</span>
-                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => toggleHabitDay(habit, d)}
-                        className={cn(
-                          "flex size-6 items-center justify-center rounded-md border text-xs transition-colors",
-                          habitDaySet.has(d)
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent",
-                        )}
-                      >
-                        {DAY_LABELS[d - 1]}
-                      </button>
-                    ))}
+                    <WeekdayPicker selected={habitDaySet} onToggle={(d) => toggleHabitDay(habit, d)} size="sm" />
                     <span className="ml-1 text-xs text-muted-foreground">{daysLabel(habit.days)}</span>
                   </div>
                 )}

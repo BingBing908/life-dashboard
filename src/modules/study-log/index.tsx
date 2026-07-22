@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
 import { addDays, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
@@ -173,6 +174,65 @@ function Landing({
 }
 
 /** 通用板块（英语/语文/AI/历史）：当天展开，历史按日期折叠 */
+/** 按日期分组的折叠看板（日日学各板块共用）：今天/最新那天默认展开，每条用 renderItem 渲染 */
+function DateGroupedBoard({
+  entries,
+  cfg,
+  renderItem,
+  emptyText,
+}: {
+  entries: Entry[];
+  cfg: BoardCfg;
+  renderItem: (e: Entry) => React.ReactNode;
+  emptyText?: string;
+}) {
+  const today = todayStr();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const byDate = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const d = e.entry_date || "未标日期";
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(e);
+  }
+  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const primary = dates.includes(today) ? today : dates[0];
+  if (dates.length === 0) {
+    return emptyText ? <p className="py-10 text-sm text-muted-foreground">{emptyText}</p> : null;
+  }
+  return (
+    <div className="space-y-3">
+      {dates.map((d) => {
+        const isToday = d === today;
+        const isOpen = open[d] ?? d === primary;
+        const items = byDate.get(d)!;
+        return (
+          <section key={d} className="rounded-xl border bg-card">
+            <button
+              onClick={() => setOpen((o) => ({ ...o, [d]: !isOpen }))}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left"
+            >
+              {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+              <span className="text-sm font-medium" style={{ color: isToday ? cfg.c.sub : undefined }}>
+                {isToday ? "今天" : d}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {items.map((i) => i.kind).filter(Boolean).join(" · ")}
+              </span>
+              {isToday && (
+                <span className="ml-auto rounded-full px-2 py-0.5 text-xs" style={{ background: cfg.c.bg, color: cfg.c.text }}>
+                  今日
+                </span>
+              )}
+            </button>
+            {isOpen && <div className="space-y-2 px-4 pb-4">{items.map(renderItem)}</div>}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 通用学习板块（AI/历史/金融/PM/语文）：加一条 + 按日期折叠（DateGroupedBoard） */
 function LearningBoard({
   cfg,
   entries,
@@ -186,73 +246,22 @@ function LearningBoard({
   onDelete: (id: string) => void;
   onPatch: (id: string, patch: Record<string, unknown>) => void;
 }) {
-  const today = todayStr();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   const [adding, setAdding] = useState(false);
-
-  const byDate = new Map<string, Entry[]>();
-  for (const e of entries) {
-    const d = e.entry_date || "未标日期";
-    if (!byDate.has(d)) byDate.set(d, []);
-    byDate.get(d)!.push(e);
-  }
-  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
-  const primary = dates.includes(today) ? today : dates[0]; // 有今天开今天，否则开最新那天
-
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          平时内容我帮你更新；也可以自己加一条
-        </p>
+        <p className="text-sm text-muted-foreground">平时内容我帮你更新；也可以自己加一条</p>
         <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>
           <Plus className="size-4" /> 加一条
         </Button>
       </div>
-
       {adding && <AddEntryForm kinds={cfg.kinds!} onAdd={(k, t, b) => { onAdd(k, t, b); setAdding(false); }} />}
-
-      {dates.length === 0 && !adding && (
-        <p className="py-10 text-sm text-muted-foreground">
-          还没有内容。晚上发我「{cfg.name}学完了，换新的」，我更新进来；你打开就能看到。
-        </p>
-      )}
-
-      <div className="space-y-3">
-        {dates.map((d) => {
-          const isToday = d === today;
-          const isOpen = open[d] ?? d === primary;
-          const items = byDate.get(d)!;
-          return (
-            <section key={d} className="rounded-xl border bg-card">
-              <button
-                onClick={() => setOpen((o) => ({ ...o, [d]: !isOpen }))}
-                className="flex w-full items-center gap-2 px-4 py-3 text-left"
-              >
-                {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
-                <span className="text-sm font-medium" style={{ color: isToday ? cfg.c.sub : undefined }}>
-                  {isToday ? "今天" : d}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {items.map((i) => i.kind).filter(Boolean).join(" · ")}
-                </span>
-                {isToday && (
-                  <span className="ml-auto rounded-full px-2 py-0.5 text-xs" style={{ background: cfg.c.bg, color: cfg.c.text }}>
-                    今日
-                  </span>
-                )}
-              </button>
-              {isOpen && (
-                <div className="space-y-2 px-4 pb-4">
-                  {items.map((e) => (
-                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
+      <DateGroupedBoard
+        entries={entries}
+        cfg={cfg}
+        emptyText={adding ? undefined : `还没有内容。晚上发我「${cfg.name}学完了，换新的」，我更新进来；你打开就能看到。`}
+        renderItem={(e) => <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />}
+      />
     </div>
   );
 }
@@ -830,48 +839,19 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
 
 /** 英语板块：精读卡（ReadingCard）+ 其它（谚语等用 EntryDoc）；按日期折叠，今天展开 */
 function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
-  const today = todayStr();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
-  const byDate = new Map<string, Entry[]>();
-  for (const e of entries) {
-    const d = e.entry_date || "未标日期";
-    if (!byDate.has(d)) byDate.set(d, []);
-    byDate.get(d)!.push(e);
-  }
-  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
-  const primary = dates.includes(today) ? today : dates[0]; // 有今天开今天，否则开最新那天
-  if (dates.length === 0) {
-    return <p className="py-10 text-sm text-muted-foreground">还没有内容。晚上发我「英语学完了，换新的」，我更新进来。</p>;
-  }
   return (
-    <div className="space-y-3">
-      {dates.map((d) => {
-        const isToday = d === today;
-        const isOpen = open[d] ?? d === primary;
-        const items = byDate.get(d)!;
-        return (
-          <section key={d} className="rounded-xl border bg-card">
-            <button onClick={() => setOpen((o) => ({ ...o, [d]: !isOpen }))} className="flex w-full items-center gap-2 px-4 py-3 text-left">
-              {isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
-              <span className="text-sm font-medium" style={{ color: isToday ? cfg.c.sub : undefined }}>{isToday ? "今天" : d}</span>
-              <span className="text-xs text-muted-foreground">{items.map((i) => i.kind).filter(Boolean).join(" · ")}</span>
-              {isToday && <span className="ml-auto rounded-full px-2 py-0.5 text-xs" style={{ background: cfg.c.bg, color: cfg.c.text }}>今日</span>}
-            </button>
-            {isOpen && (
-              <div className="space-y-2 px-4 pb-4">
-                {items.map((e) =>
-                  e.kind === "精读文章" ? (
-                    <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} onDelete={onDelete} />
-                  ) : (
-                    <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
-                  ),
-                )}
-              </div>
-            )}
-          </section>
-        );
-      })}
-    </div>
+    <DateGroupedBoard
+      entries={entries}
+      cfg={cfg}
+      emptyText="还没有内容。晚上发我「英语学完了，换新的」，我更新进来。"
+      renderItem={(e) =>
+        e.kind === "精读文章" ? (
+          <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} onDelete={onDelete} />
+        ) : (
+          <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
+        )
+      }
+    />
   );
 }
 
@@ -924,13 +904,9 @@ function Stars({ value, onChange, accent }: { value: number; onChange: (v: numbe
 }
 
 function AddTitleForm({ placeholder, cta, onAdd }: { placeholder: string; cta: string; onAdd: (t: string) => void }) {
-  const [t, setT] = useState("");
   return (
-    <div className="mb-5 flex max-w-md gap-2">
-      <Input value={t} onChange={(e) => setT(e.target.value)} onKeyDown={(e) => e.key === "Enter" && t.trim() && (onAdd(t.trim()), setT(""))} placeholder={placeholder} />
-      <Button onClick={() => t.trim() && (onAdd(t.trim()), setT(""))}>
-        <Plus className="size-4" /> {cta}
-      </Button>
+    <div className="mb-5 max-w-md">
+      <QuickAdd placeholder={placeholder} cta={cta} onAdd={onAdd} />
     </div>
   );
 }
@@ -1025,7 +1001,6 @@ function BookNotebook({
   onAddNote: (bookId: string, body: string) => void;
   onDeleteNote: (id: string) => void;
 }) {
-  const [note, setNote] = useState("");
   const cover = metaGet(book, "cover");
   const rating = Number(metaGet(book, "rating") || 0);
   const done = book.status === "done";
@@ -1064,11 +1039,8 @@ function BookNotebook({
       {/* 每日进度 / 随笔 */}
       <div className="mt-5">
         <p className="mb-2 text-sm font-medium">阅读进度 · 随笔</p>
-        <div className="mb-2 flex gap-2">
-          <Input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && note.trim() && (onAddNote(book.id, note.trim()), setNote(""))} placeholder="今天看到哪了 / 随手写点想法" />
-          <Button onClick={() => note.trim() && (onAddNote(book.id, note.trim()), setNote(""))}>
-            <Plus className="size-4" /> 记一笔
-          </Button>
+        <div className="mb-2">
+          <QuickAdd placeholder="今天看到哪了 / 随手写点想法" cta="记一笔" onAdd={(v) => onAddNote(book.id, v)} />
         </div>
         <div className="space-y-1.5">
           {notes.map((n) => (
