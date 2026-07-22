@@ -436,6 +436,25 @@ const enOk = (u: string, a: string) => {
   const x = normEn(u), y = normEn(a);
   return !!x && x === y;
 };
+
+// ---- 复习默写：断句 + 「句子词序完全一致」判对（忽略大小写/标点）----
+/** 按标点/换行断句（英文按 .!?;、中文按 。！？；，标点跟着句子走） */
+function splitSents(s: string): string[] {
+  return (s || "")
+    .replace(/([.!?。！？；;])\s*/g, "$1\n")
+    .split(/[\n]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+const enWords = (s: string) => s.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+const cjkChars = (s: string) => s.match(/[一-鿿]/g) ?? [];
+/** 一句是否默对：有汉字按「字」序、否则按「词」序，须完全一致 */
+function sentEq(ans: string, ref: string): boolean {
+  const hasCjk = /[一-鿿]/.test(ref);
+  const a = hasCjk ? cjkChars(ans) : enWords(ans);
+  const b = hasCjk ? cjkChars(ref) : enWords(ref);
+  return b.length > 0 && a.length === b.length && a.every((w, i) => w === b[i]);
+}
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -1143,9 +1162,153 @@ function Card() {
   return <p className="text-sm text-muted-foreground">{n === null ? "加载中…" : `六大板块共 ${n} 条记录`}</p>;
 }
 
-/** 复习板块：第二天先默写「前一天」背的——昨天的古诗 + 英语精读，复用各自的默写 */
-function ReviewBoard({ entries, onPatch, onDelete }: { entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
-  const yest = addDays(todayStr(), -1);
+/** 复习要默的「原文」：英语精读＝英文全文；古诗＝【原诗】/recite */
+function reviewTarget(e: Entry): string {
+  const m = parseMetaObj(e);
+  if (e.board === "english") return (m.article_en as string) || e.body || "";
+  const poemMatch = (e.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
+  return (m.recite as string) || (poemMatch ? poemMatch[1].trim() : (e.body ?? ""));
+}
+
+/** 复习专用默写：总体默写 → 批改按句标错 → 逐句订正（默到词序全对才进下一句）
+ *  → 全部订正后再总体默写 → 全对即「复习通过」。判对＝该句词序完全一致（忽略大小写/标点）。 */
+function ReviewDictation({
+  target,
+  passed,
+  accent,
+  onPass,
+}: {
+  target: string;
+  passed: boolean;
+  accent: string;
+  onPass: () => void;
+}) {
+  const sents = splitSents(target);
+  const [phase, setPhase] = useState<"total" | "fix">("total");
+  const [round, setRound] = useState(1);
+  const [text, setText] = useState("");
+  const [graded, setGraded] = useState(false);
+  const [wrong, setWrong] = useState<number[]>([]); // sents 里还没订正对的句 index
+  const [fixIdx, setFixIdx] = useState(0);
+  const [fixText, setFixText] = useState("");
+  const [fixWrong, setFixWrong] = useState(false);
+  const [done, setDone] = useState(passed);
+
+  function gradeTotal() {
+    const ans = splitSents(text);
+    const bad: number[] = [];
+    sents.forEach((s, i) => {
+      if (!sentEq(ans[i] ?? "", s)) bad.push(i);
+    });
+    setGraded(true);
+    setWrong(bad);
+    if (bad.length === 0) {
+      setDone(true);
+      onPass();
+    }
+  }
+  function submitFix() {
+    const idx = wrong[fixIdx];
+    if (!sentEq(fixText, sents[idx])) {
+      setFixWrong(true);
+      return;
+    }
+    if (fixIdx + 1 >= wrong.length) {
+      // 全部订正完 → 回到总体默写再验一遍
+      setPhase("total");
+      setText("");
+      setGraded(false);
+      setWrong([]);
+      setRound((r) => r + 1);
+    } else {
+      setFixIdx(fixIdx + 1);
+      setFixText("");
+      setFixWrong(false);
+    }
+  }
+  function redo() {
+    setDone(false);
+    setPhase("total");
+    setRound(1);
+    setText("");
+    setGraded(false);
+    setWrong([]);
+    setFixIdx(0);
+    setFixText("");
+    setFixWrong(false);
+  }
+
+  if (done) {
+    return (
+      <div className="mt-2 rounded-lg border p-3" style={{ borderColor: "#10b98155", background: "#10b98110" }}>
+        <p className="text-sm font-medium text-emerald-700">✓ 复习通过——今天已默到全对</p>
+        <button onClick={redo} className="mt-2 rounded-md border px-2.5 py-1 text-xs hover:bg-accent">再默一遍</button>
+      </div>
+    );
+  }
+
+  if (phase === "fix") {
+    const idx = wrong[fixIdx];
+    return (
+      <div className="mt-2 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+        <p className="mb-1 text-sm font-medium">订正第 {fixIdx + 1}/{wrong.length} 句（默到词序全对才进下一句）</p>
+        <p className="mb-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "10", borderColor: accent + "33" }}>
+          {sents[idx]}
+        </p>
+        <textarea
+          value={fixText}
+          onChange={(e) => { setFixText(e.target.value); setFixWrong(false); }}
+          placeholder="照着上面这句，默写一遍……"
+          className="min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
+        />
+        {fixWrong && (
+          <div className="mt-1.5 text-sm">
+            <span className="text-red-600">还没对，再来一遍。</span>
+            <DictReview answer={fixText} refText={sents[idx]} refLabel="正确" />
+          </div>
+        )}
+        <div className="mt-2 flex justify-end">
+          <Button size="sm" onClick={submitFix}>订正这句</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
+      <p className="mb-2 text-sm font-medium">
+        凭记忆默写全文{round > 1 ? `（第 ${round} 轮 · 订正后复验）` : ""}
+      </p>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="在这里默写整篇（什么都不看）……"
+        className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
+      />
+      {graded && wrong.length > 0 && (
+        <div className="mt-2 text-sm">
+          <p className="mb-1 text-red-600">有 {wrong.length} 句没对，逐句订正一下。</p>
+          <DictReview answer={text} refText={target} />
+        </div>
+      )}
+      <div className="mt-2 flex justify-end gap-2">
+        {!graded ? (
+          <Button size="sm" onClick={gradeTotal}>批改</Button>
+        ) : wrong.length > 0 ? (
+          <Button size="sm" onClick={() => { setPhase("fix"); setFixIdx(0); setFixText(""); setFixWrong(false); }}>
+            去逐句订正（{wrong.length}）
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** 复习板块：第二天先默写「前一天」背的——昨天的古诗 + 英语精读。
+ *  逐句订正闭环，默到全对才「复习通过」；通过打 reviewedAt=今天。 */
+function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: string) => void }) {
+  const today = todayStr();
+  const yest = addDays(today, -1);
   const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
   const items = entries.filter(
     (e) =>
@@ -1161,14 +1324,34 @@ function ReviewBoard({ entries, onPatch, onDelete }: { entries: Entry[]; onPatch
   }
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">先默写昨天（{yest}）背的，再看答案对比。下面各板块的「今天」才是新一天的内容。</p>
-      {items.map((e) =>
-        e.board === "english" ? (
-          <ReadingCard key={e.id} entry={e} accent={acc("english")} onPatch={onPatch} onDelete={onDelete} />
-        ) : (
-          <EntryDoc key={e.id} entry={e} accent={acc("chinese")} onDelete={onDelete} onPatch={onPatch} />
-        ),
-      )}
+      <p className="text-sm text-muted-foreground">
+        默写昨天（{yest}）背的：整篇默一遍→批改→把写错的句子一句句订正到全对→再整篇默一遍全对，才算复习通过。
+      </p>
+      {items.map((e) => {
+        const isEng = e.board === "english";
+        const reviewed = metaGet(e, "reviewedAt") === today;
+        return (
+          <div key={e.id} className="rounded-lg border bg-background p-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: acc(e.board) + "22", color: acc(e.board) }}>
+                {isEng ? "英语精读" : "古诗"}
+              </span>
+              {e.title && <span className="text-sm font-medium">{e.title}</span>}
+              <span
+                className={cn("ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs", reviewed ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
+              >
+                {reviewed ? "✓ 已复习" : "默到全对算复习过"}
+              </span>
+            </div>
+            <ReviewDictation
+              target={reviewTarget(e)}
+              passed={reviewed}
+              accent={acc(e.board)}
+              onPass={() => onPass(e.id)}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1188,10 +1371,12 @@ function Page() {
   const cfg = board ? (board === "review" ? REVIEW_CFG : BOARDS.find((b) => b.key === board)!) : null;
   const rvToday = todayStr();
   const rvYest = addDays(rvToday, -1);
+  // 复习待办数：昨天该复习、今天还没默到全对的条数（复习通过后 reviewedAt=今天，从计数消失）
   const reviewCount = all.filter(
     (e) =>
       e.entry_date === rvYest &&
-      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
+      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")) &&
+      metaGet(e, "reviewedAt") !== rvToday,
   ).length;
 
   async function addLearning(kind: string, title: string, body: string) {
@@ -1259,7 +1444,7 @@ function Page() {
       {!board && <Landing entries={all} onOpen={setBoard} />}
 
       {board === "review" && (
-        <ReviewBoard entries={all} onPatch={patchEntry} onDelete={del} />
+        <ReviewBoard entries={all} onPass={(id) => patchEntry(id, { reviewedAt: rvToday })} />
       )}
 
       {board === "english" && cfg && (
