@@ -129,4 +129,9 @@
   html {
     @apply font-sans;
     }
+  /* 幼圆没有粗体字重：600+ 会被浏览器逐字“合成加粗”，个别字发虚、边缘泛蓝灰，
+     看起来像变色。粗体一律落到有真 Bold 的字体上（英文仍 Geist，中文雅黑）。 */
+  strong, b, .font-semibold, .font-bold {
+    font-family: 'Geist Variable', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    }
 }
