@@ -77,7 +77,11 @@ function withMeta(e: Entry, patch: Record<string, unknown>): string {
 function needsDictation(e: Entry): boolean {
   return e.kind === "古诗" || e.kind === "精读文章";
 }
-/** 是否「今天看完」：要默写的＝默写过≥1遍才算；其余＝手动标 meta.done */
+/** 交了作业的练笔（Claude 批改后写进 meta.homework）＝提交即完成，不用手动标 */
+function hasHomework(m: Record<string, unknown>): boolean {
+  return typeof m.homework === "string" && (m.homework as string).trim().length > 0;
+}
+/** 是否「今天看完」：要默写的＝默写过≥1遍；练笔＝交了作业（有 meta.homework）；其余＝手动标 meta.done */
 export function entryDone(e: Entry): boolean {
   let m: Record<string, unknown> = {};
   try {
@@ -90,6 +94,7 @@ export function entryDone(e: Entry): boolean {
     const word = (m.wordAtt as unknown[]) ?? [];
     return art.length >= 1 || word.length >= 1;
   }
+  if (e.kind === "练笔") return hasHomework(m);
   return !!m.done;
 }
 
@@ -348,7 +353,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         )}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {onPatch && !dictKind && entry.kind !== "练习" && (
+          {onPatch && !dictKind && entry.kind !== "练习" && entry.kind !== "练笔" && (
             <button
               onClick={() => onPatch(entry.id, { done: !done })}
               className={cn(
@@ -365,6 +370,14 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
               title="默写过≥1遍才算看完"
             >
               {done ? "✓ 已默写" : "默写后算看完"}
+            </span>
+          )}
+          {entry.kind === "练笔" && (
+            <span
+              className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
+              title="交作业（Claude 批改后）即算完成"
+            >
+              {done ? "✓ 已完成" : "交作业后算完成"}
             </span>
           )}
         </div>
