@@ -129,9 +129,9 @@
   html {
     @apply font-sans;
     }
-  /* 幼圆没有粗体字重：600+ 会被浏览器逐字“合成加粗”，个别字发虚、边缘泛蓝灰，
-     看起来像变色。粗体一律落到有真 Bold 的字体上（英文仍 Geist，中文雅黑）。 */
+  /* Rosie 要「幼圆加粗」、不要黑体：粗体保持 --font-sans（幼圆优先），
+     让浏览器合成加粗；英文字形按字体栈逐字回退到 Geist。 */
   strong, b, .font-semibold, .font-bold {
-    font-family: 'Geist Variable', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    font-family: var(--font-sans);
     }
 }

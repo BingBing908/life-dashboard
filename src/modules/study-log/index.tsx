@@ -265,6 +265,58 @@ function LearningBoard({
 }
 
 /** 一条学习内容（只展示，不可删，防误删）。body 支持轻量标记：[[术语]] 释义、`**加粗**`、`!!标红!!`、`!!!红+粗!!!`。 */
+/** 富文本行内渲染（正文 + 练笔「作业」小框共用，重复即抽组件）：
+ *  [[术语]]=点开释义 / **幼圆加粗** / !!红字!! / !!!红字加粗!!! / 链接。
+ *  ⚠️ 每个标记要在同一行内（!!…!! 里不能有换行）。 */
+function RichText({
+  text,
+  accent,
+  term,
+  setTerm,
+}: {
+  text: string;
+  accent: string;
+  term: string | null;
+  setTerm: (t: string | null) => void;
+}) {
+  const parts = text.split(/(\[\[[^\]]+\]\]|!!!.+?!!!|\*\*.+?\*\*|!!.+?!!|https?:\/\/[^\s，。；、）)】"'」]+)/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        const m = p.match(/^\[\[([^\]]+)\]\]$/);
+        if (m) {
+          const t = m[1];
+          const active = term === t;
+          return (
+            <button
+              key={i}
+              onClick={() => setTerm(active ? null : t)}
+              className="font-medium"
+              style={{ color: accent, borderBottom: `1.5px dotted ${accent}`, background: active ? accent + "18" : "transparent" }}
+            >
+              {t}
+            </button>
+          );
+        }
+        if (/^https?:\/\//.test(p)) {
+          return (
+            <a key={i} href={p} target="_blank" rel="noreferrer" className="break-all underline decoration-dotted underline-offset-2" style={{ color: accent }}>
+              {p.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}{p.replace(/^https?:\/\/(www\.)?/, "").length > 40 ? "…" : ""}
+            </a>
+          );
+        }
+        const rb = p.match(/^!!!([\s\S]+)!!!$/);
+        if (rb) return <strong key={i} className="font-semibold text-red-600">{rb[1]}</strong>;
+        const b = p.match(/^\*\*([\s\S]+)\*\*$/);
+        if (b) return <strong key={i} className="font-semibold text-foreground">{b[1]}</strong>;
+        const r = p.match(/^!!([\s\S]+)!!$/);
+        if (r) return <span key={i} className="text-red-600">{r[1]}</span>;
+        return <span key={i}>{p}</span>;
+      })}
+    </>
+  );
+}
+
 function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
   const [term, setTerm] = useState<string | null>(null);
   const [dict, setDict] = useState(false);
@@ -276,7 +328,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   }
   const glossary = (meta.glossary as Record<string, string>) ?? {};
   const image = meta.image as string | undefined;
-  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\]|!!!.+?!!!|\*\*.+?\*\*|!!.+?!!|https?:\/\/[^\s，。；、）)】"'」]+)/g);
+  const homework = typeof meta.homework === "string" ? (meta.homework as string) : null;
   // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
   const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
   const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
@@ -320,39 +372,17 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
       {entry.body && (
         <Blurred active={isPoem && dict}>
           <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-            {parts.map((p, i) => {
-              const m = p.match(/^\[\[([^\]]+)\]\]$/);
-              if (m) {
-                const t = m[1];
-                const active = term === t;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setTerm(active ? null : t)}
-                    className="font-medium"
-                    style={{ color: accent, borderBottom: `1.5px dotted ${accent}`, background: active ? accent + "18" : "transparent" }}
-                  >
-                    {t}
-                  </button>
-                );
-              }
-              if (/^https?:\/\//.test(p)) {
-                return (
-                  <a key={i} href={p} target="_blank" rel="noreferrer" className="break-all underline decoration-dotted underline-offset-2" style={{ color: accent }}>
-                    {p.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}{p.replace(/^https?:\/\/(www\.)?/, "").length > 40 ? "…" : ""}
-                  </a>
-                );
-              }
-              const rb = p.match(/^!!!([\s\S]+)!!!$/);
-              if (rb) return <strong key={i} className="font-semibold text-red-600">{rb[1]}</strong>;
-              const b = p.match(/^\*\*([\s\S]+)\*\*$/);
-              if (b) return <strong key={i} className="font-semibold text-foreground">{b[1]}</strong>;
-              const r = p.match(/^!!([\s\S]+)!!$/);
-              if (r) return <span key={i} className="text-red-600">{r[1]}</span>;
-              return <span key={i}>{p}</span>;
-            })}
+            <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
           </p>
         </Blurred>
+      )}
+      {homework && (
+        <div className="mt-3 rounded-lg border-l-4 p-3" style={{ borderColor: accent, background: accent + "0e" }}>
+          <p className="mb-1.5 text-xs font-medium" style={{ color: accent }}>作业</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+            <RichText text={homework} accent={accent} term={term} setTerm={setTerm} />
+          </p>
+        </div>
       )}
       {image && <img src={image} alt="配图" className="mt-2 w-full max-w-xl rounded-md border" />}
       {term && glossary[term] && (
