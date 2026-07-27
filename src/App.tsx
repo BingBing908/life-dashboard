@@ -6,11 +6,12 @@ import { cn } from "@/lib/utils";
 import { runSync } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
- *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。 */
+ *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。
+ *  只取第一段做模块 id，后面的子路径归模块自己解析（如 #/study-log/english 的 english 归日日学）。 */
 function parseHash(): string {
-  const h = window.location.hash.replace(/^#\/?/, "");
-  if (!h || h === "dashboard") return "dashboard";
-  return getModule(h) ? h : "dashboard";
+  const id = window.location.hash.replace(/^#\/?/, "").split("/")[0];
+  if (!id || id === "dashboard") return "dashboard";
+  return getModule(id) ? id : "dashboard";
 }
 
 export default function App() {

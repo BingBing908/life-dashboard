@@ -1350,10 +1350,29 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
   );
 }
 
+/** 板块子路由：#/study-log/english 直达英语板块（可分享、刷新不丢位置） */
+function boardFromHash(): Board | null {
+  const segs = window.location.hash.replace(/^#\/?/, "").split("/");
+  if (segs[0] !== "study-log" || !segs[1]) return null;
+  const keys: string[] = [...BOARDS.map((b) => b.key), "review"];
+  return keys.includes(segs[1]) ? (segs[1] as Board) : null;
+}
+
 function Page() {
   const [all, setAll] = useState<Entry[]>([]);
-  const [board, setBoard] = useState<Board | null>(null);
+  const [board, setBoardState] = useState<Board | null>(boardFromHash);
   const [openBookId, setOpenBookId] = useState<string | null>(null);
+
+  // 切板块写进 hash；前进/后退/手输 URL 再同步回状态
+  const setBoard = useCallback((b: Board | null) => {
+    window.location.hash = b ? `/study-log/${b}` : "/study-log";
+    setBoardState(b);
+  }, []);
+  useEffect(() => {
+    const onHash = () => setBoardState(boardFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   const reload = useCallback(() => {
     listAllEntries().then(setAll);

@@ -25,7 +25,7 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
 - 所有业务表带同步预留字段：`id`(UUID)、`created_at`、`updated_at`、`device_id`、`deleted_at`（软删除，查询过滤 `deleted_at IS NULL`）
 - 通用组件/工具：`src/components/EditableText.tsx`（点文字就地编辑）；`src/components/Collapse.tsx`（通用折叠区 title/count/hint/right/defaultOpen，待办的「历史已完成」「今天的学练计划」等复用，重复即抽组件）；`src/components/DoneToggle.tsx`（计划项**三态**开关两按钮【已完成】【未完成】，替代方框勾：pending 两键都不亮／点【已完成】=done绿／点【未完成】=skip琥珀「今天做不了」／再点亮着的键撤销回 pending；可选 canComplete 门控【已完成】。**按钮统一放在每行/卡片最前**（今日卡片、一周列表、待办页镜像、待办本体条目四处一致）。待办本体条目也用它（含已完成区），待办每条下方带**选填**「我具体做了什么」输入，存 `plan_notes`（item_id=todo.id，与今日「工作」卡片共用同一份笔记）；`src/components/QuickAdd.tsx`（通用「加一行」输入框＝输入框+按钮，自带 state、回车/点按钮提交清空，props: placeholder/cta/onAdd(text)/variant；时间轴工作域「加工作」、计划域「加计划外」都用它；日日学加书/加电影/记一笔也走它，别再内联重写）；`src/lib/openLink.ts`（Tauri 系统浏览器 / 网页新标签，全应用共用，别再各写一份）；日期用 `src/lib/dates.ts`、周几用 study-plan/data 的 `dayNumOf`（唯一实现，别在模块里重写）。
 - **页面宽度约定**（Rosie 反馈：别老做很窄很居中、离边界太远）：模块 Page 统一用 `mx-auto max-w-6xl p-6`（跟学练计划一致），**不要用 max-w-3xl 这种窄容器**；内容要把宽度铺开、方框/卡片按合适大小放大，别缩成小块挤在中间。踩过：学习记录初版用 max-w-3xl，宽屏上挤中间一小条、方框过小，2026-07-20 改 max-w-6xl + 放大方框。
-- **路由**：`App.tsx` 用 **hash 路由**（`#/<module-id>`，`parseHash()`），刷新停在当前页、不回仪表盘；GitHub Pages 无需服务端配置、Tauri 单页也通用。`setView` 改 `location.hash`，监听 `hashchange` 支持前进/后退。模块级路由（子 tab 如学练计划今日/一周暂不进 URL）。
+- **路由**：`App.tsx` 用 **hash 路由**（`#/<module-id>`，`parseHash()`），刷新停在当前页、不回仪表盘；GitHub Pages 无需服务端配置、Tauri 单页也通用。`setView` 改 `location.hash`，监听 `hashchange` 支持前进/后退。**parseHash 只取第一段做模块 id，子路径归模块自己解析**（2026-07-27）：日日学板块进 URL——`#/study-log/<board>`（english/chinese/ai/history/finance/pm/book/movie/review，`boardFromHash()`，切板块写 hash、hashchange 同步回状态），可直达/分享/刷新不丢位置；其它模块子 tab（时间轴今日/一周）暂不进 URL。
 
 ## 模块现状
 
