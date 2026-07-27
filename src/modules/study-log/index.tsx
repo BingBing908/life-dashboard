@@ -276,7 +276,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   }
   const glossary = (meta.glossary as Record<string, string>) ?? {};
   const image = meta.image as string | undefined;
-  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\]|!!!.+?!!!|\*\*.+?\*\*|!!.+?!!)/g);
+  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\]|!!!.+?!!!|\*\*.+?\*\*|!!.+?!!|https?:\/\/[^\s，。；、）)】"'」]+)/g);
   // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
   const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
   const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
@@ -334,6 +334,13 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
                   >
                     {t}
                   </button>
+                );
+              }
+              if (/^https?:\/\//.test(p)) {
+                return (
+                  <a key={i} href={p} target="_blank" rel="noreferrer" className="break-all underline decoration-dotted underline-offset-2" style={{ color: accent }}>
+                    {p.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}{p.replace(/^https?:\/\/(www\.)?/, "").length > 40 ? "…" : ""}
+                  </a>
                 );
               }
               const rb = p.match(/^!!!([\s\S]+)!!!$/);
