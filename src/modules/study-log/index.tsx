@@ -73,9 +73,9 @@ function withMeta(e: Entry, patch: Record<string, unknown>): string {
   return JSON.stringify({ ...m, ...patch });
 }
 
-/** 需要默写的内容（古诗/英语精读） */
+/** 需要默写的内容（古诗 / 英语精读 / 英语谚语）＝默写过才算看完 */
 function needsDictation(e: Entry): boolean {
-  return e.kind === "古诗" || e.kind === "精读文章";
+  return e.kind === "古诗" || e.kind === "精读文章" || (e.board === "english" && e.kind === "谚语");
 }
 /** 交了作业的练笔（Claude 批改后写进 meta.homework）＝提交即完成，不用手动标 */
 function hasHomework(m: Record<string, unknown>): boolean {
@@ -334,14 +334,19 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const glossary = (meta.glossary as Record<string, string>) ?? {};
   const image = meta.image as string | undefined;
   const homework = typeof meta.homework === "string" ? (meta.homework as string) : null;
-  // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
+  // 古诗 / 英语谚语支持默写（复用文章默写；默写时把原文高糊防偷看）
   const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
-  const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
-  // 只默写「诗本身」：优先 meta.recite；否则从 body 里抽【原诗】段；都没有才退回整段
+  const isEnProverb = entry.board === "english" && entry.kind === "谚语";
+  const canDictate = (entry.kind === "古诗" || isEnProverb) && !!entry.body && !!onPatch;
+  // 只默写「本体」：优先 meta.recite；古诗抽【原诗】段；英语谚语取第一行（英文那句）；都没有才退回整段
   const poemMatch = (entry.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
-  const dictTarget = (meta.recite as string) || (poemMatch ? poemMatch[1].trim() : (entry.body ?? ""));
-  // 要默写的（古诗）＝默写过才算看完，只读显示；其余＝手动标
+  const firstLine = (entry.body ?? "").split("\n")[0].trim();
+  const dictTarget =
+    (meta.recite as string) ||
+    (poemMatch ? poemMatch[1].trim() : isEnProverb ? firstLine : (entry.body ?? ""));
+  // 要默写的（古诗/精读/英语谚语）＝默写过才算看完，只读显示；其余＝手动标
   const dictKind = needsDictation(entry);
+  const dictLabel = entry.kind === "古诗" ? "默写这首" : "默写这句";
   const done = entryDone(entry);
   return (
     <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
@@ -383,7 +388,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         </div>
       </div>
       {entry.body && (
-        <Blurred active={isPoem && dict}>
+        <Blurred active={canDictate && dict}>
           <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
             <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
           </p>
@@ -404,10 +409,10 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
           <span className="text-foreground/85">：{glossary[term]}</span>
         </div>
       )}
-      {isPoem && (
+      {canDictate && (
         <div className="mt-2">
           <button onClick={() => setDict((v) => !v)} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
-            {dict ? "收起默写" : `默写这首${artAtt.length ? ` (${artAtt.length}/3)` : ""}`}
+            {dict ? "收起默写" : `${dictLabel}${artAtt.length ? ` (${artAtt.length}/3)` : ""}`}
           </button>
           {dict && (
             <ArticleDictation
