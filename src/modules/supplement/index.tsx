@@ -105,8 +105,16 @@ function Card() {
   );
 }
 
-/** 饮品月历：有饮品的日子按品类上色（奶茶红/果茶绿/酸奶紫），今天描环 */
-function DrinkCalendar({ drinks }: { drinks: Drink[] }) {
+/** 饮品月历：有饮品的日子按品类上色（奶茶红/果茶绿/酸奶紫）；点某天＝选中它补记（今天及以前可点） */
+function DrinkCalendar({
+  drinks,
+  selected,
+  onSelect,
+}: {
+  drinks: Drink[];
+  selected: string;
+  onSelect: (d: string) => void;
+}) {
   const today = todayStr();
   const [ym, setYm] = useState(() => {
     const d = new Date();
@@ -161,23 +169,30 @@ function DrinkCalendar({ drinks }: { drinks: Drink[] }) {
           if (!date) return <span key={`x${i}`} />;
           const day = Number(date.slice(8));
           const color = colorOf(date);
+          const isSel = date === selected;
+          const future = date > today;
           return (
             <div key={date} className="flex justify-center">
-              <span
+              <button
+                disabled={future}
+                onClick={() => onSelect(date)}
                 className={cn(
-                  "flex size-6 items-center justify-center rounded-full text-[11px]",
+                  "flex size-6 items-center justify-center rounded-full text-[11px] transition-all",
                   color ? color + " text-white" : "text-foreground",
-                  date === today && !color && "ring-1 ring-primary",
+                  future ? "cursor-not-allowed opacity-30" : "hover:ring-1 hover:ring-primary/50",
+                  date === today && !color && !isSel && "ring-1 ring-primary",
+                  isSel && "ring-2 ring-primary ring-offset-1",
                 )}
-                title={date}
+                title={future ? `${date}（未来不能记）` : `${date}（点这天补记）`}
               >
                 {day}
-              </span>
+              </button>
             </div>
           );
         })}
       </div>
-      <div className="mt-2 flex justify-center gap-2 text-[10px] text-muted-foreground">
+      <p className="mt-1.5 text-center text-[10px] text-muted-foreground">点某天可补记那天的饮品</p>
+      <div className="mt-1.5 flex justify-center gap-2 text-[10px] text-muted-foreground">
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-red-500 align-middle" />奶茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-green-500 align-middle" />果茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-violet-500 align-middle" />酸奶</span>
@@ -204,6 +219,7 @@ function Page() {
   const [dName, setDName] = useState("");
   const [dSugar, setDSugar] = useState("五分糖");
   const [dCal, setDCal] = useState("");
+  const [drinkDate, setDrinkDate] = useState(today); // 记到哪天（点日历改，默认今天）
 
   const reloadDrinks = useCallback(() => {
     const since = toDateStr(new Date(Date.now() - 100 * 864e5));
@@ -230,6 +246,7 @@ function Page() {
       name: dName.trim() || undefined,
       sugar: dSugar,
       calories: dCal ? Number(dCal) : null,
+      date: drinkDate, // 支持补记到选中的过去日期
     });
     setDBrand("");
     setDName("");
@@ -242,7 +259,7 @@ function Page() {
     await setMeal(today, k, m.content.trim(), m.calories ? Number(m.calories) : null);
   }
 
-  const todayDrinks = drinks.filter((d) => d.date === today);
+  const shownDrinks = drinks.filter((d) => d.date === drinkDate);
   const monthPrefix = today.slice(0, 8);
   const monthCount = drinks.filter((d) => d.date.startsWith(monthPrefix)).length;
 
@@ -407,6 +424,18 @@ function Page() {
           <div className="min-w-0 flex-1 space-y-3">
             {/* 记一杯表单 */}
             <div className="space-y-2 rounded-xl border p-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">记到</span>
+                <span className={cn("font-medium", drinkDate !== today && "text-amber-600")}>
+                  {drinkDate === today ? "今天" : `${drinkDate.slice(5)} 补记`}
+                </span>
+                {drinkDate !== today && (
+                  <button className="text-xs text-primary hover:underline" onClick={() => setDrinkDate(today)}>
+                    回到今天
+                  </button>
+                )}
+                <span className="ml-auto text-[11px] text-muted-foreground">← 点右侧日历选别的天</span>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {SUBTYPES.map((t) => (
                   <button
@@ -438,12 +467,14 @@ function Page() {
               </div>
             </div>
 
-            {/* 今日已记 */}
+            {/* 选中那天已记 */}
             <div className="space-y-1.5">
-              {todayDrinks.length === 0 && (
-                <p className="text-sm text-muted-foreground">今天还没记饮品。</p>
+              {shownDrinks.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
+                </p>
               )}
-              {todayDrinks.map((d) => (
+              {shownDrinks.map((d) => (
                 <div key={d.id} className="group flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
                   <span className={cn("size-2 shrink-0 rounded-full", DRINK_COLOR[d.subtype].dot)} />
                   <span className="min-w-0 flex-1 truncate">
@@ -468,7 +499,7 @@ function Page() {
           </div>
 
           {/* 右上角日历 */}
-          <DrinkCalendar drinks={drinks} />
+          <DrinkCalendar drinks={drinks} selected={drinkDate} onSelect={setDrinkDate} />
         </div>
       </section>
       </div>
