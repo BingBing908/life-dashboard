@@ -237,13 +237,11 @@ function LearningBoard({
   cfg,
   entries,
   onAdd,
-  onDelete,
   onPatch,
 }: {
   cfg: BoardCfg;
   entries: Entry[];
   onAdd: (kind: string, title: string, body: string) => void;
-  onDelete: (id: string) => void;
   onPatch: (id: string, patch: Record<string, unknown>) => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -260,14 +258,14 @@ function LearningBoard({
         entries={entries}
         cfg={cfg}
         emptyText={adding ? undefined : `还没有内容。晚上发我「${cfg.name}学完了，换新的」，我更新进来；你打开就能看到。`}
-        renderItem={(e) => <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />}
+        renderItem={(e) => <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} />}
       />
     </div>
   );
 }
 
-/** 一条学习内容（展示为主，可删）。body 里 [[术语]] 会渲染成下划线，点开看 meta.glossary 里的释义。 */
-function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: string; onDelete: (id: string) => void; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
+/** 一条学习内容（只展示，不可删，防误删）。body 支持轻量标记：[[术语]] 释义、`**加粗**`、`!!标红!!`、`!!!红+粗!!!`。 */
+function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
   const [term, setTerm] = useState<string | null>(null);
   const [dict, setDict] = useState(false);
   let meta: Record<string, unknown> = {};
@@ -278,7 +276,7 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
   }
   const glossary = (meta.glossary as Record<string, string>) ?? {};
   const image = meta.image as string | undefined;
-  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\])/g);
+  const parts = (entry.body ?? "").split(/(\[\[[^\]]+\]\]|!!!.+?!!!|\*\*.+?\*\*|!!.+?!!)/g);
   // 古诗支持默写（复用文章默写；默写时把原文高糊防偷看）
   const artAtt = (meta.artAtt as ArtAtt[]) ?? [];
   const isPoem = entry.kind === "古诗" && !!entry.body && !!onPatch;
@@ -298,7 +296,7 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
         )}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {onPatch && !dictKind && (
+          {onPatch && !dictKind && entry.kind !== "练习" && (
             <button
               onClick={() => onPatch(entry.id, { done: !done })}
               className={cn(
@@ -317,13 +315,6 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
               {done ? "✓ 已默写" : "默写后算看完"}
             </span>
           )}
-          <button
-            className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
-            title="删除"
-            onClick={() => onDelete(entry.id)}
-          >
-            <Trash2 className="size-4" />
-          </button>
         </div>
       </div>
       {entry.body && (
@@ -345,6 +336,12 @@ function EntryDoc({ entry, accent, onDelete, onPatch }: { entry: Entry; accent: 
                   </button>
                 );
               }
+              const rb = p.match(/^!!!([\s\S]+)!!!$/);
+              if (rb) return <strong key={i} className="font-semibold text-red-600">{rb[1]}</strong>;
+              const b = p.match(/^\*\*([\s\S]+)\*\*$/);
+              if (b) return <strong key={i} className="font-semibold text-foreground">{b[1]}</strong>;
+              const r = p.match(/^!!([\s\S]+)!!$/);
+              if (r) return <span key={i} className="text-red-600">{r[1]}</span>;
               return <span key={i}>{p}</span>;
             })}
           </p>
@@ -777,7 +774,7 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
 }
 
 /** 英语精读卡：左文章（可展开整段中文 + 默写），右竖排单词本（可默写） */
-function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accent: string; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
+function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string; onPatch: (id: string, patch: Record<string, unknown>) => void }) {
   const m = parseMetaObj(entry);
   const articleEn = (m.article_en as string) || entry.body || "";
   const articleCn = (m.article_cn as string) || "";
@@ -802,9 +799,6 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
           >
             {done ? "✓ 已默写" : "默写后算看完"}
           </span>
-          <button className="invisible text-muted-foreground hover:text-destructive group-hover:visible" title="删除" onClick={() => onDelete(entry.id)}>
-            <Trash2 className="size-4" />
-          </button>
         </div>
       </div>
 
@@ -857,7 +851,7 @@ function ReadingCard({ entry, accent, onPatch, onDelete }: { entry: Entry; accen
 }
 
 /** 英语板块：精读卡（ReadingCard）+ 其它（谚语等用 EntryDoc）；按日期折叠，今天展开 */
-function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
+function EnglishBoard({ cfg, entries, onPatch }: { cfg: BoardCfg; entries: Entry[]; onPatch: (id: string, patch: Record<string, unknown>) => void }) {
   return (
     <DateGroupedBoard
       entries={entries}
@@ -865,9 +859,9 @@ function EnglishBoard({ cfg, entries, onPatch, onDelete }: { cfg: BoardCfg; entr
       emptyText="还没有内容。晚上发我「英语学完了，换新的」，我更新进来。"
       renderItem={(e) =>
         e.kind === "精读文章" ? (
-          <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} onDelete={onDelete} />
+          <ReadingCard key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} />
         ) : (
-          <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onDelete={onDelete} onPatch={onPatch} />
+          <EntryDoc key={e.id} entry={e} accent={cfg.c.accent} onPatch={onPatch} />
         )
       }
     />
@@ -1448,11 +1442,11 @@ function Page() {
       )}
 
       {board === "english" && cfg && (
-        <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} onDelete={del} />
+        <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} />
       )}
 
       {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm") && (
-        <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onDelete={del} onPatch={patchEntry} />
+        <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onPatch={patchEntry} />
       )}
 
       {board === "book" && cfg && (
