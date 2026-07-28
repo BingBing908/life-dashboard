@@ -24,7 +24,24 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # 构建失败时把报错行转成 annotation。原因：Actions 的原始日志要带 token 才能下载，
+      # 没有本机 Node 环境时（Rosie 换电脑、或 Claude 在没装 Node 的机器上改代码）
+      # 只能看到 success/failure、看不到 tsc 报了什么。annotations API 是公开可读的。
+      - name: Build (tsc + vite)
+        run: |
+          set -o pipefail
+          if ! npm run build 2>&1 | tee build.log; then
+            grep -E "error TS|error:|✘" build.log | head -30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            {
+              echo '### ❌ 构建失败'
+              echo '```'
+              tail -60 build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
         env:
           GHPAGES: "1"
       - uses: actions/upload-pages-artifact@v3
