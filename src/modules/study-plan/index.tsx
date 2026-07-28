@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DoneToggle, type PlanState } from "@/components/DoneToggle";
+import { Fireworks } from "@/components/Fireworks";
 import { QuickAdd } from "@/components/QuickAdd";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
@@ -155,7 +156,29 @@ function MiniBar({ done, total, color }: { done: number; total: number; color: s
   );
 }
 
-/** 分栏小标题（还要做 / 已完成 / 今天做不了） */
+/**
+ * 「今日计划」清空时的反馈（2026-07-28 Rosie 要求）：
+ * · 全部做完（未完成栏是空的）→ 放烟花 + 「都处理完了 🎉」
+ * · 有标了「未完成」的 → **不放烟花**，给一句鼓励语
+ * 语气按她的定位来（复健期学习者，不赶进度、重连续性）：不说教、不假嗨、
+ * 承认没做完也是一种决定。随机挑一句，免得每天看同一句变得廉价。
+ */
+const CHEERS: string[] = [
+  "这一段收工了。剩下的挪到明天，不算欠账。",
+  "没全做完不算输——你把每一条都过了一遍，这就是在管自己的一天。",
+  "能诚实地标「未完成」，比假装它不存在强得多。明天接着来。",
+  "做了多少算多少。节奏比数量重要，别跟自己较劲。",
+  "复健期不求满分，求不断线。今天也算数。",
+  "标完了就别回头看了。今天的账结清，明天是新的。",
+  "决定「今天不做」也是决定。留着力气给明天。",
+  "又往前挪了一点。慢一点的进度也是进度。",
+];
+
+function pickCheer(): string {
+  return CHEERS[Math.floor(Math.random() * CHEERS.length)];
+}
+
+/** 分栏小标题（今日计划 / 已完成 / 未完成） */
 function ColHead({ label, n, tone }: { label: string; n: number; tone?: "ok" | "skip" }) {
   return (
     <div className="mb-2 flex items-center gap-2 border-b pb-1.5">
@@ -172,7 +195,7 @@ function ColHead({ label, n, tone }: { label: string; n: number; tone?: "ok" | "
   );
 }
 
-/** 已完成／今天做不了 的窄条（不再占大卡片的位置，但笔记还看得见，可一键撤销） */
+/** 已完成／未完成 的窄条（不再占大卡片的位置，但笔记还看得见，可一键撤销） */
 function DoneStrip({
   title,
   timeSlot,
@@ -656,13 +679,39 @@ function Page() {
   }
 
   // 「当前」右侧按三态分栏。⚠️ 三态要分清（Rosie 要求）：
-  // 待做 / 已完成 / 今天做不了(skip)——skip 不能跟「还没做」混在一起，那是主动决定不做。
+  // 今日计划(pending) / 已完成(done) / 未完成(skip)——skip 不能跟「还没做」混在一起，那是主动决定今天不做。
   const curPending = planCards.filter((i) => stateOf(i.id) === "pending");
   const curDone = planCards.filter((i) => stateOf(i.id) === "done");
   const curSkip = planCards.filter((i) => stateOf(i.id) === "skip");
   // 工作域来自待办，没有 skip 概念
   const todoPending = todoCards.filter((t) => !t.done);
   const todoDone = todoCards.filter((t) => t.done);
+
+  // ---- 「今日计划」清空时的庆祝 ----
+  const pendingLeft = active.source === "todo" ? todoPending.length : curPending.length;
+  const skipLeft = active.source === "todo" ? 0 : curSkip.length;
+  const decidedTotal = active.source === "todo" ? todoCards.length : planCards.length;
+  const [cheer, setCheer] = useState<{ fire: boolean; text: string } | null>(null);
+  // 记上一次的待做数**和当时是哪个领域**：只在「同一个领域里从 >0 变成 0」时触发。
+  // 不带 key 比对的话，从有待做的领域切到已清空的领域也会误放烟花。
+  const prevPending = useRef<{ key: string; n: number } | null>(null);
+  useEffect(() => {
+    const prev = prevPending.current;
+    prevPending.current = { key: activeKey, n: pendingLeft };
+    if (!prev || prev.key !== activeKey) return; // 刚切领域，不算「刚做完」
+    if (prev.n === 0 || pendingLeft !== 0 || decidedTotal === 0) return;
+    setCheer(
+      skipLeft === 0
+        ? { fire: true, text: "今日计划都处理完了 🎉" }
+        : { fire: false, text: pickCheer() },
+    );
+  }, [activeKey, pendingLeft, skipLeft, decidedTotal]);
+  // 鼓励语几秒后自己消失；烟花那条由 Fireworks 播完回调来关
+  useEffect(() => {
+    if (!cheer || cheer.fire) return;
+    const t = window.setTimeout(() => setCheer(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [cheer]);
 
   // 「今天没勾=没完成」，唯一例外是睡前拉伸：昨天该做却没打勾的，今早还能补一勾
   const graceItems = items.filter(
@@ -932,11 +981,33 @@ function Page() {
                 )}
               </div>
 
-              {/* 按状态分栏（方案 C）：左＝还要做（大卡片能写笔记），
-                  右＝已完成／今天做不了。勾掉一条就从左边挪到右边，做完的不再挡着阅读动线。 */}
+              {/* 清空这一段时的反馈：全做完＝烟花+🎉，有未完成＝一句鼓励（不放烟花） */}
+              {cheer && (
+                <div
+                  className={cn(
+                    "mb-3 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm",
+                    cheer.fire
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-sky-200 bg-sky-50 text-sky-800",
+                  )}
+                >
+                  <span>{cheer.text}</span>
+                  <button
+                    onClick={() => setCheer(null)}
+                    className="ml-auto shrink-0 text-xs opacity-60 hover:opacity-100"
+                    title="关掉"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              {cheer?.fire && <Fireworks onDone={() => setCheer(null)} />}
+
+              {/* 按状态分栏（方案 C）：左＝今日计划（大卡片能写笔记），
+                  右＝已完成／未完成。勾掉一条就从左边挪到右边，做完的不再挡着阅读动线。 */}
               <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(240px,1fr)" }}>
                 <div>
-                  <ColHead label="还要做" n={active.source === "todo" ? todoPending.length : curPending.length} />
+                  <ColHead label="今日计划" n={active.source === "todo" ? todoPending.length : curPending.length} />
                   <div className="space-y-3">
                     {active.source === "plan" &&
                       curPending.map((i) => (
@@ -1022,7 +1093,7 @@ function Page() {
                   {/* skip 单独一栏：主动决定不做，跟「还没做」不是一回事 */}
                   {active.source === "plan" && (
                     <div>
-                      <ColHead label="今天做不了" n={curSkip.length} tone="skip" />
+                      <ColHead label="未完成" n={curSkip.length} tone="skip" />
                       <div className="space-y-2">
                         {curSkip.map((i) => (
                           <DoneStrip
