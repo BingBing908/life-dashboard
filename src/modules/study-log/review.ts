@@ -31,15 +31,46 @@ function metaObj(e: Entry): Record<string, unknown> {
   }
 }
 
-/** 历次复习通过的日期（升序、去重）。兼容旧字段 reviewedAt */
-export function reviewDates(e: Entry): string[] {
+/**
+ * 一次复习通过的记录。
+ * `wrong`/`rounds` 是 2026-07-28 加的「难度」信息——只有日期答不了
+ * 「我是真记牢了还是每次都在重新背」这个问题（Rosie 的用户故事原话）。
+ * 老数据里 `revs` 是纯日期字符串、更老的只有单个 `reviewedAt`，读的时候统一归一成这个形状。
+ */
+export interface RevRecord {
+  /** 通过那天 */
+  d: string;
+  /** 第一遍整篇默写错了几句（0＝一遍过）；老记录没有，为 undefined */
+  wrong?: number;
+  /** 一共默了几轮才全对（1＝一次过）；老记录没有 */
+  rounds?: number;
+}
+
+/** 历次复习记录（升序、按日期去重）。兼容纯字符串数组和旧的 reviewedAt 单值 */
+export function reviewLog(e: Entry): RevRecord[] {
   const m = metaObj(e);
-  const raw = Array.isArray(m.revs)
-    ? (m.revs as unknown[]).filter((d): d is string => typeof d === "string")
+  const raw: unknown[] = Array.isArray(m.revs)
+    ? (m.revs as unknown[])
     : typeof m.reviewedAt === "string" && m.reviewedAt
       ? [m.reviewedAt]
       : [];
-  return [...new Set(raw)].sort();
+  const byDate = new Map<string, RevRecord>();
+  for (const r of raw) {
+    if (typeof r === "string" && r) {
+      if (!byDate.has(r)) byDate.set(r, { d: r });
+    } else if (r && typeof r === "object" && typeof (r as RevRecord).d === "string") {
+      const rec = r as RevRecord;
+      // 同一天重复出现时，保留带难度信息的那条
+      const prev = byDate.get(rec.d);
+      if (!prev || prev.wrong === undefined) byDate.set(rec.d, rec);
+    }
+  }
+  return [...byDate.values()].sort((a, b) => a.d.localeCompare(b.d));
+}
+
+/** 历次复习通过的日期（升序、去重）——排程只关心日期 */
+export function reviewDates(e: Entry): string[] {
+  return reviewLog(e).map((r) => r.d);
 }
 
 /** 已通过几次（0 ＝ 学完还没复习过） */
@@ -98,9 +129,43 @@ export function upcomingByDate(
   return out;
 }
 
-/** 记一次通过，返回给 patchEntry 的 meta 补丁（同一天重复调用是空补丁） */
-export function passPatch(e: Entry, today = todayStr()): Record<string, unknown> {
-  const revs = reviewDates(e);
-  if (revs.includes(today)) return {};
-  return { revs: [...revs, today].sort(), reviewedAt: today };
+/**
+ * 记一次通过，返回给 patchEntry 的 meta 补丁（同一天重复调用是空补丁）。
+ * `stats` 是这次默写的难度（第一遍错几句 / 默了几轮），没传就只记日期。
+ * 同时写 `reviewedAt`＝最后一次通过日，让还没更新的老版本页面也读得到。
+ */
+export function passPatch(
+  e: Entry,
+  today = todayStr(),
+  stats?: { wrong: number; rounds: number },
+): Record<string, unknown> {
+  const log = reviewLog(e);
+  if (log.some((r) => r.d === today)) return {};
+  const rec: RevRecord = stats ? { d: today, wrong: stats.wrong, rounds: stats.rounds } : { d: today };
+  return { revs: [...log, rec].sort((a, b) => a.d.localeCompare(b.d)), reviewedAt: today };
+}
+
+/** 这条内容的复习「完整曲线」：五个间隔各自的状态，供 ReviewTrack 画 */
+export type StepState = "passed" | "due" | "upcoming";
+export interface ReviewStep {
+  /** 第几次（1..5） */
+  n: number;
+  /** 学完后第几天 */
+  interval: number;
+  state: StepState;
+  /** 计划日期（未通过的）或实际通过日期（已通过的） */
+  date: string | null;
+  rec?: RevRecord;
+}
+
+export function reviewSteps(e: Entry, today = todayStr()): ReviewStep[] {
+  const log = reviewLog(e);
+  return REVIEW_INTERVALS.map((interval, idx) => {
+    const rec = log[idx];
+    if (rec) return { n: idx + 1, interval, state: "passed" as StepState, date: rec.d, rec };
+    const planned = e.entry_date ? addDays(e.entry_date, interval) : null;
+    // 只有「下一个该做的」那一格算 due，后面的都是 upcoming
+    const state: StepState = idx === log.length && planned && planned <= today ? "due" : "upcoming";
+    return { n: idx + 1, interval, state, date: planned };
+  });
 }

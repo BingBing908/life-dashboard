@@ -32,6 +32,7 @@ import {
   type Board,
   type Entry,
 } from "./data";
+import { ReviewTrack } from "./ReviewTrack";
 import {
   REVIEW_INTERVALS,
   dueEntries,
@@ -416,6 +417,8 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         </div>
       )}
       {image && <img src={image} alt="配图" className="mt-2 w-full max-w-xl rounded-md border" />}
+      {/* 复习曲线：只有会进复习队列的内容（古诗）才画，组件内部自己判断 */}
+      <ReviewTrack entry={entry} accent={accent} />
       {term && glossary[term] && (
         <div className="mt-2 rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "12", borderColor: accent + "44" }}>
           <span className="font-medium" style={{ color: accent }}>{term}</span>
@@ -914,6 +917,8 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
       {mode === "article" && (
         <ReadingDictation articleEn={articleEn} articleCn={articleCn} attempts={artAtt} accent={accent} onSave={(a) => onPatch(entry.id, { artAtt: [...artAtt, a].slice(-5) })} />
       )}
+      {/* 精读文章也会进复习队列，所以同样画曲线 */}
+      <ReviewTrack entry={entry} accent={accent} />
     </div>
   );
 }
@@ -1243,7 +1248,8 @@ function ReviewDictation({
   target: string;
   passed: boolean;
   accent: string;
-  onPass: () => void;
+  /** 通过时回报这次默得难不难：wrong＝第一遍整篇错了几句，rounds＝默了几轮才全对 */
+  onPass: (stats: { wrong: number; rounds: number }) => void;
 }) {
   const sents = splitSents(target);
   const [phase, setPhase] = useState<"total" | "fix">("total");
@@ -1255,6 +1261,9 @@ function ReviewDictation({
   const [fixText, setFixText] = useState("");
   const [fixWrong, setFixWrong] = useState(false);
   const [done, setDone] = useState(passed);
+  // 第一遍整篇默写错了几句——存进复习记录当「难度」，用来回答
+  // 「是真记牢了还是每次都在重新背」（只有日期答不了这个）
+  const [firstWrong, setFirstWrong] = useState<number | null>(null);
 
   function gradeTotal() {
     const ans = splitSents(text);
@@ -1264,9 +1273,12 @@ function ReviewDictation({
     });
     setGraded(true);
     setWrong(bad);
+    // 只记第一遍的错句数（后面几轮是订正后的复验，不代表记忆强度）
+    const first = firstWrong ?? bad.length;
+    if (firstWrong === null) setFirstWrong(bad.length);
     if (bad.length === 0) {
       setDone(true);
-      onPass();
+      onPass({ wrong: first, rounds: round });
     }
   }
   function submitFix() {
@@ -1298,6 +1310,7 @@ function ReviewDictation({
     setFixIdx(0);
     setFixText("");
     setFixWrong(false);
+    setFirstWrong(null);
   }
 
   if (done) {
@@ -1381,7 +1394,7 @@ function UpcomingLine({ entries, today }: { entries: Entry[]; today: string }) {
 /** 复习板块：按「学完后第 1/3/7/15/30 天」的间隔，把以前学的古诗 + 英语精读排回来重默
  *  （旧版只拉昨天，过一天就再也不出现）。逐句订正闭环，默到全对才算通过；
  *  通过即把今天记进 meta.revs，自动推进到下一个间隔，五轮走完＝记牢了。 */
-function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: string) => void }) {
+function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: string, stats: { wrong: number; rounds: number }) => void }) {
   const today = todayStr();
   const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
   // 通过后条目会立刻从到期队列里消失、把正在看的卡片抽走。记下本次进来通过的，
@@ -1450,13 +1463,15 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
                   : "默到全对算复习过"}
               </span>
             </div>
+            {/* 完整复习曲线：五个间隔各自的状态 + 历次难度明细 */}
+            <ReviewTrack entry={e} accent={acc(e.board)} />
             <ReviewDictation
               target={reviewTarget(e)}
               passed={passedToday}
               accent={acc(e.board)}
-              onPass={() => {
+              onPass={(stats) => {
                 setJustPassed((p) => (p.includes(e.id) ? p : [...p, e.id]));
-                onPass(e.id);
+                onPass(e.id, stats);
               }}
             />
           </div>
@@ -1567,9 +1582,9 @@ function Page() {
       {board === "review" && (
         <ReviewBoard
           entries={all}
-          onPass={(id) => {
+          onPass={(id, stats) => {
             const e = all.find((x) => x.id === id);
-            if (e) patchEntry(id, passPatch(e, rvToday));
+            if (e) patchEntry(id, passPatch(e, rvToday, stats));
           }}
         />
       )}
