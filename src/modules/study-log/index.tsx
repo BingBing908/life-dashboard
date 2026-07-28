@@ -1539,9 +1539,9 @@ function Page() {
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center gap-2">
+        {/* 返回顶层只调 setBoard(null)：nav([]) 一次把板块和书 id 一起清掉。
+            别再补 setOpenBookId(null)，那会 nav(["book"]) 反而跳进书籍板块。 */}
         {board && (
-          {/* 只 setBoard(null) 就够——nav([]) 一次把板块和书 id 一起清掉。
-              别再补 setOpenBookId(null)，那会 nav(["book"]) 反而跳进书籍板块。 */}
           <button onClick={() => setBoard(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> 日日学
           </button>
