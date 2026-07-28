@@ -16,6 +16,12 @@ export function addDays(dateStr: string, n: number): string {
   return toDateStr(d);
 }
 
+/** b − a 的天数差（"2026-07-01" → "2026-07-03" ＝ 2；a 晚于 b 为负） */
+export function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(b + "T00:00:00") - Date.parse(a + "T00:00:00");
+  return Math.round(ms / 86_400_000); // round 掉夏令时那一小时
+}
+
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 
 /** "2026-07-17" -> "7月17日 周五" */

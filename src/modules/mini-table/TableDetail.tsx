@@ -98,13 +98,20 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center gap-3">
+    // 打开即占满整屏：整体撑满 main 的高度，表格区域自己滚（表头吸顶）
+    <div className="flex h-full flex-col p-6">
+      <div className="mb-4 flex shrink-0 items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
-        <h1 className="text-2xl font-semibold">{table.name}</h1>
-        <div className="ml-auto flex gap-2">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold">{table.name}</h1>
+          <p className="text-xs text-muted-foreground">
+            {rows.length} 行 · {columns.length} 列
+            {source && " · 浅色格＝自动来自 饮食 / 时间轴 / 日日学，不用手填"}
+          </p>
+        </div>
+        <div className="ml-auto flex shrink-0 gap-2">
           <AddColumnButton onAdd={handleAddColumn} />
           <Button size="sm" onClick={handleAddRow}>
             <Plus className="size-4" /> 加一行
@@ -112,12 +119,13 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <Table>
-          <TableHeader>
+      {/* min-h-0 让 flex 子项能真正缩；内层 table-container 变成滚动容器，表头才吸得住 */}
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
+        <Table className="text-base">
+          <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={col.id} className="group min-w-32">
+                <TableHead key={col.id} className="group h-12 min-w-40 px-3">
                   <span className="flex items-center gap-1">
                     {col.name}
                     <button
@@ -125,7 +133,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                       title="删除此列"
                       onClick={() => handleDeleteColumn(col.id)}
                     >
-                      <Trash2 className="size-3" />
+                      <Trash2 className="size-3.5" />
                     </button>
                   </span>
                 </TableHead>
@@ -144,11 +152,12 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                     source.autoItems.includes(label) &&
                     source.dayCols.includes(col.id);
                   return (
-                    <TableCell key={col.id} className="p-1">
+                    // 长内容换行而不是把整列撑宽（否则一格长文本挤扁其余六天）
+                    <TableCell key={col.id} className="max-w-72 p-1.5 align-top whitespace-normal break-words">
                       {isAuto ? (
                         <div
-                          className="rounded bg-muted/40 px-2 py-1.5 text-sm text-muted-foreground"
-                          title="自动来自源模块（饮食 / 时间轴）"
+                          className="min-h-10 rounded bg-muted/40 px-3 py-2 text-sm leading-relaxed text-muted-foreground"
+                          title="自动来自源模块（饮食 / 时间轴 / 日日学）"
                         >
                           {auto[label!]?.[col.id] || "—"}
                         </div>
@@ -162,7 +171,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                     </TableCell>
                   );
                 })}
-                <TableCell className="p-1 text-center">
+                <TableCell className="p-1.5 text-center align-top">
                   <button
                     className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
                     title="删除此行"
@@ -177,7 +186,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
               <TableRow>
                 <TableCell
                   colSpan={columns.length + 1}
-                  className="h-20 text-center text-muted-foreground"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   还没有数据，点击右上角「加一行」开始
                 </TableCell>

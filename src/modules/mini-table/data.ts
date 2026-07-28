@@ -44,6 +44,17 @@ export async function listTables(): Promise<MiniTable[]> {
   return rows.map((r) => ({ ...r, columns: JSON.parse(r.columns) }));
 }
 
+/** 每张表的行数，一次查完（列表页外显用，避免每张表各查一次） */
+export async function rowCounts(): Promise<Record<string, number>> {
+  const db = await getDb();
+  const rows = await db.select<{ table_id: string; n: number }[]>(
+    "SELECT table_id, COUNT(*) AS n FROM mini_table_rows WHERE deleted_at IS NULL GROUP BY table_id",
+  );
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.table_id] = Number(r.n);
+  return out;
+}
+
 export async function createTable(name: string): Promise<MiniTable> {
   const db = await getDb();
   const f = newRecordFields();

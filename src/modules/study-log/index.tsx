@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
-import { addDays, todayStr } from "@/lib/dates";
+import { formatDateCn, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
   createEntry,
@@ -31,6 +31,18 @@ import {
   type Board,
   type Entry,
 } from "./data";
+import {
+  REVIEW_INTERVALS,
+  dueEntries,
+  isDueToday,
+  isGraduated,
+  nextDue,
+  overdueDays,
+  passPatch,
+  reviewDates,
+  reviewStage,
+  upcomingByDate,
+} from "./review";
 
 type Palette = { bg: string; text: string; sub: string; accent: string };
 type BoardCfg = {
@@ -43,7 +55,7 @@ type BoardCfg = {
 };
 
 // 复习不进 BOARDS（不占大磁贴），单独一个小按钮进入
-const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "先默写昨天的古诗 + 英语精读，再看答案", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
+const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "学完第 1/3/7/15/30 天各默一次，默到全对才算过", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
 
 const BOARDS: BoardCfg[] = [
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
@@ -1353,50 +1365,98 @@ function ReviewDictation({
   );
 }
 
-/** 复习板块：第二天先默写「前一天」背的——昨天的古诗 + 英语精读。
- *  逐句订正闭环，默到全对才「复习通过」；通过打 reviewedAt=今天。 */
+/** 接下来几天排着的复习，一行小字 */
+function UpcomingLine({ entries, today }: { entries: Entry[]; today: string }) {
+  const upcoming = upcomingByDate(entries, today);
+  const days = Object.keys(upcoming).sort().slice(0, 4);
+  if (days.length === 0) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      接下来：{days.map((d) => `${formatDateCn(d)} ${upcoming[d]} 条`).join("　·　")}
+    </p>
+  );
+}
+
+/** 复习板块：按「学完后第 1/3/7/15/30 天」的间隔，把以前学的古诗 + 英语精读排回来重默
+ *  （旧版只拉昨天，过一天就再也不出现）。逐句订正闭环，默到全对才算通过；
+ *  通过即把今天记进 meta.revs，自动推进到下一个间隔，五轮走完＝记牢了。 */
 function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: string) => void }) {
   const today = todayStr();
-  const yest = addDays(today, -1);
   const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
-  const items = entries.filter(
-    (e) =>
-      e.entry_date === yest &&
-      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")),
-  );
+  // 通过后条目会立刻从到期队列里消失、把正在看的卡片抽走。记下本次进来通过的，
+  // 让它留在页面上显示「✓ 通过 · 下次 X 月 X 日」，下次进复习页才隐去。
+  const [justPassed, setJustPassed] = useState<string[]>([]);
+  const items = entries
+    .filter((e) => isDueToday(e, today) || justPassed.includes(e.id))
+    .sort((a, b) => (a.entry_date ?? "").localeCompare(b.entry_date ?? ""));
+  const left = items.filter((e) => !reviewDates(e).includes(today)).length;
+
   if (items.length === 0) {
     return (
-      <p className="py-10 text-sm text-muted-foreground">
-        昨天（{yest}）没有要复习的古诗/精读。今天在语文里背的古诗、英语里学的精读，明天会自动出现在这里让你先默写。
-      </p>
+      <div className="space-y-2 py-10 text-sm text-muted-foreground">
+        <p>今天没有到期的复习 🎉</p>
+        <p>
+          复习按「学完后第 {REVIEW_INTERVALS.join("/")} 天」各排一次——今天在语文里背的古诗、
+          英语里学的精读，明天第一次回到这里，之后越拉越长，五轮全默对就算记牢了。
+        </p>
+        <UpcomingLine entries={entries} today={today} />
+      </div>
     );
   }
+
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        默写昨天（{yest}）背的：整篇默一遍→批改→把写错的句子一句句订正到全对→再整篇默一遍全对，才算复习通过。
-      </p>
+      <div className="space-y-1">
+        {left > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            今天要复习 <span className="font-medium text-foreground">{left}</span> 条（间隔 {REVIEW_INTERVALS.join("/")} 天）：
+            整篇默一遍→批改→把写错的句子一句句订正到全对→再整篇默一遍全对，才算通过。
+          </p>
+        ) : (
+          <p className="text-sm font-medium text-emerald-700">今天的复习都默完了 🎉</p>
+        )}
+        <UpcomingLine entries={entries} today={today} />
+      </div>
       {items.map((e) => {
         const isEng = e.board === "english";
-        const reviewed = metaGet(e, "reviewedAt") === today;
+        const passedToday = reviewDates(e).includes(today);
+        // 已通过次数；正在做（或刚做完）的就是第 nth 次
+        const nth = passedToday ? reviewStage(e) : reviewStage(e) + 1;
+        const over = passedToday ? 0 : overdueDays(e, today);
+        const due = nextDue(e);
         return (
           <div key={e.id} className="rounded-lg border bg-background p-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: acc(e.board) + "22", color: acc(e.board) }}>
                 {isEng ? "英语精读" : "古诗"}
               </span>
               {e.title && <span className="text-sm font-medium">{e.title}</span>}
+              <span className="text-xs text-muted-foreground">
+                第 {nth}/{REVIEW_INTERVALS.length} 次{e.entry_date ? ` · 学于 ${formatDateCn(e.entry_date)}` : ""}
+              </span>
+              {over > 0 && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700" title="到期那天没打开，攒下来了">
+                  逾期 {over} 天
+                </span>
+              )}
               <span
-                className={cn("ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs", reviewed ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
+                className={cn("ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs", passedToday ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
               >
-                {reviewed ? "✓ 已复习" : "默到全对算复习过"}
+                {passedToday
+                  ? isGraduated(e)
+                    ? "✓ 五轮走完 · 记牢了"
+                    : `✓ 通过 · 下次 ${due ? formatDateCn(due) : ""}`
+                  : "默到全对算复习过"}
               </span>
             </div>
             <ReviewDictation
               target={reviewTarget(e)}
-              passed={reviewed}
+              passed={passedToday}
               accent={acc(e.board)}
-              onPass={() => onPass(e.id)}
+              onPass={() => {
+                setJustPassed((p) => (p.includes(e.id) ? p : [...p, e.id]));
+                onPass(e.id);
+              }}
             />
           </div>
         );
@@ -1438,14 +1498,8 @@ function Page() {
 
   const cfg = board ? (board === "review" ? REVIEW_CFG : BOARDS.find((b) => b.key === board)!) : null;
   const rvToday = todayStr();
-  const rvYest = addDays(rvToday, -1);
-  // 复习待办数：昨天该复习、今天还没默到全对的条数（复习通过后 reviewedAt=今天，从计数消失）
-  const reviewCount = all.filter(
-    (e) =>
-      e.entry_date === rvYest &&
-      ((e.board === "chinese" && e.kind === "古诗") || (e.board === "english" && e.kind === "精读文章")) &&
-      metaGet(e, "reviewedAt") !== rvToday,
-  ).length;
+  // 复习待办数：今天到期（含逾期）且还没默到全对的条数，通过一条即减一
+  const reviewCount = dueEntries(all, rvToday).length;
 
   async function addLearning(kind: string, title: string, body: string) {
     const e = await createEntry({ board: board!, kind, entry_date: todayStr(), title, body });
@@ -1502,7 +1556,7 @@ function Page() {
             onClick={() => setBoard("review")}
             className="ml-auto flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors"
             style={{ borderColor: REVIEW_CFG.c.accent, color: REVIEW_CFG.c.text, background: REVIEW_CFG.c.bg }}
-            title="先默写昨天背的古诗 / 英语精读"
+            title="按 1/3/7/15/30 天间隔，默写以前学的古诗 / 英语精读"
           >
             <RotateCcw className="size-4" /> 复习{reviewCount > 0 ? ` (${reviewCount})` : ""}
           </button>
@@ -1512,7 +1566,13 @@ function Page() {
       {!board && <Landing entries={all} onOpen={setBoard} />}
 
       {board === "review" && (
-        <ReviewBoard entries={all} onPass={(id) => patchEntry(id, { reviewedAt: rvToday })} />
+        <ReviewBoard
+          entries={all}
+          onPass={(id) => {
+            const e = all.find((x) => x.id === id);
+            if (e) patchEntry(id, passPatch(e, rvToday));
+          }}
+        />
       )}
 
       {board === "english" && cfg && (

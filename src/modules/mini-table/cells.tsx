@@ -31,7 +31,7 @@ export function Cell({ column, value, onChange }: CellProps) {
       return (
         <Input
           type="number"
-          className="h-8 border-transparent bg-transparent shadow-none focus-visible:border-input"
+          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={value == null ? "" : String(value)}
           onChange={(e) =>
             onChange(e.target.value === "" ? null : Number(e.target.value))
@@ -42,7 +42,7 @@ export function Cell({ column, value, onChange }: CellProps) {
       return (
         <Input
           type="date"
-          className="h-8 border-transparent bg-transparent shadow-none focus-visible:border-input"
+          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value || null)}
         />
@@ -53,7 +53,7 @@ export function Cell({ column, value, onChange }: CellProps) {
           value={typeof value === "string" ? value : ""}
           onValueChange={(v) => onChange(v)}
         >
-          <SelectTrigger className="h-8 border-transparent bg-transparent shadow-none">
+          <SelectTrigger className="h-10 border-transparent bg-transparent text-base shadow-none">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -68,7 +68,7 @@ export function Cell({ column, value, onChange }: CellProps) {
     default:
       return (
         <Input
-          className="h-8 border-transparent bg-transparent shadow-none focus-visible:border-input"
+          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
         />

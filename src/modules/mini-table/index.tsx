@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
-import { Plus, Table2, Trash2 } from "lucide-react";
+import { Plus, Table2, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card as UiCard, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { AppModule } from "../types";
 import {
   createTable,
   deleteTable,
   listTables,
+  rowCounts,
   type MiniColumn,
   type MiniTable,
 } from "./data";
+import { TABLE_SOURCES } from "./sources";
 import { TableDetail } from "./TableDetail";
 
 function Card() {
@@ -36,13 +37,71 @@ function Card() {
   );
 }
 
+/** 列表页的表格磁贴（含内容的组件放模块顶层，避免父组件重渲染时失焦） */
+function TableTile({
+  table,
+  rows,
+  onOpen,
+  onDelete,
+}: {
+  table: MiniTable;
+  rows: number | undefined;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const bound = !!TABLE_SOURCES[table.id];
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => e.key === "Enter" && onOpen()}
+      className="group flex min-h-36 cursor-pointer flex-col gap-3 rounded-xl border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-md"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Table2 className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg font-semibold">{table.name}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {rows === undefined ? "…" : `${rows} 行`} · {table.columns.length} 列
+          </p>
+        </div>
+        <button
+          className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+          title="删除表格"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+      <div className="mt-auto flex items-center gap-2">
+        {bound && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+            <Zap className="size-3" /> 自动填
+          </span>
+        )}
+        <span className="ml-auto text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+          点开全屏编辑 →
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function Page() {
   const [tables, setTables] = useState<MiniTable[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
     listTables().then(setTables);
+    rowCounts().then(setCounts).catch(() => {});
   }, []);
 
   async function handleCreate() {
@@ -75,10 +134,13 @@ function Page() {
   }
 
   return (
-    <div className="p-6">
-      <h1 className="mb-4 text-2xl font-semibold">小表格</h1>
+    <div className="mx-auto max-w-6xl p-6">
+      <div className="mb-1 flex items-baseline gap-3">
+        <h1 className="text-2xl font-semibold">小表格</h1>
+        <span className="text-sm text-muted-foreground">周/月复盘中枢 · 点开即全屏</span>
+      </div>
 
-      <div className="mb-6 flex max-w-sm gap-2">
+      <div className="mb-6 mt-4 flex max-w-md gap-2">
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -90,31 +152,15 @@ function Page() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {tables.map((t) => (
-          <UiCard
+          <TableTile
             key={t.id}
-            role="button"
-            tabIndex={0}
-            className="group cursor-pointer transition-colors hover:bg-accent/50"
-            onClick={() => setActiveId(t.id)}
-            onKeyDown={(e) => e.key === "Enter" && setActiveId(t.id)}
-          >
-            <CardHeader className="flex flex-row items-center gap-2">
-              <Table2 className="size-4 text-muted-foreground" />
-              <CardTitle className="text-base">{t.name}</CardTitle>
-              <button
-                className="invisible ml-auto text-muted-foreground hover:text-destructive group-hover:visible"
-                title="删除表格"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(t.id);
-                }}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </CardHeader>
-          </UiCard>
+            table={t}
+            rows={counts[t.id] ?? 0}
+            onOpen={() => setActiveId(t.id)}
+            onDelete={() => handleDelete(t.id)}
+          />
         ))}
       </div>
 

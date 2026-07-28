@@ -2,6 +2,18 @@ import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayCalories, getMeals, getWeightLog } from "../supplement/data";
 import { listCheckStatus, listItems } from "../study-plan/data";
 import { listTodos } from "../todo/data";
+import { listAllEntries } from "../study-log/data";
+import { entryDone } from "../study-log";
+
+/** 日日学里按天统计的学习板块（书籍/电影不是每日内容，不计） */
+const LOG_BOARDS: [string, string][] = [
+  ["english", "英语"],
+  ["chinese", "语文"],
+  ["ai", "AI"],
+  ["history", "历史"],
+  ["finance", "金融"],
+  ["pm", "PM"],
+];
 
 /**
  * 小表格「数据源绑定」：按**表 id**把某张表的部分行接到其它模块的数据上，实现自动填。
@@ -53,16 +65,18 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
     },
   },
   // 时间轴周表：六条线 = 当天时间轴里点了「已完成」的条目（运动表格已并入这里）
-  // 养生/英语/学习/运动/阅读 走 plan_checks；工作走 todos（当天 done_at）
+  // 养生/英语/学习/运动/阅读 走 plan_checks；工作走 todos（当天 done_at）；
+  // 日日学走 study_entries（当天各板块「看完/总数」，条目太多、列不下标题，给计数）
   "tbl-plan-week": {
     itemCol: "item",
     dayCols: DAY_COLS,
-    autoItems: ["养生", "英语", "工作", "学习", "运动", "阅读"],
+    autoItems: ["养生", "英语", "工作", "学习", "运动", "阅读", "日日学"],
     async compute(weekDates) {
       const items = await listItems();
       const todos = await listTodos();
+      const logs = await listAllEntries();
       const res: Record<string, Record<string, string>> = {
-        养生: {}, 英语: {}, 工作: {}, 学习: {}, 运动: {}, 阅读: {},
+        养生: {}, 英语: {}, 工作: {}, 学习: {}, 运动: {}, 阅读: {}, 日日学: {},
       };
       for (let i = 0; i < 7; i++) {
         const date = weekDates[i];
@@ -82,6 +96,12 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
           .filter((t) => t.done && (t.done_at ?? "").slice(0, 10) === date)
           .map((t) => t.title)
           .join("、");
+        res.日日学[col] = LOG_BOARDS.map(([key, label]) => {
+          const day = logs.filter((e) => e.entry_date === date && e.board === key && e.kind !== "note");
+          return day.length ? `${label}${day.filter(entryDone).length}/${day.length}` : "";
+        })
+          .filter(Boolean)
+          .join(" ");
       }
       return res;
     },

@@ -55,9 +55,24 @@ const SEED_IDS = new Set(
   SEED_ITEMS.map((s) => seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`)),
 );
 
-/** 是否原定计划条目——是则不允许删除，只有自己加的「计划外」（随机 id）才能删。 */
+/** 种子的「内容指纹」，用来兜住**改过 key 的老行**：id 是播种那天按
+ *  `track|title|time_slot` 算死的，后来把某条的 track/标题/时段一改，key 就变了，
+ *  早先播下的那行 id 仍是老值、不在 SEED_IDS 里，于是被当成「计划外」给出删除按钮。
+ *  2026-07-28 踩到：足弓重建 2026-07-20 播种（那时 key 与现在不同），成了可删的孤儿行。 */
+const SEED_KEYS = new Set(
+  SEED_ITEMS.map((s) => `${s.track}|${s.title}|${s.time_slot}`),
+);
+
+/** 是否原定计划条目——是则不允许删除，只有自己加的「计划外」（随机 id）才能删。
+ *  先看 id（最稳：经期开关换名、就地改名都不影响它；Rosie 踩过按名字判定误删经期版腰椎稳定），
+ *  id 认不出再退回内容指纹。两条都不中才算计划外。
+ *  ⚠️ 不能反过来只留指纹——经期 swap 会把 title 换成 period_title，那时只有 id 认得出来。
+ *  「计划外」是 addExtra 建的、没有 time_slot，指纹永远配不上带时段的种子，不会被误锁。 */
 function isSeedItem(item: PlanItem): boolean {
-  return SEED_IDS.has(item.id);
+  return (
+    SEED_IDS.has(item.id) ||
+    SEED_KEYS.has(`${item.track}|${item.title}|${item.time_slot}`)
+  );
 }
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
