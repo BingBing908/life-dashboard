@@ -76,9 +76,19 @@ function isSeedItem(item: PlanItem): boolean {
   );
 }
 
-/** 三个视图 tab，进 hash 子路径（今日＝无子段，见 lib/hashRoute.ts 的约定） */
-const PLAN_TABS = ["today", "week", "roadmap"] as const;
+/** 四个视图 tab，进 hash 子路径（当前＝无子段，见 lib/hashRoute.ts 的约定）。
+ *  **当前 / 今天 分工**（2026-07-28 Rosie 定）：
+ *  「当前」＝此刻该干什么——竖线时间轴自动跟随时间 + 当前领域按状态分栏，进来就动手；
+ *  「今天」＝全天一览——紧凑清单，一条一行、13 条一屏，用来扫和补勾（不放笔记框和详解）。
+ *  ⚠️ 别让「今天」也去做整天时间轴，那就跟「当前」职责重了。 */
+const PLAN_TABS = ["current", "today", "week", "roadmap"] as const;
 type PlanTab = (typeof PLAN_TABS)[number];
+const TAB_LABEL: Record<PlanTab, string> = {
+  current: "当前",
+  today: "今天",
+  week: "一周",
+  roadmap: "路线",
+};
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
 interface Domain {
@@ -117,6 +127,145 @@ function nowMinutes(): number {
 function slotStartMin(item: PlanItem): number {
   const m = (item.time_slot ?? "").match(/(\d{1,2}):(\d{2})/);
   return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** 某领域今天该做的计划条目（含时段过滤：养生只收上午、睡前只收 18:00 之后）。
+ *  抽出来是因为「当前」的大卡片、左侧进度条、「今天」的紧凑清单三处都要用同一套判断，
+ *  以前只写在 planCards 里，另两处一复制就会走偏。 */
+function domainItems(d: Domain, list: PlanItem[]): PlanItem[] {
+  if (d.source !== "plan" || !d.tracks) return [];
+  return list.filter((i) => {
+    if (!d.tracks!.includes(i.track)) return false;
+    const s = slotStartMin(i);
+    if (d.timeMax !== undefined && s >= d.timeMax) return false;
+    if (d.timeMin !== undefined && s < d.timeMin) return false;
+    return true;
+  });
+}
+
+/** 细进度条（左侧时间轴每站挂一条，把「完成了多少/一共多少」画在轴上） */
+function MiniBar({ done, total, color }: { done: number; total: number; color: string }) {
+  return (
+    <span className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-muted">
+      <span
+        className="block h-full rounded-full transition-all"
+        style={{ width: total > 0 ? `${(done / total) * 100}%` : 0, background: color }}
+      />
+    </span>
+  );
+}
+
+/** 分栏小标题（还要做 / 已完成 / 今天做不了） */
+function ColHead({ label, n, tone }: { label: string; n: number; tone?: "ok" | "skip" }) {
+  return (
+    <div className="mb-2 flex items-center gap-2 border-b pb-1.5">
+      <span
+        className={cn(
+          "text-sm font-medium",
+          tone === "ok" ? "text-emerald-700" : tone === "skip" ? "text-amber-700" : undefined,
+        )}
+      >
+        {label}
+      </span>
+      <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
+    </div>
+  );
+}
+
+/** 已完成／今天做不了 的窄条（不再占大卡片的位置，但笔记还看得见，可一键撤销） */
+function DoneStrip({
+  title,
+  timeSlot,
+  note,
+  tone,
+  onUndo,
+}: {
+  title: string;
+  timeSlot: string | null;
+  note: string;
+  tone: "ok" | "skip";
+  onUndo: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "group rounded-lg border px-3 py-2 text-sm",
+        tone === "ok" ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/50",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <span className={cn("shrink-0", tone === "ok" ? "text-emerald-600" : "text-amber-600")}>
+          {tone === "ok" ? "✓" : "—"}
+        </span>
+        <span className={cn("min-w-0 flex-1", tone === "ok" && "line-through decoration-1")}>{title}</span>
+        <button
+          onClick={onUndo}
+          className="invisible shrink-0 text-xs text-muted-foreground hover:text-foreground group-hover:visible"
+          title="撤销，回到待做"
+        >
+          撤销
+        </button>
+      </div>
+      {timeSlot && <p className="ml-5 text-[11px] tabular-nums text-muted-foreground">{timeSlot}</p>}
+      {note.trim() && <p className="ml-5 mt-0.5 text-xs text-muted-foreground">做了：{note}</p>}
+    </div>
+  );
+}
+
+/** 「今天」紧凑清单的一行：时间｜标题｜详解截断｜状态键｜视频。刻意不放笔记框和详解全文——
+ *  那是「当前」的活儿，这里只求一屏扫完 + 随手补勾。 */
+function CompactRow({
+  title,
+  timeSlot,
+  detail,
+  url,
+  state,
+  canCheck,
+  onDone,
+  onSkip,
+  onClear,
+}: {
+  title: string;
+  timeSlot: string | null;
+  detail: string | null;
+  url: string | null;
+  state: PlanState;
+  canCheck: boolean;
+  onDone: () => void;
+  onSkip: () => void;
+  onClear: () => void;
+}) {
+  const done = state === "done";
+  return (
+    <div className="grid items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-accent/30"
+      style={{ gridTemplateColumns: "94px minmax(0,1fr) minmax(0,1.1fr) auto auto" }}>
+      <span className="text-[11px] tabular-nums text-muted-foreground">{timeSlot ?? "—"}</span>
+      <span className={cn("truncate text-sm", done && "text-muted-foreground line-through decoration-1")}>
+        {title}
+      </span>
+      <span className="truncate text-xs text-muted-foreground">{detail ?? ""}</span>
+      <DoneToggle
+        state={state}
+        canComplete={canCheck}
+        disabledHint="先去「当前」写一句「做了什么」才能打勾"
+        size="sm"
+        onDone={onDone}
+        onSkip={onSkip}
+        onClear={onClear}
+      />
+      {url ? (
+        <button
+          onClick={() => openLink(url)}
+          className="shrink-0 rounded-md border px-2 py-1 text-xs text-primary hover:bg-accent"
+          title={url}
+        >
+          视频
+        </button>
+      ) : (
+        <span className="w-[42px]" />
+      )}
+    </div>
+  );
 }
 
 /** 当前时间落在哪个领域（最后一个 start<=now；早于第一个则养生） */
@@ -381,14 +530,14 @@ function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [checkMap, setCheckMap] = useState<Map<string, CheckStatus>>(new Map());
   const [cycleStart, setCycleStart] = useState<string | null>(null);
-  // 今日/一周/路线 进 URL（#/study-plan/week、#/study-plan/roadmap；今日＝无子段）
-  // ——在「一周」里刷新不再被弹回「今天」
+  // 四个 tab 进 URL（#/study-plan/today、/week、/roadmap；**当前＝无子段**，是默认视图）
+  // ——在任意 tab 里刷新都不再被弹回默认
   const [sub, navSub] = useSubPath("study-plan");
   const tab: PlanTab = (PLAN_TABS as readonly string[]).includes(sub[0])
     ? (sub[0] as PlanTab)
-    : "today";
+    : "current";
   const setTab = useCallback(
-    (t: PlanTab) => navSub(t === "today" ? [] : [t]),
+    (t: PlanTab) => navSub(t === "current" ? [] : [t]),
     [navSub],
   );
   const [newDay, setNewDay] = useState("*");
@@ -485,18 +634,7 @@ function Page() {
   const autoKey = autoDomainKey();
   const activeKey = selected ?? autoKey;
   const active = DOMAINS.find((d) => d.key === activeKey)!;
-  const planCards =
-    active.source === "plan"
-      ? pendingFirst(
-          todays.filter((i) => {
-            if (!active.tracks!.includes(i.track)) return false;
-            const s = slotStartMin(i);
-            if (active.timeMax !== undefined && s >= active.timeMax) return false;
-            if (active.timeMin !== undefined && s < active.timeMin) return false;
-            return true;
-          }),
-        )
-      : [];
+  const planCards = active.source === "plan" ? pendingFirst(domainItems(active, todays)) : [];
   const todoCards =
     active.source === "todo"
       ? todos
@@ -506,6 +644,25 @@ function Page() {
           )
           .sort((a, b) => Number(!!a.done) - Number(!!b.done)) // 今天完成的沉到最下，不消失
       : [];
+
+  /** 每个领域今天的完成度（左侧时间轴的迷你进度条 + 「今天」清单的分组角标） */
+  function domainProgress(d: Domain): { done: number; total: number } {
+    if (d.source === "todo") {
+      const list = todos.filter((t) => t.due_date && t.due_date <= today);
+      return { done: list.filter((t) => t.done).length, total: list.length };
+    }
+    const list = domainItems(d, todays);
+    return { done: list.filter((i) => stateOf(i.id) === "done").length, total: list.length };
+  }
+
+  // 「当前」右侧按三态分栏。⚠️ 三态要分清（Rosie 要求）：
+  // 待做 / 已完成 / 今天做不了(skip)——skip 不能跟「还没做」混在一起，那是主动决定不做。
+  const curPending = planCards.filter((i) => stateOf(i.id) === "pending");
+  const curDone = planCards.filter((i) => stateOf(i.id) === "done");
+  const curSkip = planCards.filter((i) => stateOf(i.id) === "skip");
+  // 工作域来自待办，没有 skip 概念
+  const todoPending = todoCards.filter((t) => !t.done);
+  const todoDone = todoCards.filter((t) => t.done);
 
   // 「今天没勾=没完成」，唯一例外是睡前拉伸：昨天该做却没打勾的，今早还能补一勾
   const graceItems = items.filter(
@@ -619,7 +776,7 @@ function Page() {
                 tab === t ? "bg-primary text-primary-foreground" : "hover:bg-accent",
               )}
             >
-              {t === "today" ? "今天" : t === "week" ? "一周" : "路线"}
+              {TAB_LABEL[t]}
             </button>
           ))}
         </div>
@@ -636,12 +793,31 @@ function Page() {
           </Button>
         </div>
       )}
-      {tab === "today" ? (
+      {tab === "current" ? (
         <>
-          <div className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <p className="text-sm text-muted-foreground">
-              {formatDateCn(today)} · 完成 {doneCount}/{todays.length}
-            </p>
+          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-muted-foreground">{formatDateCn(today)}</p>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs"
+              style={{ borderColor: "#e0484a55", color: "#e0484a", background: "#e0484a12" }}
+              title="按当前时间自动定位到该做的领域"
+            >
+              <span className="size-1.5 rounded-full" style={{ background: "#e0484a" }} />
+              现在 {String(Math.floor(nowMinutes() / 60)).padStart(2, "0")}:
+              {String(nowMinutes() % 60).padStart(2, "0")} · 自动跟随
+            </span>
+            {/* 今日总进度：柱条 + 数字，一眼知道整天做了多少 */}
+            <span className="flex items-center gap-2 text-sm">
+              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="block h-full rounded-full bg-primary transition-all"
+                  style={{ width: todays.length ? `${(doneCount / todays.length) * 100}%` : 0 }}
+                />
+              </span>
+              <span className="text-muted-foreground">
+                今日 <b className="font-medium text-foreground">{doneCount}</b>/{todays.length}
+              </span>
+            </span>
             {selected && selected !== autoKey && (
               <button
                 className="text-sm text-primary hover:underline"
@@ -673,45 +849,57 @@ function Page() {
           ))}
 
           <div className="flex gap-6">
-            {/* 左：连线时间轴，点圆点切到那个时段 */}
-            <div className="relative w-32 shrink-0 sm:w-36">
+            {/* 左：连线时间轴，点圆点切到那个时段。每站挂一条迷你进度条，
+                所以「哪条线做完了、哪条还空着」不用点进去就看得见（方案 A）。 */}
+            <div className="relative w-40 shrink-0 sm:w-44">
               <div className="absolute bottom-4 left-[9px] top-4 w-0.5 bg-border" />
-              <div className="flex flex-col gap-14">
+              <div className="flex flex-col gap-10">
                 {DOMAINS.map((d) => {
                   const isActive = d.key === activeKey;
                   const isPast = d.start <= nowMinutes();
+                  const p = domainProgress(d);
+                  const allDone = p.total > 0 && p.done === p.total;
                   return (
                     <div key={d.key}>
                       <button
                         onClick={() => setSelected(d.key)}
-                        className="relative flex w-full items-center gap-3 text-left"
+                        className="relative flex w-full items-start gap-3 rounded-md py-1 pr-1 text-left transition-colors hover:bg-accent/40"
+                        style={isActive ? { background: d.tint } : undefined}
+                        title={`${d.name} ${p.done}/${p.total}`}
                       >
                         <span
-                          className="z-10 shrink-0 rounded-full transition-all"
+                          className="z-10 mt-0.5 shrink-0 rounded-full transition-all"
                           style={{
                             width: isActive ? 20 : 16,
                             height: isActive ? 20 : 16,
                             marginLeft: isActive ? -2 : 0,
-                            background: isActive || isPast ? d.color : "var(--surface-2)",
-                            border: isActive || isPast ? "none" : `2px solid ${d.color}`,
+                            background: isActive || isPast || allDone ? d.color : "var(--color-card)",
+                            border: isActive || isPast || allDone ? "none" : `2px solid ${d.color}`,
                             boxShadow: isActive ? `0 0 0 5px ${d.tint}` : "none",
                           }}
                         />
-                        <span>
-                          <span
-                            className="block text-[15px]"
-                            style={{ color: isActive ? d.textc : undefined, fontWeight: isActive ? 600 : 400 }}
-                          >
-                            {d.name}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline gap-1.5">
+                            <span
+                              className="text-[15px]"
+                              style={{ color: isActive ? d.textc : undefined, fontWeight: isActive ? 600 : 400 }}
+                            >
+                              {d.name}
+                            </span>
+                            <span className="text-[11px] tabular-nums text-muted-foreground">
+                              {p.done}/{p.total}
+                            </span>
+                            {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
                           </span>
                           <span className="block text-xs text-muted-foreground">
                             {d.time}
                             {d.key === autoKey && " · 现在"}
                           </span>
+                          <MiniBar done={p.done} total={p.total} color={d.color} />
                         </span>
                       </button>
                       {d.key === autoKey && (
-                        <div className="my-2.5 ml-[-4px] border-t border-dashed border-red-400" />
+                        <div className="my-2 ml-[-4px] border-t border-dashed border-red-400" />
                       )}
                     </div>
                   );
@@ -729,7 +917,8 @@ function Page() {
                   {active.source === "todo" ? "今天要做的（来自待办）" : ""}
                 </span>
               </div>
-              <div className="space-y-3">
+              {/* 加一行（工作域＝加待办，计划域＝加计划外）始终在最上 */}
+              <div className="mb-3">
                 {active.source === "todo" && (
                   <QuickAdd placeholder="加一件今天的工作（→ 待办·重要紧急）" cta="加" onAdd={addWorkTodo} />
                 )}
@@ -741,55 +930,228 @@ function Page() {
                     onAdd={(title) => addExtra(active.tracks![0], title)}
                   />
                 )}
-                {active.source === "plan" &&
-                  planCards.map((i) => (
-                    <ThreeRowCard
+              </div>
+
+              {/* 按状态分栏（方案 C）：左＝还要做（大卡片能写笔记），
+                  右＝已完成／今天做不了。勾掉一条就从左边挪到右边，做完的不再挡着阅读动线。 */}
+              <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(240px,1fr)" }}>
+                <div>
+                  <ColHead label="还要做" n={active.source === "todo" ? todoPending.length : curPending.length} />
+                  <div className="space-y-3">
+                    {active.source === "plan" &&
+                      curPending.map((i) => (
+                        <ThreeRowCard
+                          key={i.id}
+                          title={i.title}
+                          timeSlot={i.time_slot}
+                          detail={i.detail}
+                          url={i.url}
+                          state={stateOf(i.id)}
+                          noteRequired={active.noteRequired}
+                          notePlaceholder={placeholderFor(active, i.track)}
+                          noteVal={notes[i.id] ?? ""}
+                          onNote={(v) => saveNote(i.id, v)}
+                          onDone={() => setStatus(i, "done")}
+                          onSkip={() => setStatus(i, "skip")}
+                          onClear={() => setStatus(i, null)}
+                          onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
+                          onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
+                        />
+                      ))}
+                    {active.source === "todo" &&
+                      todoPending.map((t) => (
+                        <ThreeRowCard
+                          key={t.id}
+                          title={t.title}
+                          detail={null}
+                          url={null}
+                          state="pending"
+                          noteRequired={active.noteRequired}
+                          notePlaceholder={placeholderFor(active)}
+                          noteVal={notes[t.id] ?? ""}
+                          onNote={(v) => saveNote(t.id, v)}
+                          onDone={() => toggleWork(t)}
+                          onSkip={() => {}}
+                          onClear={() => toggleWork(t)}
+                        />
+                      ))}
+                    {(active.source === "todo" ? todoPending.length : curPending.length) === 0 && (
+                      <p className="py-8 text-sm text-muted-foreground">
+                        {(active.source === "todo" ? todoCards.length : planCards.length) === 0
+                          ? active.source === "todo"
+                            ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
+                            : "这个时段今天没有安排。"
+                          : "这一段都处理完了 🎉"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <ColHead label="已完成" n={active.source === "todo" ? todoDone.length : curDone.length} tone="ok" />
+                    <div className="space-y-2">
+                      {active.source === "plan" &&
+                        curDone.map((i) => (
+                          <DoneStrip
+                            key={i.id}
+                            title={i.title}
+                            timeSlot={i.time_slot}
+                            note={notes[i.id] ?? ""}
+                            tone="ok"
+                            onUndo={() => setStatus(i, null)}
+                          />
+                        ))}
+                      {active.source === "todo" &&
+                        todoDone.map((t) => (
+                          <DoneStrip
+                            key={t.id}
+                            title={t.title}
+                            timeSlot={null}
+                            note={notes[t.id] ?? ""}
+                            tone="ok"
+                            onUndo={() => toggleWork(t)}
+                          />
+                        ))}
+                      {(active.source === "todo" ? todoDone.length : curDone.length) === 0 && (
+                        <p className="text-xs text-muted-foreground">还没有</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* skip 单独一栏：主动决定不做，跟「还没做」不是一回事 */}
+                  {active.source === "plan" && (
+                    <div>
+                      <ColHead label="今天做不了" n={curSkip.length} tone="skip" />
+                      <div className="space-y-2">
+                        {curSkip.map((i) => (
+                          <DoneStrip
+                            key={i.id}
+                            title={i.title}
+                            timeSlot={i.time_slot}
+                            note={notes[i.id] ?? ""}
+                            tone="skip"
+                            onUndo={() => setStatus(i, null)}
+                          />
+                        ))}
+                        {curSkip.length === 0 && <p className="text-xs text-muted-foreground">没有</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : tab === "today" ? (
+        /* 「今天」＝全天紧凑清单：一条一行，13 条一屏扫完 + 随手补勾。
+           详解截断成一行、不放笔记框——要写笔记去「当前」（分工见 PLAN_TABS 注释）。 */
+        <div>
+          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-muted-foreground">{formatDateCn(today)}</p>
+            <span className="flex items-center gap-2 text-sm">
+              <span className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
+                <span
+                  className="block h-full rounded-full bg-primary transition-all"
+                  style={{ width: todays.length ? `${(doneCount / todays.length) * 100}%` : 0 }}
+                />
+              </span>
+              <span className="text-muted-foreground">
+                今日 <b className="font-medium text-foreground">{doneCount}</b>/{todays.length}
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              需要写「做了什么」才能打勾的（英语/学习/阅读），到「当前」里写
+            </span>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border bg-card">
+            {DOMAINS.map((d) => {
+              const p = domainProgress(d);
+              const isNow = d.key === autoKey;
+              const planRows = d.source === "plan" ? pendingFirst(domainItems(d, todays)) : [];
+              const todoRows =
+                d.source === "todo"
+                  ? todos
+                      .filter(
+                        (t) =>
+                          t.due_date &&
+                          t.due_date <= today &&
+                          (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+                      )
+                      .sort((a, b) => Number(!!a.done) - Number(!!b.done))
+                  : [];
+              if (planRows.length === 0 && todoRows.length === 0) return null;
+              return (
+                <div key={d.key}>
+                  <div
+                    className="flex items-center gap-2 border-b px-3 py-1.5"
+                    style={{ background: isNow ? d.tint : "var(--color-muted)" }}
+                  >
+                    <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }} />
+                    <span className="text-sm font-medium" style={{ color: d.textc }}>
+                      {d.name}
+                    </span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{d.time}</span>
+                    {isNow && <span className="text-xs text-red-500">← 现在</span>}
+                    <span className="ml-auto flex items-center gap-2">
+                      <span className="h-1 w-16 overflow-hidden rounded-full bg-background">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{ width: p.total ? `${(p.done / p.total) * 100}%` : 0, background: d.color }}
+                        />
+                      </span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {p.done}/{p.total}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setSelected(d.key);
+                          setTab("current");
+                        }}
+                        className="text-xs text-primary hover:underline"
+                        title="去「当前」处理这一段（能写笔记、看详解）"
+                      >
+                        去处理 →
+                      </button>
+                    </span>
+                  </div>
+                  {planRows.map((i) => (
+                    <CompactRow
                       key={i.id}
                       title={i.title}
                       timeSlot={i.time_slot}
                       detail={i.detail}
                       url={i.url}
                       state={stateOf(i.id)}
-                      noteRequired={active.noteRequired}
-                      notePlaceholder={placeholderFor(active, i.track)}
-                      noteVal={notes[i.id] ?? ""}
-                      onNote={(v) => saveNote(i.id, v)}
+                      canCheck={!d.noteRequired || (notes[i.id] ?? "").trim().length > 0}
                       onDone={() => setStatus(i, "done")}
                       onSkip={() => setStatus(i, "skip")}
                       onClear={() => setStatus(i, null)}
-                      onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
-                      onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
                     />
                   ))}
-                {active.source === "todo" &&
-                  todoCards.map((t) => (
-                    <ThreeRowCard
+                  {todoRows.map((t) => (
+                    <CompactRow
                       key={t.id}
                       title={t.title}
+                      timeSlot={null}
                       detail={null}
                       url={null}
                       state={t.done ? "done" : "pending"}
-                      noteRequired={active.noteRequired}
-                      notePlaceholder={placeholderFor(active)}
-                      noteVal={notes[t.id] ?? ""}
-                      onNote={(v) => saveNote(t.id, v)}
+                      canCheck
                       onDone={() => toggleWork(t)}
                       onSkip={() => {}}
                       onClear={() => toggleWork(t)}
                     />
                   ))}
-                {((active.source === "plan" && planCards.length === 0) ||
-                  (active.source === "todo" && todoCards.length === 0)) && (
-                  <p className="py-10 text-sm text-muted-foreground">
-                    {active.source === "todo"
-                      ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
-                      : "这个时段今天没有安排。"}
-                  </p>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })}
+            {todays.length === 0 && (
+              <p className="px-3 py-10 text-center text-sm text-muted-foreground">今天没有安排。</p>
+            )}
           </div>
-        </>
+        </div>
       ) : tab === "roadmap" ? (
         <div className="mt-4 space-y-4">
           <div className="rounded-lg border-l-4 border-primary bg-accent p-4 text-sm leading-relaxed text-accent-foreground">
