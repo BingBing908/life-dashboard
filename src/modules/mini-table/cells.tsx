@@ -20,7 +20,7 @@ export function Cell({ column, value, onChange }: CellProps) {
   switch (column.type) {
     case "checkbox":
       return (
-        <div className="flex justify-center">
+        <div className="flex h-full min-h-14 items-center justify-center">
           <Checkbox
             checked={Boolean(value)}
             onCheckedChange={(v) => onChange(v === true)}
@@ -31,7 +31,7 @@ export function Cell({ column, value, onChange }: CellProps) {
       return (
         <Input
           type="number"
-          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
+          className="h-full min-h-14 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={value == null ? "" : String(value)}
           onChange={(e) =>
             onChange(e.target.value === "" ? null : Number(e.target.value))
@@ -42,7 +42,7 @@ export function Cell({ column, value, onChange }: CellProps) {
       return (
         <Input
           type="date"
-          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
+          className="h-full min-h-14 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value || null)}
         />
@@ -53,7 +53,7 @@ export function Cell({ column, value, onChange }: CellProps) {
           value={typeof value === "string" ? value : ""}
           onValueChange={(v) => onChange(v)}
         >
-          <SelectTrigger className="h-10 border-transparent bg-transparent text-base shadow-none">
+          <SelectTrigger className="h-full min-h-14 border-transparent bg-transparent text-base shadow-none">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -68,7 +68,7 @@ export function Cell({ column, value, onChange }: CellProps) {
     default:
       return (
         <Input
-          className="h-10 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
+          className="h-full min-h-14 border-transparent bg-transparent text-base shadow-none focus-visible:border-input"
           value={typeof value === "string" ? value : ""}
           onChange={(e) => onChange(e.target.value)}
         />

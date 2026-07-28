@@ -121,7 +121,9 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
 
       {/* min-h-0 让 flex 子项能真正缩；内层 table-container 变成滚动容器，表头才吸得住 */}
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
-        <Table className="text-base">
+        {/* h-full：让浏览器把剩余高度按比例摊给各行，表格顶到底、不留大片空白。
+            行数多到超出高度时 height:100% 退化成下限，照旧滚动。 */}
+        <Table className="h-full text-base">
           <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
             <TableRow>
               {columns.map((col) => (
@@ -152,11 +154,13 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                     source.autoItems.includes(label) &&
                     source.dayCols.includes(col.id);
                   return (
-                    // 长内容换行而不是把整列撑宽（否则一格长文本挤扁其余六天）
-                    <TableCell key={col.id} className="max-w-72 p-1.5 align-top whitespace-normal break-words">
+                    // 长内容换行而不是把整列撑宽（否则一格长文本挤扁其余六天）。
+                    // h-px 是让子元素 h-full 生效的老招：表格 h-full 摊高度后，td 的
+                    // 实际高度覆盖这 1px，而子元素的 100% 就有了可解析的参照。
+                    <TableCell key={col.id} className="h-px max-w-72 p-1.5 align-top whitespace-normal break-words">
                       {isAuto ? (
                         <div
-                          className="min-h-10 rounded bg-muted/40 px-3 py-2 text-sm leading-relaxed text-muted-foreground"
+                          className="h-full min-h-14 rounded bg-muted/40 px-3 py-2 text-sm leading-relaxed text-muted-foreground"
                           title="自动来自源模块（饮食 / 时间轴 / 日日学）"
                         >
                           {auto[label!]?.[col.id] || "—"}
