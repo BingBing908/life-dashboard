@@ -1,5 +1,5 @@
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
-import { dayCalories, getMeals, getWeightLog } from "../supplement/data";
+import { dayCalories, getMeals, getWeightLog, listDrinks, listSnacks } from "../supplement/data";
 import { listCheckStatus, listItems } from "../study-plan/data";
 import { listTodos } from "../todo/data";
 import { listAllEntries } from "../study-log/data";
@@ -38,17 +38,21 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
   "tbl-meals-week": {
     itemCol: "item",
     dayCols: DAY_COLS,
-    autoItems: ["空腹体重", "早餐", "午餐", "晚餐", "总摄入卡路里", "睡前体重"],
+    autoItems: ["空腹体重", "早餐", "午餐", "晚餐", "零食/饮品", "总摄入卡路里", "睡前体重"],
     async compute(weekDates) {
       const res: Record<string, Record<string, string>> = {
         空腹体重: {},
         早餐: {},
         午餐: {},
         晚餐: {},
+        "零食/饮品": {},
         总摄入卡路里: {},
         睡前体重: {},
       };
       const weights = await getWeightLog();
+      // 一次取够整周，再按天分组（别在循环里每天查一次库）
+      const drinks = await listDrinks(weekDates[0]);
+      const snacks = await listSnacks(weekDates[0]);
       for (let i = 0; i < 7; i++) {
         const date = weekDates[i];
         const col = DAY_COLS[i];
@@ -57,6 +61,17 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
         res.早餐[col] = meals.早.content ?? "";
         res.午餐[col] = meals.午.content ?? "";
         res.晚餐[col] = meals.晚.content ?? "";
+        // 「零食/饮品」＝当天的饮品和零食摘要 + 合计热量（总摄入那行已含它们，这行是拆开看）
+        const dd = drinks.filter((d) => d.date === date);
+        const ss = snacks.filter((s) => s.date === date);
+        const parts = [
+          ...dd.map((d) => [d.brand, d.name].filter(Boolean).join("") || d.subtype),
+          ...ss.map((s) => s.name || s.subtype),
+        ];
+        const kcal = [...dd, ...ss].reduce((sum, r) => sum + (r.calories ?? 0), 0);
+        res["零食/饮品"][col] = parts.length
+          ? `${parts.join("、")}${kcal ? ` ${kcal}` : ""}`
+          : "";
         res.总摄入卡路里[col] = total ? String(total) : "";
         res.空腹体重[col] = weights[date]?.am != null ? String(weights[date].am) : "";
         res.睡前体重[col] = weights[date]?.pm != null ? String(weights[date].pm) : "";

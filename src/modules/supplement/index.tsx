@@ -7,16 +7,21 @@ import { toDateStr, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { dayNumOf, getPeriodOn } from "../study-plan/data";
 import {
-  deleteDrink,
+  deleteTreat,
   getCalTarget,
   getMeals,
   listDrinks,
+  listSnacks,
   logDrink,
+  logSnack,
   setCalTarget,
   setMeal,
+  SNACK_SUBTYPES,
   type Drink,
   type DrinkSubtype,
   type MealKey,
+  type Snack,
+  type SnackSubtype,
 } from "./data";
 
 /** 基础代谢（Mifflin-St Jeor，女 164cm/68kg/24岁，往低估）；低于它有掉发风险 */
@@ -74,6 +79,62 @@ const DRINK_COLOR: Record<DrinkSubtype, { dot: string; chip: string }> = {
   酸奶: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
 };
 
+/** 「记到 X／回到今天」那一行——饮品和零食两个表单共用（同一个 drinkDate，点一次日历两边都跟着走） */
+function DateLine({
+  date,
+  today,
+  onBackToToday,
+}: {
+  date: string;
+  today: string;
+  onBackToToday: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">记到</span>
+      <span className={cn("font-medium", date !== today && "text-amber-600")}>
+        {date === today ? "今天" : `${date.slice(5)} 补记`}
+      </span>
+      {date !== today && (
+        <button className="text-xs text-primary hover:underline" onClick={onBackToToday}>
+          回到今天
+        </button>
+      )}
+      <span className="ml-auto text-[11px] text-muted-foreground">↓ 点下方日历选别的天</span>
+    </div>
+  );
+}
+
+/** 已记的一条（饮品/零食共用，删除也共用 deleteTreat） */
+function TreatRow({
+  dot,
+  text,
+  calories,
+  onDelete,
+}: {
+  dot: string;
+  text: string;
+  calories: number | null;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+      <span className={cn("size-2 shrink-0 rounded-full", dot)} />
+      <span className="min-w-0 flex-1 truncate">{text}</span>
+      <span className="shrink-0 text-muted-foreground">
+        {calories != null ? `${calories} kcal` : "热量待算"}
+      </span>
+      <button
+        className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
+        title="删掉这条"
+        onClick={onDelete}
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </div>
+  );
+}
+
 function Slot({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="flex items-baseline gap-2">
@@ -105,13 +166,17 @@ function Card() {
   );
 }
 
-/** 饮品月历：有饮品的日子按品类上色（奶茶红/果茶绿/酸奶紫）；点某天＝选中它补记（今天及以前可点） */
+/** 饮品/零食月历：有饮品的日子按品类填色（奶茶红/果茶绿/酸奶紫），
+ *  只有零食没饮品的日子用琥珀色描边（跟填色区分开，一格能同时表达两件事）；
+ *  点某天＝选中它补记（今天及以前可点，饮品和零食都记到这一天） */
 function DrinkCalendar({
   drinks,
+  snacks,
   selected,
   onSelect,
 }: {
   drinks: Drink[];
+  snacks: Snack[];
   selected: string;
   onSelect: (d: string) => void;
 }) {
@@ -133,6 +198,7 @@ function DrinkCalendar({
     if (set.has("果茶")) return "bg-green-500";
     return "bg-violet-500";
   };
+  const snackDays = new Set(snacks.map((s) => s.date));
 
   const first = new Date(ym.y, ym.m - 1, 1);
   const lead = (first.getDay() + 6) % 7; // 周一开头
@@ -147,7 +213,7 @@ function DrinkCalendar({
   }
 
   return (
-    <div className="w-56 shrink-0 rounded-xl border bg-card p-2.5">
+    <div className="rounded-xl border bg-card p-2.5">
       <div className="mb-1 flex items-center">
         <span className="text-sm font-medium">
           {ym.y}年{ym.m}月
@@ -169,8 +235,10 @@ function DrinkCalendar({
           if (!date) return <span key={`x${i}`} />;
           const day = Number(date.slice(8));
           const color = colorOf(date);
+          const hasSnack = snackDays.has(date);
           const isSel = date === selected;
           const future = date > today;
+          const marks = [color && "饮品", hasSnack && "零食"].filter(Boolean).join(" + ");
           return (
             <div key={date} className="flex justify-center">
               <button
@@ -179,11 +247,18 @@ function DrinkCalendar({
                 className={cn(
                   "flex size-6 items-center justify-center rounded-full text-[11px] transition-all",
                   color ? color + " text-white" : "text-foreground",
+                  // 只有零食没饮品：琥珀描边（内描边，不跟选中的 ring 抢位置）
+                  hasSnack && !color && "shadow-[inset_0_0_0_1.5px_var(--color-amber-500)] text-amber-700",
+                  hasSnack && color && "shadow-[inset_0_0_0_1.5px_#fff8]",
                   future ? "cursor-not-allowed opacity-30" : "hover:ring-1 hover:ring-primary/50",
-                  date === today && !color && !isSel && "ring-1 ring-primary",
+                  date === today && !color && !hasSnack && !isSel && "ring-1 ring-primary",
                   isSel && "ring-2 ring-primary ring-offset-1",
                 )}
-                title={future ? `${date}（未来不能记）` : `${date}（点这天补记）`}
+                title={
+                  future
+                    ? `${date}（未来不能记）`
+                    : `${date}${marks ? `：${marks}` : ""}（点这天补记）`
+                }
               >
                 {day}
               </button>
@@ -191,11 +266,12 @@ function DrinkCalendar({
           );
         })}
       </div>
-      <p className="mt-1.5 text-center text-[10px] text-muted-foreground">点某天可补记那天的饮品</p>
-      <div className="mt-1.5 flex justify-center gap-2 text-[10px] text-muted-foreground">
+      <p className="mt-1.5 text-center text-[10px] text-muted-foreground">点某天可补记那天的饮品/零食</p>
+      <div className="mt-1.5 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-red-500 align-middle" />奶茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-green-500 align-middle" />果茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-violet-500 align-middle" />酸奶</span>
+        <span><span className="mr-0.5 inline-block size-2 rounded-full align-middle shadow-[inset_0_0_0_1.5px_var(--color-amber-500)]" />零食</span>
       </div>
     </div>
   );
@@ -206,6 +282,7 @@ function Page() {
   const todayNum = dayNumOf(todayStr());
   const [periodOn, setPeriodOn] = useState(false);
   const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [snacks, setSnacks] = useState<Snack[]>([]);
   const [calTarget, setCalTargetState] = useState(1400);
   const [meals, setMeals] = useState<Record<MealKey, { content: string; calories: string }>>({
     早: { content: "", calories: "" },
@@ -221,15 +298,21 @@ function Page() {
   const [dCal, setDCal] = useState("");
   const [drinkDate, setDrinkDate] = useState(today); // 记到哪天（点日历改，默认今天）
 
-  const reloadDrinks = useCallback(() => {
+  // 记一笔零食 表单（跟饮品共用 drinkDate，所以点一次日历两边都补记到那天）
+  const [sSub, setSSub] = useState<SnackSubtype>("坚果");
+  const [sName, setSName] = useState("");
+  const [sCal, setSCal] = useState("");
+
+  const reloadTreats = useCallback(() => {
     const since = toDateStr(new Date(Date.now() - 100 * 864e5));
     listDrinks(since).then(setDrinks).catch(() => {});
+    listSnacks(since).then(setSnacks).catch(() => {});
   }, []);
 
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
     getCalTarget().then(setCalTargetState).catch(() => {});
-    reloadDrinks();
+    reloadTreats();
     getMeals(today).then((m) => {
       setMeals({
         早: { content: m.早.content ?? "", calories: m.早.calories?.toString() ?? "" },
@@ -237,7 +320,7 @@ function Page() {
         晚: { content: m.晚.content ?? "", calories: m.晚.calories?.toString() ?? "" },
       });
     });
-  }, [today, reloadDrinks]);
+  }, [today, reloadTreats]);
 
   async function addDrink() {
     await logDrink({
@@ -251,7 +334,19 @@ function Page() {
     setDBrand("");
     setDName("");
     setDCal("");
-    reloadDrinks();
+    reloadTreats();
+  }
+
+  async function addSnack() {
+    await logSnack({
+      subtype: sSub,
+      name: sName.trim() || undefined,
+      calories: sCal ? Number(sCal) : null,
+      date: drinkDate,
+    });
+    setSName("");
+    setSCal("");
+    reloadTreats();
   }
 
   async function saveMeal(k: MealKey) {
@@ -260,8 +355,10 @@ function Page() {
   }
 
   const shownDrinks = drinks.filter((d) => d.date === drinkDate);
+  const shownSnacks = snacks.filter((s) => s.date === drinkDate);
   const monthPrefix = today.slice(0, 8);
   const monthCount = drinks.filter((d) => d.date.startsWith(monthPrefix)).length;
+  const snackMonthCount = snacks.filter((s) => s.date.startsWith(monthPrefix)).length;
 
   const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
   const todaySupp = SCHEDULE[todayNum];
@@ -272,13 +369,18 @@ function Page() {
     if (n > 0) setCalTarget(n);
   }
 
-  // 卡路里预算：早/午填进去，晚餐可吃 = 目标 − 早 − 午（实时）
+  // 卡路里预算：晚餐可吃 = 目标 − 早 − 午 − 今天的饮品/零食（实时）
+  // ⚠️ 饮品和零食**必须**算进来：`dayCalories()`（今日总览、小表格用）一直是按
+  // 三餐+treat_log 汇总的，这里以前只加三餐，导致记了奶茶后两处数字对不上（2026-07-28 修）。
   const num = (s: string) => Number(s) || 0;
   const bf = num(meals.早.calories);
   const lu = num(meals.午.calories);
   const dn = num(meals.晚.calories);
-  const eaten = bf + lu + dn;
-  const dinnerAllow = calTarget - bf - lu;
+  const treatCal =
+    drinks.filter((d) => d.date === today).reduce((s, d) => s + (d.calories ?? 0), 0) +
+    snacks.filter((s) => s.date === today).reduce((sum, s) => sum + (s.calories ?? 0), 0);
+  const eaten = bf + lu + dn + treatCal;
+  const dinnerAllow = calTarget - bf - lu - treatCal;
   const scaleMax = Math.max(calTarget, BMR, eaten, 1) * 1.08;
   const pctOf = (v: number) => `${Math.min(100, (v / scaleMax) * 100)}%`;
   const belowBmr = calTarget > 0 && calTarget < BMR;
@@ -309,6 +411,8 @@ function Page() {
         <div className="absolute inset-y-0 left-0 bg-sky-500" style={{ width: pctOf(bf) }} />
         <div className="absolute inset-y-0 bg-sky-300" style={{ left: pctOf(bf), width: pctOf(lu) }} />
         <div className="absolute inset-y-0 bg-violet-400" style={{ left: pctOf(bf + lu), width: pctOf(dn) }} />
+        {/* 饮品+零食单独一段琥珀色，一眼看出「今天超的是不是零食喝的」 */}
+        <div className="absolute inset-y-0 bg-amber-400" style={{ left: pctOf(bf + lu + dn), width: pctOf(treatCal) }} title="饮品 + 零食" />
         <div className="absolute inset-y-0 z-10 w-0.5 bg-foreground/70" style={{ left: pctOf(calTarget) }} title="今日目标" />
         <div className="absolute inset-y-0 z-10 w-0.5 bg-red-500" style={{ left: pctOf(BMR) }} title="基础代谢，别低于" />
       </div>
@@ -316,7 +420,10 @@ function Page() {
         <span><span className="text-red-500">│</span> 基代 {BMR}（别低于）</span>
         <span>│ 目标 {calTarget}</span>
         <span className="text-emerald-600">减脂安全区 {BMR}–1550</span>
-        <span>已吃 {eaten}</span>
+        <span>
+          已吃 {eaten}
+          {treatCal > 0 && <span className="text-amber-600">（含饮品零食 {treatCal}）</span>}
+        </span>
       </div>
       {belowBmr && (
         <p className="mt-1.5 text-xs text-red-600">
@@ -329,9 +436,15 @@ function Page() {
   return (
     <div className="space-y-6 p-6">
       {caloriePanel}
+      {/* 右栏四段：补剂 / 饮品 / 零食 / 月历（月历两边共用），三餐纵跨全部四行。
+          第三行给 1fr＝零食那段吃掉剩余高度，下面不再留一大片空白（2026-07-28 Rosie 要求「加长」）。
+          月历放最后一行 auto，别让它跟着拉伸变形。 */}
       <div
         className="grid gap-6"
-        style={{ gridTemplateColumns: "minmax(0,1.3fr) minmax(240px,1fr)" }}
+        style={{
+          gridTemplateColumns: "minmax(0,1.3fr) minmax(300px,1fr)",
+          gridTemplateRows: "auto auto 1fr auto",
+        }}
       >
       {/* 补剂：右上 */}
       <section style={{ gridColumn: 2, gridRow: 1 }}>
@@ -357,8 +470,8 @@ function Page() {
         )}
       </section>
 
-      {/* 三餐：左侧，纵跨两行 */}
-      <section style={{ gridColumn: 1, gridRow: "1 / 3" }}>
+      {/* 三餐：左侧，纵跨右栏全部四段 */}
+      <section style={{ gridColumn: 1, gridRow: "1 / 5" }}>
         <h2 className="mb-1 text-lg font-semibold">三餐（今天）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
@@ -414,94 +527,135 @@ function Page() {
         </div>
       </section>
 
-      {/* 饮品打卡：右下 */}
+      {/* 饮品打卡：右栏第二段 */}
       <section style={{ gridColumn: 2, gridRow: 2 }}>
         <div className="mb-1 flex items-baseline gap-2">
           <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
           <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
         </div>
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <div className="min-w-0 flex-1 space-y-3">
-            {/* 记一杯表单 */}
-            <div className="space-y-2 rounded-xl border p-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">记到</span>
-                <span className={cn("font-medium", drinkDate !== today && "text-amber-600")}>
-                  {drinkDate === today ? "今天" : `${drinkDate.slice(5)} 补记`}
-                </span>
-                {drinkDate !== today && (
-                  <button className="text-xs text-primary hover:underline" onClick={() => setDrinkDate(today)}>
-                    回到今天
-                  </button>
-                )}
-                <span className="ml-auto text-[11px] text-muted-foreground">← 点右侧日历选别的天</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {SUBTYPES.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setDSub(t)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-sm transition-colors",
-                      dSub === t ? DRINK_COLOR[t].chip + " font-medium" : "border text-muted-foreground",
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-32" />
-                <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-36 flex-1" />
-                <select
-                  value={dSugar}
-                  onChange={(e) => setDSugar(e.target.value)}
-                  className="h-9 rounded-md border bg-transparent px-2 text-sm"
+        <div className="space-y-3">
+          <div className="space-y-2 rounded-xl border p-3">
+            <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
+            <div className="flex flex-wrap gap-2">
+              {SUBTYPES.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setDSub(t)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-sm transition-colors",
+                    dSub === t ? DRINK_COLOR[t].chip + " font-medium" : "border text-muted-foreground",
+                  )}
                 >
-                  {SUGARS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal(可空)" className="w-24" />
-                <Button onClick={addDrink}>记一杯</Button>
-              </div>
-            </div>
-
-            {/* 选中那天已记 */}
-            <div className="space-y-1.5">
-              {shownDrinks.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
-                </p>
-              )}
-              {shownDrinks.map((d) => (
-                <div key={d.id} className="group flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <span className={cn("size-2 shrink-0 rounded-full", DRINK_COLOR[d.subtype].dot)} />
-                  <span className="min-w-0 flex-1 truncate">
-                    {[d.brand, d.name].filter(Boolean).join(" ")}
-                    {d.sugar ? ` · ${d.sugar}` : ""}
-                  </span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {d.calories != null ? `${d.calories} kcal` : "热量待算"}
-                  </span>
-                  <button
-                    className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-                    onClick={async () => {
-                      await deleteDrink(d.id);
-                      reloadDrinks();
-                    }}
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
+                  {t}
+                </button>
               ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-32" />
+              <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-32 flex-1" />
+              <select
+                value={dSugar}
+                onChange={(e) => setDSugar(e.target.value)}
+                className="h-9 rounded-md border bg-transparent px-2 text-sm"
+              >
+                {SUGARS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal(可空)" className="w-24" />
+              <Button onClick={addDrink}>记一杯</Button>
             </div>
           </div>
 
-          {/* 右上角日历 */}
-          <DrinkCalendar drinks={drinks} selected={drinkDate} onSelect={setDrinkDate} />
+          <div className="space-y-1.5">
+            {shownDrinks.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
+              </p>
+            )}
+            {shownDrinks.map((d) => (
+              <TreatRow
+                key={d.id}
+                dot={DRINK_COLOR[d.subtype].dot}
+                text={[d.brand, d.name].filter(Boolean).join(" ") + (d.sugar ? ` · ${d.sugar}` : "")}
+                calories={d.calories}
+                onDelete={async () => {
+                  await deleteTreat(d.id);
+                  reloadTreats();
+                }}
+              />
+            ))}
+          </div>
         </div>
       </section>
+
+      {/* 零食打卡：右栏第三段，1fr 行把剩余高度吃满 */}
+      <section style={{ gridColumn: 2, gridRow: 3 }}>
+        <div className="mb-1 flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
+          <span className="text-sm text-muted-foreground">
+            本月 {snackMonthCount} 次
+            {shownSnacks.length > 0 && ` · ${drinkDate === today ? "今天" : drinkDate.slice(5)} ${shownSnacks.length} 次`}
+          </span>
+        </div>
+        <p className="mb-2 text-sm text-muted-foreground">
+          顶饿又不炸：一小把坚果 / 无糖酸奶 / 黑巧 2 块 / 一个水果。热量算进上面的「已吃」。
+        </p>
+        <div className="space-y-3">
+          <div className="space-y-2 rounded-xl border p-3">
+            <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
+            <div className="flex flex-wrap gap-2">
+              {SNACK_SUBTYPES.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setSSub(t)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-sm transition-colors",
+                    sSub === t ? "bg-amber-50 font-medium text-amber-700" : "border text-muted-foreground",
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input
+                value={sName}
+                onChange={(e) => setSName(e.target.value)}
+                placeholder="吃了什么（一小把巴旦木…）"
+                className="min-w-36 flex-1"
+              />
+              <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal(可空)" className="w-24" />
+              <Button onClick={addSnack}>记一笔</Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            {shownSnacks.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                {drinkDate === today ? "今天还没记零食。" : `${drinkDate.slice(5)} 还没记零食。`}
+              </p>
+            )}
+            {shownSnacks.map((s) => (
+              <TreatRow
+                key={s.id}
+                dot="bg-amber-500"
+                text={[s.subtype, s.name].filter(Boolean).join(" · ")}
+                calories={s.calories}
+                onDelete={async () => {
+                  await deleteTreat(s.id);
+                  reloadTreats();
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 月历：右栏最后一段，饮品和零食共用（点某天两边都补记到那天） */}
+      <div style={{ gridColumn: 2, gridRow: 4 }}>
+        <DrinkCalendar drinks={drinks} snacks={snacks} selected={drinkDate} onSelect={setDrinkDate} />
+      </div>
       </div>
     </div>
   );

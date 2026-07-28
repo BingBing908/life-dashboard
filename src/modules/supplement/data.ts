@@ -60,6 +60,13 @@ export async function setWeightEntry(date: string, slot: "am" | "pm", value: num
 
 export type DrinkSubtype = "奶茶" | "果茶" | "酸奶";
 
+/** 零食品类。⚠️ 零食**复用 `treat_log`**（2026-07-28 定：不建新表、零改库，Rosie 不用去 Supabase 跑 SQL）：
+ *  用 `kind` 区分 'drink'/'snack'，`subtype` 存品类。附带好处是 `dayCalories` 不用改——
+ *  它按 `subtype IS NOT NULL` 汇总 treat_log，零食热量自动算进当日总摄入。
+ *  代价是表名叫 treat_log 却装着零食，名不正言不顺；真嫌乱以后再拆表。 */
+export const SNACK_SUBTYPES = ["坚果", "酸奶", "黑巧", "水果", "其他"] as const;
+export type SnackSubtype = (typeof SNACK_SUBTYPES)[number];
+
 export interface Drink {
   id: string;
   date: string;
@@ -67,6 +74,14 @@ export interface Drink {
   brand: string | null;
   name: string | null;
   sugar: string | null;
+  calories: number | null;
+}
+
+export interface Snack {
+  id: string;
+  date: string;
+  subtype: SnackSubtype;
+  name: string | null;
   calories: number | null;
 }
 
@@ -99,7 +114,33 @@ export async function logDrink(d: {
   );
 }
 
-export async function deleteDrink(id: string): Promise<void> {
+/** 记一笔零食（同一张 treat_log，kind='snack'） */
+export async function logSnack(s: {
+  subtype: SnackSubtype;
+  name?: string;
+  calories?: number | null;
+  date?: string;
+}): Promise<void> {
+  const db = await getDb();
+  const f = newRecordFields();
+  await db.execute(
+    `INSERT INTO treat_log (id, kind, date, subtype, brand, name, sugar, calories, created_at, updated_at, device_id)
+     VALUES ($1, 'snack', $2, $3, NULL, $4, NULL, $5, $6, $7, $8)`,
+    [
+      f.id,
+      s.date ?? todayStr(),
+      s.subtype,
+      s.name ?? null,
+      s.calories ?? null,
+      f.created_at,
+      f.updated_at,
+      f.device_id,
+    ],
+  );
+}
+
+/** 软删一条打卡——饮品和零食同一张表，所以共用 */
+export async function deleteTreat(id: string): Promise<void> {
   const db = await getDb();
   const ts = nowIso();
   await db.execute("UPDATE treat_log SET deleted_at = $1, updated_at = $1 WHERE id = $2", [ts, id]);
@@ -115,12 +156,27 @@ export async function setDrinkCalories(id: string, cal: number): Promise<void> {
   ]);
 }
 
+/** 只取饮品。⚠️ 必须排掉 kind='snack'，否则零食会混进饮品列表和月历配色里；
+ *  `kind IS NULL` 的老行（v7 时代只有奶茶）仍当饮品。 */
 export async function listDrinks(sinceDate: string): Promise<Drink[]> {
   const db = await getDb();
   return db.select<Drink[]>(
     `SELECT id, date, subtype, brand, name, sugar, calories
-     FROM treat_log WHERE deleted_at IS NULL AND subtype IS NOT NULL AND date >= $1
-     ORDER BY date DESC, created_at DESC`,
+     FROM treat_log
+      WHERE deleted_at IS NULL AND subtype IS NOT NULL
+        AND (kind IS NULL OR kind <> 'snack') AND date >= $1
+      ORDER BY date DESC, created_at DESC`,
+    [sinceDate],
+  );
+}
+
+export async function listSnacks(sinceDate: string): Promise<Snack[]> {
+  const db = await getDb();
+  return db.select<Snack[]>(
+    `SELECT id, date, subtype, name, calories
+     FROM treat_log
+      WHERE deleted_at IS NULL AND kind = 'snack' AND date >= $1
+      ORDER BY date DESC, created_at DESC`,
     [sinceDate],
   );
 }
@@ -178,7 +234,7 @@ export async function setMeal(
   }
 }
 
-/** 某天总热量（三餐 + 饮品） */
+/** 某天总热量（三餐 + 饮品 + 零食）。零食也在 treat_log 里且带 subtype，所以这句不用改就涵盖了 */
 export async function dayCalories(date: string): Promise<number> {
   const db = await getDb();
   const meals = await db.select<{ c: number | null }[]>(
