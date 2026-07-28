@@ -38,11 +38,14 @@ import {
   dueEntries,
   isDueToday,
   isGraduated,
+  isShortRound,
   nextDue,
   overdueDays,
   passPatch,
   reviewDates,
+  reviewKindOf,
   reviewStage,
+  reviewTarget,
   upcomingByDate,
 } from "./review";
 
@@ -1229,13 +1232,8 @@ function Card() {
   return <p className="text-sm text-muted-foreground">{n === null ? "加载中…" : `六大板块共 ${n} 条记录`}</p>;
 }
 
-/** 复习要默的「原文」：英语精读＝英文全文；古诗＝【原诗】/recite */
-function reviewTarget(e: Entry): string {
-  const m = parseMetaObj(e);
-  if (e.board === "english") return (m.article_en as string) || e.body || "";
-  const poemMatch = (e.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
-  return (m.recite as string) || (poemMatch ? poemMatch[1].trim() : (e.body ?? ""));
-}
+/* 复习要默的「原文」已移到 review.ts 的 reviewTarget(e, stage)——
+   因为它现在跟「第几轮」有关（精读第 3 轮起只默背诵句），排程和取文得放一起。 */
 
 /** 复习专用默写：总体默写 → 批改按句标错 → 逐句订正（默到词序全对才进下一句）
  *  → 全部订正后再总体默写 → 全对即「复习通过」。判对＝该句词序完全一致（忽略大小写/标点）。 */
@@ -1432,18 +1430,29 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
         <UpcomingLine entries={entries} today={today} />
       </div>
       {items.map((e) => {
-        const isEng = e.board === "english";
         const passedToday = reviewDates(e).includes(today);
         // 已通过次数；正在做（或刚做完）的就是第 nth 次
-        const nth = passedToday ? reviewStage(e) : reviewStage(e) + 1;
+        const stage = reviewStage(e);
+        const nth = passedToday ? stage : stage + 1;
+        // 这一轮的原文按「已通过次数」取：刚过的那条要看它这次默的是什么，所以回退一轮
+        const targetStage = passedToday ? Math.max(0, stage - 1) : stage;
+        const short = isShortRound(e, targetStage);
         const over = passedToday ? 0 : overdueDays(e, today);
         const due = nextDue(e);
         return (
           <div key={e.id} className="rounded-lg border bg-background p-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: acc(e.board) + "22", color: acc(e.board) }}>
-                {isEng ? "英语精读" : "古诗"}
+                {reviewKindOf(e)?.label ?? "复习"}
               </span>
+              {short && (
+                <span
+                  className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                  title="精读第 3 轮起只默背诵句——全文默一次要 8-9 分钟，五轮全默扛不住"
+                >
+                  只默背诵句
+                </span>
+              )}
               {e.title && <span className="text-sm font-medium">{e.title}</span>}
               <span className="text-xs text-muted-foreground">
                 第 {nth}/{REVIEW_INTERVALS.length} 次{e.entry_date ? ` · 学于 ${formatDateCn(e.entry_date)}` : ""}
@@ -1466,7 +1475,7 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
             {/* 完整复习曲线：五个间隔各自的状态 + 历次难度明细 */}
             <ReviewTrack entry={e} accent={acc(e.board)} />
             <ReviewDictation
-              target={reviewTarget(e)}
+              target={reviewTarget(e, targetStage)}
               passed={passedToday}
               accent={acc(e.board)}
               onPass={(stats) => {

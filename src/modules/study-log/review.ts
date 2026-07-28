@@ -14,13 +14,41 @@ import type { Entry } from "./data";
 /** 第几次复习安排在学完后的第几天 */
 export const REVIEW_INTERVALS = [1, 3, 7, 15, 30];
 
-/** 会进复习队列的内容：语文古诗 + 英语精读（都是要默写的） */
+/**
+ * 会进复习队列的内容类型。
+ *
+ * ⚠️ **加类型前先算稳态负担**：间隔是 5 段，所以
+ * 「每天到期条数 ＝ 5 × 每天新进队列的条数」。每天进 2 条 → 稳态每天要复习 10 条。
+ * 所以贵的（全文默写 5–9 分钟）要克制，便宜的（一句/一个词，20 秒）可以多加。
+ * 历史/练笔/AI 新闻/书影/金融**刻意不进**：故事和输出型内容没有「精确记住」这回事。
+ *
+ * `mode` 决定用哪种复习形式：
+ * · `dictation` → 整篇默写 + 逐句订正（ReviewDictation）
+ * · `recall`    → 看提示答一个答案（ReviewQuiz），用于成语这种「要能调得出来」的
+ */
+export type ReviewMode = "dictation" | "recall";
+
+export interface ReviewKind {
+  board: string;
+  kind: string;
+  label: string;
+  mode: ReviewMode;
+}
+
+export const REVIEW_KINDS: ReviewKind[] = [
+  { board: "chinese", kind: "古诗", label: "古诗", mode: "dictation" },
+  { board: "english", kind: "精读文章", label: "英语精读", mode: "dictation" },
+  // 2026-07-28 加：谚语短、复习成本约 20 秒，性价比最高
+  { board: "english", kind: "谚语", label: "英语谚语", mode: "dictation" },
+];
+
+export function reviewKindOf(e: Entry): ReviewKind | null {
+  return REVIEW_KINDS.find((k) => k.board === e.board && k.kind === e.kind) ?? null;
+}
+
+/** 会进复习队列吗（没有 entry_date 的排不了程，直接不算） */
 export function isReviewable(e: Entry): boolean {
-  return (
-    !!e.entry_date &&
-    ((e.board === "chinese" && e.kind === "古诗") ||
-      (e.board === "english" && e.kind === "精读文章"))
-  );
+  return !!e.entry_date && !!reviewKindOf(e);
 }
 
 function metaObj(e: Entry): Record<string, unknown> {
@@ -106,6 +134,45 @@ export function overdueDays(e: Entry, today = todayStr()): number {
   const due = nextDue(e);
   if (!due) return 0;
   return Math.max(0, daysBetween(due, today));
+}
+
+/** 从 body 里抽古诗的【原诗】段（body 常含【注释】【白话】等大段，不能拿整段当答案） */
+function poemBody(e: Entry): string {
+  const m = (e.body ?? "").match(/【原诗】([\s\S]*?)(?=\n*【|$)/);
+  return m ? m[1].trim() : "";
+}
+
+/** 正文第一行非空文本（英语谚语的英文句就在第一行） */
+function firstLine(e: Entry): string {
+  return (e.body ?? "").split("\n").map((s) => s.trim()).find(Boolean) ?? "";
+}
+
+/**
+ * 这一轮该默什么。
+ *
+ * ⚠️ **精读第 3 轮起降级**（2026-07-28）：精读全文默写一次要 8–9 分钟，占稳态复习
+ * 时间的大头（约 70%）。所以第 1、2 次默全文，第 3、4、5 次只默背诵句
+ * （`meta.recite`，没有就退回全文首句）。精读的稳态成本因此从约 45 分钟降到约 20 分钟，
+ * 腾出来的空间才装得下谚语和成语。
+ *
+ * @param stage 已通过次数（0 ＝ 这是第 1 次复习）
+ */
+export function reviewTarget(e: Entry, stage = 0): string {
+  const m = metaObj(e);
+  const recite = typeof m.recite === "string" ? m.recite.trim() : "";
+
+  if (e.kind === "精读文章") {
+    const full = (typeof m.article_en === "string" ? m.article_en : "") || e.body || "";
+    if (stage < 2) return full;
+    return recite || full.split(/(?<=[.!?])\s+/)[0] || full;
+  }
+  if (e.kind === "谚语") return recite || firstLine(e);
+  return recite || poemBody(e) || e.body || ""; // 古诗
+}
+
+/** 这一轮默的是「只背诵句」而不是全文——UI 要说清楚，否则她会以为文章被弄丢了 */
+export function isShortRound(e: Entry, stage = 0): boolean {
+  return e.kind === "精读文章" && stage >= 2;
 }
 
 /** 今天要复习的，学得早的排前面（也就是逾期最久的先还） */
