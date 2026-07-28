@@ -115,6 +115,7 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
 
 - **GitHub**：github.com/BingBing908/life-dashboard（master 分支，公开仓库）
 - **网页版**：推送 master 后 GitHub Actions 自动部署到 https://bingbing908.github.io/life-dashboard/（配置 `.github/workflows/deploy-pages.yml`，构建带 `GHPAGES=1` 让 vite base 走 `/life-dashboard/`）
+- ⚠️ **CI 报错要能不带 token 看到**（2026-07-28 加）：Actions 的原始日志下载要 token（匿名 403），`check-runs` 的 output 也是空的——没本机 Node 时（换电脑、或 Claude 在没装 Node 的机器上改代码）只能看到 success/failure，等于瞎子。所以 build 步骤改成把报错行 `echo "::error::…"` 转成 **annotation**（`/repos/…/commits/<sha>/check-runs` → `annotations_url` **公开可读**）+ 写进 `$GITHUB_STEP_SUMMARY`。查法：`curl <annotations_url> | grep message`。别把这段删了。
 - 网页版数据存各浏览器本地，与桌面端、与其他设备**不互通**（待云同步打通）
 
 ## 常用命令
