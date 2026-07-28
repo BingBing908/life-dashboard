@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
 import { formatDateCn, todayStr } from "@/lib/dates";
+import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
   createEntry,
@@ -1465,29 +1466,25 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
   );
 }
 
-/** 板块子路由：#/study-log/english 直达英语板块（可分享、刷新不丢位置） */
-function boardFromHash(): Board | null {
-  const segs = window.location.hash.replace(/^#\/?/, "").split("/");
-  if (segs[0] !== "study-log" || !segs[1]) return null;
-  const keys: string[] = [...BOARDS.map((b) => b.key), "review"];
-  return keys.includes(segs[1]) ? (segs[1] as Board) : null;
-}
+/** 合法板块 key（含不进 BOARDS 的复习） */
+const BOARD_KEYS: string[] = [...BOARDS.map((b) => b.key), "review"];
 
 function Page() {
   const [all, setAll] = useState<Entry[]>([]);
-  const [board, setBoardState] = useState<Board | null>(boardFromHash);
-  const [openBookId, setOpenBookId] = useState<string | null>(null);
+  // 位置全进 URL：#/study-log/<板块>，书籍再多一段 #/study-log/book/<书id>
+  // ——板块和「翻开的那本书」刷新都不丢（她原话：老是一刷新就回外面了）
+  const [sub, nav] = useSubPath("study-log");
+  const board = BOARD_KEYS.includes(sub[0]) ? (sub[0] as Board) : null;
+  const openBookId = board === "book" ? (sub[1] ?? null) : null;
 
-  // 切板块写进 hash；前进/后退/手输 URL 再同步回状态
-  const setBoard = useCallback((b: Board | null) => {
-    window.location.hash = b ? `/study-log/${b}` : "/study-log";
-    setBoardState(b);
-  }, []);
-  useEffect(() => {
-    const onHash = () => setBoardState(boardFromHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  const setBoard = useCallback(
+    (b: Board | null) => nav(b ? [b] : []),
+    [nav],
+  );
+  const setOpenBookId = useCallback(
+    (id: string | null) => nav(id ? ["book", id] : ["book"]),
+    [nav],
+  );
 
   const reload = useCallback(() => {
     listAllEntries().then(setAll);
@@ -1540,10 +1537,12 @@ function Page() {
   const boardEntries = board ? all.filter((e) => e.board === board) : [];
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
+    <div className="p-6">
       <div className="mb-4 flex items-center gap-2">
         {board && (
-          <button onClick={() => { setBoard(null); setOpenBookId(null); }} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          {/* 只 setBoard(null) 就够——nav([]) 一次把板块和书 id 一起清掉。
+              别再补 setOpenBookId(null)，那会 nav(["book"]) 反而跳进书籍板块。 */}
+          <button onClick={() => setBoard(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> 日日学
           </button>
         )}

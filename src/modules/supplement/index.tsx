@@ -327,7 +327,7 @@ function Page() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
+    <div className="space-y-6 p-6">
       {caloriePanel}
       <div
         className="grid gap-6"

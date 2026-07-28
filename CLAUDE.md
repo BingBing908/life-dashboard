@@ -25,8 +25,14 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
 - **不要**把功能硬编码进仪表盘壳子（`src/App.tsx`、`src/components/dashboard/`）。例外：`DashboardShell` 是**今日总览**（2026-07-21），会**汇总各模块今日数据**——全局经期开关 + 今日完成度(时间轴/待办/卡路里/打卡/日日学) + 本周时间轴完成柱 + 模块入口卡。它按只读方式 import 各模块 data（listItems/listCheckStatus/listTodos/getMeals/dayCalories/getCalTarget/listHabits/getCheckins/listAllEntries/entryDone）；这是"总览"的合理跨模块读取，不是把功能塞进壳子。**新增模块若想上今日总览，在这里加一块**。
 - 所有业务表带同步预留字段：`id`(UUID)、`created_at`、`updated_at`、`device_id`、`deleted_at`（软删除，查询过滤 `deleted_at IS NULL`）
 - 通用组件/工具：`src/components/EditableText.tsx`（点文字就地编辑）；`src/components/Collapse.tsx`（通用折叠区 title/count/hint/right/defaultOpen，待办的「历史已完成」「今天的学练计划」等复用，重复即抽组件）；`src/components/DoneToggle.tsx`（计划项**三态**开关两按钮【已完成】【未完成】，替代方框勾：pending 两键都不亮／点【已完成】=done绿／点【未完成】=skip琥珀「今天做不了」／再点亮着的键撤销回 pending；可选 canComplete 门控【已完成】。**按钮统一放在每行/卡片最前**（今日卡片、一周列表、待办页镜像、待办本体条目四处一致）。待办本体条目也用它（含已完成区），待办每条下方带**选填**「我具体做了什么」输入，存 `plan_notes`（item_id=todo.id，与今日「工作」卡片共用同一份笔记）；`src/components/QuickAdd.tsx`（通用「加一行」输入框＝输入框+按钮，自带 state、回车/点按钮提交清空，props: placeholder/cta/onAdd(text)/variant；时间轴工作域「加工作」、计划域「加计划外」都用它；日日学加书/加电影/记一笔也走它，别再内联重写）；`src/lib/openLink.ts`（Tauri 系统浏览器 / 网页新标签，全应用共用，别再各写一份）；日期用 `src/lib/dates.ts`、周几用 study-plan/data 的 `dayNumOf`（唯一实现，别在模块里重写）。
-- **页面宽度约定**（Rosie 反馈：别老做很窄很居中、离边界太远）：模块 Page 统一用 `mx-auto max-w-6xl p-6`（跟学练计划一致），**不要用 max-w-3xl 这种窄容器**；内容要把宽度铺开、方框/卡片按合适大小放大，别缩成小块挤在中间。踩过：学习记录初版用 max-w-3xl，宽屏上挤中间一小条、方框过小，2026-07-20 改 max-w-6xl + 放大方框。
-- **路由**：`App.tsx` 用 **hash 路由**（`#/<module-id>`，`parseHash()`），刷新停在当前页、不回仪表盘；GitHub Pages 无需服务端配置、Tauri 单页也通用。`setView` 改 `location.hash`，监听 `hashchange` 支持前进/后退。**parseHash 只取第一段做模块 id，子路径归模块自己解析**（2026-07-27）：日日学板块进 URL——`#/study-log/<board>`（english/chinese/ai/history/finance/pm/book/movie/review，`boardFromHash()`，切板块写 hash、hashchange 同步回状态），可直达/分享/刷新不丢位置；其它模块子 tab（时间轴今日/一周）暂不进 URL。
+- **页面宽度约定＝全宽 `p-6`，不加 max-w**（2026-07-28 定稿，Rosie 反馈：别老做很窄很居中、离边界太远）：模块 Page 根节点统一 `<div className="p-6">`，**跟待办、今日总览一致**——它俩一直是全宽，所以视觉基准是它俩。⚠️ **不要再加 `mx-auto max-w-6xl/7xl`**：那是 2026-07-20 为了治 max-w-3xl 过窄立的中间态规则，2026-07-28 Rosie 说时间轴/饮食/日日学/小表格「都窄窄的看起来很古怪」，已全部去掉（study-plan / study-log / mini-table 原为 max-w-6xl，supplement 原为 max-w-7xl）。内容要把宽度铺开、方框/卡片按合适大小放大，别缩成小块挤在中间。**改全宽后记得给网格加高一档断点**（如小表格磁贴 `sm:2 xl:3 2xl:4`），否则宽屏上卡片会被拉成大长条。
+- **路由**：`App.tsx` 用 **hash 路由**（`#/<module-id>`，`parseHash()`），刷新停在当前页、不回仪表盘；GitHub Pages 无需服务端配置、Tauri 单页也通用。`setView` 改 `location.hash`，监听 `hashchange` 支持前进/后退。**parseHash 只取第一段做模块 id，子路径归模块自己解析**。
+
+  ⚠️⚠️ **铁律：模块内会「换页」的状态一律进 hash 子路径**（2026-07-28 Rosie 拍板，原话：「以后这种小板块都默认加自己的 url，不然我每次在表格里刷新还要调到小表格界面重新进入」「原先语文英语也是的老是一刷新就回外面了」）。凡是列表→详情、板块切换、今日/一周这类 tab，**绝不能只存在组件 state 里**——否则刷新、误触后退、从别处跳回来都被弹回模块首页。
+  - 公共实现 `src/lib/hashRoute.ts`：`useSubPath(moduleId)` → `[段数组, nav(段数组)]`，`nav([])` ＝回模块首页。**别再各模块自写 hashchange 监听**（原 study-log 的 `boardFromHash` 已并入它）。段值会 encode/decode，畸形 `%` 转义不会崩页。
+  - 已接入：`#/mini-table/<表id>`（哪张表）、`#/study-log/<board>` + `#/study-log/book/<书id>`（板块 + 翻开的那本书）、`#/study-plan/<week|roadmap>`（今日＝无子段，默认值不占段、URL 更干净）。
+  - ⚠️ **带 id 进来但数据还没读完**：先渲染「加载中…」，别闪一下列表再跳详情（mini-table 用 `loaded` 标志）。删掉当前打开的那条时要 `nav([])`，否则停在死 id 上。
+  - ⚠️ 多级路径下「返回顶层」只调最外层那个 setter 一次即可（study-log 踩过：`setBoard(null)` 后又补 `setOpenBookId(null)`，后者 `nav(["book"])` 反而跳进书籍板块）。
 
 ## 模块现状
 
@@ -157,6 +163,8 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 - [x] **小表格版式**：详情页打开即全屏（表头吸顶、长文本换行不撑列）、列表页磁贴放大（行/列数 + 自动填徽标）
 - [x] **修「原定计划被当成计划外」**：`isSeedItem` 加内容指纹兜底（种子改过 key 的老行不再显示删除按钮）
 - [x] **清掉重复的足弓重建**：Rosie 2026-07-21 误加的那条计划外（`f9bff64c…`，无时段无链接）已软删；留下的 `2ed40c4e…` 是带时段+视频的正主
+- [x] **模块内位置全进 URL**（见「路由」铁律）：抽 `lib/hashRoute.ts` 的 `useSubPath`，接上小表格的表、日日学的书本子、时间轴的一周/路线；study-log 原来那套 `boardFromHash` 并进公共实现
+- [x] **页面宽度统一全宽**（见「页面宽度约定」）：时间轴/日日学/小表格去掉 max-w-6xl、饮食去掉 max-w-7xl，跟待办和今日总览一致
 - [ ] 遗留：`2ed40c4e…` 这行 id 仍是老 key 算的（现在靠指纹认作原定计划，功能无碍）。要彻底归位得改 id，但 `plan_checks.item_id` 指着它、打卡历史会断——**不值得动**，除非哪天 resetToSeed 重来一遍
 
 ## 工作习惯

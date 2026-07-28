@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DoneToggle, type PlanState } from "@/components/DoneToggle";
@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { seedUuid } from "@/lib/db";
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
+import { useSubPath } from "@/lib/hashRoute";
 import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
 import {
@@ -74,6 +75,10 @@ function isSeedItem(item: PlanItem): boolean {
     SEED_KEYS.has(`${item.track}|${item.title}|${item.time_slot}`)
   );
 }
+
+/** 三个视图 tab，进 hash 子路径（今日＝无子段，见 lib/hashRoute.ts 的约定） */
+const PLAN_TABS = ["today", "week", "roadmap"] as const;
+type PlanTab = (typeof PLAN_TABS)[number];
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
 interface Domain {
@@ -376,7 +381,16 @@ function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [checkMap, setCheckMap] = useState<Map<string, CheckStatus>>(new Map());
   const [cycleStart, setCycleStart] = useState<string | null>(null);
-  const [tab, setTab] = useState<"today" | "week" | "roadmap">("today");
+  // 今日/一周/路线 进 URL（#/study-plan/week、#/study-plan/roadmap；今日＝无子段）
+  // ——在「一周」里刷新不再被弹回「今天」
+  const [sub, navSub] = useSubPath("study-plan");
+  const tab: PlanTab = (PLAN_TABS as readonly string[]).includes(sub[0])
+    ? (sub[0] as PlanTab)
+    : "today";
+  const setTab = useCallback(
+    (t: PlanTab) => navSub(t === "today" ? [] : [t]),
+    [navSub],
+  );
   const [newDay, setNewDay] = useState("*");
   const [newTrack, setNewTrack] = useState<Track>("sport");
   const [newTime, setNewTime] = useState("");
@@ -583,7 +597,7 @@ function Page() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
+    <div className="p-6">
       <div className="mb-1 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">时间轴</h1>
         <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
@@ -596,7 +610,7 @@ function Page() {
           </span>
         )}
         <div className="ml-auto flex overflow-hidden rounded-md border">
-          {(["today", "week", "roadmap"] as const).map((t) => (
+          {PLAN_TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}

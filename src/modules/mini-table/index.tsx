@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Table2, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
   createTable,
@@ -95,12 +96,17 @@ function TableTile({
 
 function Page() {
   const [tables, setTables] = useState<MiniTable[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
-  const [activeId, setActiveId] = useState<string | null>(null);
+  // 打开哪张表进 URL（#/mini-table/<表id>）：在表里刷新不再被弹回列表
+  const [sub, nav] = useSubPath("mini-table");
+  const activeId = sub[0] ?? null;
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
-    listTables().then(setTables);
+    listTables()
+      .then(setTables)
+      .finally(() => setLoaded(true));
     rowCounts().then(setCounts).catch(() => {});
   }, []);
 
@@ -110,11 +116,12 @@ function Page() {
     const t = await createTable(name);
     setTables((ts) => [...ts, t]);
     setNewName("");
-    setActiveId(t.id);
+    nav([t.id]);
   }
 
   async function handleDelete(id: string) {
     setTables((ts) => ts.filter((t) => t.id !== id));
+    if (id === activeId) nav([]);
     await deleteTable(id);
   }
 
@@ -127,14 +134,18 @@ function Page() {
     return (
       <TableDetail
         table={active}
-        onBack={() => setActiveId(null)}
+        onBack={() => nav([])}
         onColumnsChange={(cols) => handleColumnsChange(active.id, cols)}
       />
     );
   }
+  // 带着表 id 进来但表还没读出来：别闪一下列表再跳详情
+  if (activeId && !loaded) {
+    return <p className="p-6 text-sm text-muted-foreground">加载中…</p>;
+  }
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
+    <div className="p-6">
       <div className="mb-1 flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold">小表格</h1>
         <span className="text-sm text-muted-foreground">周/月复盘中枢 · 点开即全屏</span>
@@ -152,13 +163,14 @@ function Page() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* 页面改全宽后加一档 2xl:4 列，免得宽屏上磁贴被拉成大长条 */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {tables.map((t) => (
           <TableTile
             key={t.id}
             table={t}
             rows={counts[t.id] ?? 0}
-            onOpen={() => setActiveId(t.id)}
+            onOpen={() => nav([t.id])}
             onDelete={() => handleDelete(t.id)}
           />
         ))}
