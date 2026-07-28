@@ -436,14 +436,15 @@ function Page() {
   return (
     <div className="space-y-6 p-6">
       {caloriePanel}
-      {/* 右栏四段：补剂 / 饮品 / 零食 / 月历（月历两边共用），三餐纵跨全部四行。
-          第三行给 1fr＝零食那段吃掉剩余高度，下面不再留一大片空白（2026-07-28 Rosie 要求「加长」）。
-          月历放最后一行 auto，别让它跟着拉伸变形。 */}
+      {/* 布局（2026-07-28 第二轮，按 Rosie 标的红框）：
+          左＝三餐（纵跨到底）｜右＝补剂在上，下面再分左右两小栏——
+          左小栏是饮品打卡+零食打卡（表单竖着排），右小栏是月历 + 底部「本周复盘」跳转按钮。
+          这样月历去填原先右侧那片空白，两个打卡表单也不会被挤成窄条。 */}
       <div
         className="grid gap-6"
         style={{
-          gridTemplateColumns: "minmax(0,1.3fr) minmax(300px,1fr)",
-          gridTemplateRows: "auto auto 1fr auto",
+          gridTemplateColumns: "minmax(0,1.15fr) minmax(560px,1.35fr)",
+          gridTemplateRows: "auto 1fr",
         }}
       >
       {/* 补剂：右上 */}
@@ -470,8 +471,8 @@ function Page() {
         )}
       </section>
 
-      {/* 三餐：左侧，纵跨右栏全部四段 */}
-      <section style={{ gridColumn: 1, gridRow: "1 / 5" }}>
+      {/* 三餐：左侧，纵跨到底 */}
+      <section style={{ gridColumn: 1, gridRow: "1 / 3" }}>
         <h2 className="mb-1 text-lg font-semibold">三餐（今天）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
@@ -527,8 +528,15 @@ function Page() {
         </div>
       </section>
 
-      {/* 饮品打卡：右栏第二段 */}
-      <section style={{ gridColumn: 2, gridRow: 2 }}>
+      {/* 右下区：左＝饮品+零食两个表单，右＝月历 + 本周复盘按钮 */}
+      <div
+        style={{ gridColumn: 2, gridRow: 2 }}
+        className="grid items-start gap-6"
+      >
+      <div className="grid gap-6" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(230px,260px)" }}>
+      <div className="min-w-0 space-y-6">
+      {/* 饮品打卡 */}
+      <section>
         <div className="mb-1 flex items-baseline gap-2">
           <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
           <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
@@ -589,8 +597,8 @@ function Page() {
         </div>
       </section>
 
-      {/* 零食打卡：右栏第三段，1fr 行把剩余高度吃满 */}
-      <section style={{ gridColumn: 2, gridRow: 3 }}>
+      {/* 零食打卡 */}
+      <section>
         <div className="mb-1 flex items-baseline gap-2">
           <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
           <span className="text-sm text-muted-foreground">
@@ -652,9 +660,24 @@ function Page() {
         </div>
       </section>
 
-      {/* 月历：右栏最后一段，饮品和零食共用（点某天两边都补记到那天） */}
-      <div style={{ gridColumn: 2, gridRow: 4 }}>
+      </div>
+
+      {/* 右小栏：月历（饮品零食共用，点某天两边都补记到那天）+ 本周复盘跳转 */}
+      <div className="flex flex-col gap-3">
         <DrinkCalendar drinks={drinks} snacks={snacks} selected={drinkDate} onSelect={setDrinkDate} />
+        <button
+          onClick={() => {
+            window.location.hash = "/mini-table/tbl-meals-week";
+          }}
+          className="rounded-xl border bg-card px-4 py-3 text-left text-sm transition-colors hover:border-primary/40 hover:bg-accent/40"
+        >
+          <span className="font-medium text-primary">本周复盘 →</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            三餐周表：体重 / 三餐 / 零食饮品 / 总摄入，都自动填好了
+          </span>
+        </button>
+      </div>
+      </div>
       </div>
       </div>
     </div>

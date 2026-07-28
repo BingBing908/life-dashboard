@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
-import { modules } from "@/modules/registry";
 import {
   dayNumOf,
   getPeriodOn,
@@ -24,7 +22,7 @@ interface Props {
 interface Bar { done: number; total: number; isToday: boolean }
 interface Stats {
   plan: { done: number; total: number };
-  todo: { done: number; total: number };
+  todo: { done: number; total: number; all: number };
   cal: { eaten: number; target: number; dinner: number };
   habit: { done: number; total: number };
   learn: { done: number; total: number };
@@ -33,7 +31,8 @@ interface Stats {
 
 const DAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 
-/** 今日总览：今日各模块完成度 + 本周学练完成 + 模块入口 */
+/** 总览：今日各模块完成度（顶排，点进对应模块）+ 本周时间轴完成柱 + 最近七天体重趋势。
+ *  2026-07-28 去掉了下面那排模块入口摘要卡（跟侧栏重复）。 */
 const WEIGHT_GOAL = 58; // 12/27 减重验收目标（kg）
 
 export function DashboardShell({ onOpenModule }: Props) {
@@ -68,11 +67,16 @@ export function DashboardShell({ onOpenModule }: Props) {
       const todayPlan = items.filter((i) => matchesDay(i, tNum));
       const planDone = todayPlan.filter((i) => todayCheck.get(i.id) === "done").length;
 
+      // ⚠️ 顶排的「待办」只数**今天该做的**（标了今天、或过期没做的），不是全部待办；
+      // 全部条数放在副标题里，免得跟待办页看到的总数对不上（2026-07-28 Rosie 反馈）。
       const todayTodos = todos.filter((t) => t.due_date && t.due_date <= today);
       const todoDone = todayTodos.filter((t) => t.done).length;
+      const todoAll = todos.filter((t) => !t.done).length;
 
-      const bf = meals.早.calories ?? 0;
-      const lu = meals.午.calories ?? 0;
+      // 晚餐可吃 = 目标 − 今天已吃的一切（三餐+饮品+零食）+ 晚餐自己。
+      // `eaten` 来自 dayCalories，本就含饮品零食；这里必须跟饮食页同一个算法，
+      // 否则两处「晚餐还能吃」对不上（2026-07-28 一起修）。
+      const dn = meals.晚.calories ?? 0;
 
       const todayHabits = habits.filter((h) => habitOnDay(h, tNum));
       const habitDone = todayHabits.filter((h) => checkins.get(h.id)?.has(today)).length;
@@ -96,8 +100,8 @@ export function DashboardShell({ onOpenModule }: Props) {
 
       setStats({
         plan: { done: planDone, total: todayPlan.length },
-        todo: { done: todoDone, total: todayTodos.length },
-        cal: { eaten, target: calTarget, dinner: calTarget - bf - lu },
+        todo: { done: todoDone, total: todayTodos.length, all: todoAll },
+        cal: { eaten, target: calTarget, dinner: calTarget - (eaten - dn) },
         habit: { done: habitDone, total: todayHabits.length },
         learn: { done: learnDone, total: todayEntries.length },
         bars,
@@ -124,17 +128,33 @@ export function DashboardShell({ onOpenModule }: Props) {
     }));
   }
 
-  // 空腹体重按日期排序，画趋势
-  const wPts = Object.entries(weightLog)
-    .filter(([, w]) => w.am != null)
-    .map(([d, w]) => ({ d, v: w.am as number }))
-    .sort((a, b) => (a.d < b.d ? -1 : 1));
+  /** 跳到小表格的某张表（走 hash，Tauri 桌面端也通用；别写成 github.io 的完整网址） */
+  function openTable(tableId: string) {
+    window.location.hash = `/mini-table/${tableId}`;
+  }
+  const openPlanWeekTable = () => openTable("tbl-plan-week");
+
+  // 空腹体重：只取**最近 7 天**（Rosie 要求，全历史挤在一起看不清曲线）。
+  // x 按「第几天」定位而不是按第几个点，所以没记的那天会留空档、曲线不会被拉直。
+  const wDays = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  const wPts = wDays
+    .map((d, i) => ({ d, i, v: weightLog[d]?.am ?? null }))
+    .filter((p): p is { d: string; i: number; v: number } => p.v != null);
 
   const s = stats;
+  // 柱状图按条数画：全周最忙那天的条数当满格，各天之间才可比
+  const weekDone = s ? s.bars.reduce((n, b) => n + (b?.done ?? 0), 0) : 0;
+  const weekTotal = s ? s.bars.reduce((n, b) => n + (b?.total ?? 0), 0) : 0;
+  const barMax = Math.max(1, ...(s?.bars ?? []).map((b) => b?.total ?? 0));
   const metrics: { label: string; value: string; sub: string; id: string }[] = s
     ? [
         { label: "时间轴", value: `${s.plan.done}/${s.plan.total}`, sub: "今日已完成", id: "study-plan" },
-        { label: "待办", value: `${s.todo.done}/${s.todo.total}`, sub: "今天要做", id: "todo" },
+        {
+          label: "待办",
+          value: `${s.todo.done}/${s.todo.total}`,
+          sub: `今天要做${s.todo.all > s.todo.total ? ` · 未完成共 ${s.todo.all}` : ""}`,
+          id: "todo",
+        },
         {
           label: "卡路里",
           value: `${s.cal.eaten}`,
@@ -149,7 +169,7 @@ export function DashboardShell({ onOpenModule }: Props) {
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">今日总览</h1>
+        <h1 className="text-2xl font-semibold">总览</h1>
         <span className="text-sm text-muted-foreground">{todayStr()}</span>
         <button
           onClick={togglePeriod}
@@ -185,39 +205,62 @@ export function DashboardShell({ onOpenModule }: Props) {
             ))}
       </div>
 
-      {/* 本周学练完成 */}
+      {/* 本周时间轴完成：柱子按「条数」画（不是按比例），左侧带刻度，一眼看出总量和完成了多少 */}
       <div className="mb-6 rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-baseline gap-2">
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-sm font-medium">本周时间轴完成</h2>
-          <button onClick={() => onOpenModule("mini-table")} className="ml-auto text-xs text-primary hover:underline">
-            本周复盘（小表格）→
+          {s && (
+            <span className="text-xs text-muted-foreground">
+              本周已完成 <b className="text-foreground">{weekDone}</b> / {weekTotal} 项
+            </span>
+          )}
+          <button onClick={openPlanWeekTable} className="ml-auto text-xs text-primary hover:underline">
+            本周复盘 →
           </button>
         </div>
-        <div className="flex items-end justify-between gap-2" style={{ height: 72 }}>
-          {(s?.bars ?? Array.from({ length: 7 }, () => null)).map((b, i) => {
-            const ratio = b && b.total > 0 ? b.done / b.total : 0;
-            return (
+        {/* 灰底＝当天该做的总条数，蓝色＝已完成；柱高统一按 barMax 换算，所以各天之间可比 */}
+        <div className="flex gap-2" style={{ height: 96 }}>
+          <div className="flex w-6 shrink-0 flex-col justify-between py-0.5 text-right text-[10px] text-muted-foreground">
+            <span>{barMax}</span>
+            <span>{Math.round(barMax / 2)}</span>
+            <span>0</span>
+          </div>
+          <div className="flex flex-1 items-end justify-between gap-2">
+            {(s?.bars ?? Array.from({ length: 7 }, () => null)).map((b, i) => (
               <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1" style={{ height: "100%" }}>
-                <div className="flex w-full flex-1 items-end">
-                  <div
-                    className={cn("w-full rounded-t", b?.isToday ? "bg-primary" : "bg-primary/40")}
-                    style={{ height: `${Math.max(b ? 6 : 0, ratio * 100)}%` }}
-                    title={b ? `${b.done}/${b.total}` : "未到"}
-                  />
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {b ? `${b.done}/${b.total}` : ""}
+                </span>
+                <div className="relative flex w-full flex-1 items-end">
+                  {b && (
+                    <div
+                      className="w-full rounded-t bg-muted"
+                      style={{ height: `${(b.total / barMax) * 100}%` }}
+                      title={`${DAY_LABELS[i]}：该做 ${b.total} 项，完成 ${b.done} 项`}
+                    >
+                      <div
+                        className={cn(
+                          "absolute bottom-0 w-full rounded-t",
+                          b.isToday ? "bg-primary" : "bg-primary/50",
+                        )}
+                        style={{ height: `${(b.done / barMax) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <span className={cn("text-[11px]", b?.isToday ? "font-medium text-primary" : "text-muted-foreground")}>
                   {DAY_LABELS[i]}
                 </span>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
       {/* 体重趋势（空腹体重，朝 12/27 目标线） */}
       <div className="mb-6 rounded-xl border bg-card p-4">
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 className="text-sm font-medium">体重趋势</h2>
+          <h2 className="text-sm font-medium">最近七天体重趋势</h2>
           <span className="text-xs text-muted-foreground">目标 12/27 ≤ {WEIGHT_GOAL}kg</span>
           <label className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
             今日空腹
@@ -231,34 +274,60 @@ export function DashboardShell({ onOpenModule }: Props) {
           </label>
         </div>
         {wPts.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">记两天空腹体重就有趋势线了。</p>
+          <p className="py-4 text-sm text-muted-foreground">最近七天还没记空腹体重，记两天就有曲线了。</p>
         ) : (
           (() => {
-            const W = 640, H = 120, pad = 24;
+            const W = 640, H = 130, padX = 26, padY = 20;
             const vals = wPts.map((p) => p.v);
-            const yMin = Math.min(WEIGHT_GOAL, ...vals) - 0.5;
-            const yMax = Math.max(WEIGHT_GOAL, ...vals) + 0.5;
-            const x = (i: number) => (wPts.length === 1 ? W / 2 : pad + (i * (W - pad * 2)) / (wPts.length - 1));
-            const y = (v: number) => H - pad - ((v - yMin) / (yMax - yMin)) * (H - pad * 2);
-            const line = wPts.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
-            const goalY = y(WEIGHT_GOAL);
+            // 纵轴只按这七天的实测值取范围（不再把 58 目标塞进来压平曲线），
+            // 目标线在范围内才画——否则 3 公斤的差距会让 0.3 公斤的日间波动看不见。
+            const lo = Math.min(...vals), hi = Math.max(...vals);
+            const span = Math.max(1, hi - lo);
+            const yMin = lo - span * 0.35;
+            const yMax = hi + span * 0.35;
+            const x = (dayIdx: number) => padX + (dayIdx * (W - padX * 2)) / 6;
+            const y = (v: number) => H - padY - ((v - yMin) / (yMax - yMin)) * (H - padY * 2);
+            const line = wPts
+              .map((p, k) => `${k === 0 ? "M" : "L"}${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`)
+              .join(" ");
+            const goalInRange = WEIGHT_GOAL >= yMin && WEIGHT_GOAL <= yMax;
             const last = wPts[wPts.length - 1];
+            const first = wPts[0];
+            const delta = wPts.length > 1 ? last.v - first.v : 0;
             return (
               <div>
-                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }} preserveAspectRatio="none">
-                  <line x1={pad} y1={goalY} x2={W - pad} y2={goalY} stroke="var(--color-text-success, #1D9E75)" strokeWidth={1} strokeDasharray="4 4" />
-                  <path d={line} fill="none" stroke="var(--color-text-info, #378ADD)" strokeWidth={2} />
-                  {wPts.map((p, i) => (
-                    <circle key={p.d} cx={x(i)} cy={y(p.v)} r={2.5} fill="var(--color-text-info, #378ADD)" />
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 130 }} preserveAspectRatio="none">
+                  {goalInRange && (
+                    <line x1={padX} y1={y(WEIGHT_GOAL)} x2={W - padX} y2={y(WEIGHT_GOAL)}
+                      stroke="#1D9E75" strokeWidth={1} strokeDasharray="4 4" />
+                  )}
+                  <path d={line} fill="none" stroke="#378ADD" strokeWidth={2}
+                    strokeLinecap="round" strokeLinejoin="round" />
+                  {wPts.map((p) => (
+                    <circle key={p.d} cx={x(p.i)} cy={y(p.v)} r={3} fill="#378ADD" />
                   ))}
                 </svg>
-                <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                  <span>{wPts[0].d.slice(5)}</span>
+                <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+                  {wDays.map((d) => (
+                    <span key={d} className={cn("flex-1 text-center", d === today && "font-medium text-primary")}>
+                      {d.slice(5).replace("-", "/")}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
                   <span>
                     最新 <b className="text-foreground">{last.v}kg</b>
                     {last.v > WEIGHT_GOAL ? `（离目标 ${(last.v - WEIGHT_GOAL).toFixed(1)}）` : "（已达标 🎉）"}
                   </span>
-                  <span>{last.d.slice(5)}</span>
+                  {wPts.length > 1 && (
+                    <span>
+                      七天{delta <= 0 ? "掉了 " : "涨了 "}
+                      <b className={delta <= 0 ? "text-emerald-600" : "text-amber-600"}>
+                        {Math.abs(delta).toFixed(1)}kg
+                      </b>
+                    </span>
+                  )}
+                  {!goalInRange && <span>目标线 {WEIGHT_GOAL}kg 不在这七天的范围内</span>}
                 </div>
               </div>
             );
@@ -266,32 +335,10 @@ export function DashboardShell({ onOpenModule }: Props) {
         )}
       </div>
 
-      {/* 模块入口（摘要卡） */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {modules.map(({ manifest, Card: ModuleCard }) => {
-          const Icon = manifest.icon;
-          const size = manifest.defaultSize ?? { w: 1, h: 1 };
-          return (
-            <Card
-              key={manifest.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpenModule(manifest.id)}
-              onKeyDown={(e) => e.key === "Enter" && onOpenModule(manifest.id)}
-              className="cursor-pointer transition-colors hover:bg-accent/50"
-              style={{ gridColumn: `span ${size.w}`, gridRow: `span ${size.h}` }}
-            >
-              <CardHeader className="flex flex-row items-center gap-2">
-                <Icon className="size-5 text-muted-foreground" />
-                <CardTitle className="text-base">{manifest.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ModuleCard />
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {/* 原来这儿有一排「模块入口摘要卡」（时间轴/待办/饮食/日日学/小表格），
+          2026-07-28 Rosie 要求删除：左边侧栏已经能进各模块，顶排完成度卡也能点进去，
+          这排纯属重复，还把总览拉得很长。各模块的 `Card` 组件因此在总览里不再被用到
+          （registry 里仍保留，将来做仪表盘自定义布局时可以复用）。 */}
     </div>
   );
 }
