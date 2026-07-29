@@ -175,6 +175,12 @@ function WeightPair({
  * ⚠️ 草稿用 `useState(saved.*)` 只做初值，**刻意不用 effect 跟 props 同步**：
  * 那样云同步一拉到新数据就会把她正在打的字冲掉。saved 变了而 dirty 还是 true，
  * 说明她有未提交的改动，保留草稿才是对的。
+ *
+ * ⚠️⚠️ **正因为不跟 props 同步，调用方必须等 `meals` 读完库了才渲染这个组件**
+ * （`mealsLoaded` 门控 + `key={today}`）。2026-07-29 上线当天就踩了：父级 `meals`
+ * 初值是空串、`getMeals` 是异步的，组件先挂载 ⇒ 草稿定格成空 ⇒ 库里明明有
+ * 「一个鸡蛋 50」，界面却是空框 + 亮着的「确认提交」，**一点就把记录清空**。
+ * 只加 effect 同步治得了这个、但会带回"打字被冲掉"，所以用门控。
  */
 function MealRow({
   meal,
@@ -211,40 +217,45 @@ function MealRow({
         <span className="mr-1">🥡 外卖</span>
         {meal.takeout}
       </p>
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={(e) => {
-          // Enter 直接提交（Shift+Enter 换行）——填一行小字还要挪去点按钮太累
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            if (dirty) submit();
-          }
-        }}
-        placeholder="我今天这一餐吃了……（回车提交，Shift+回车换行）"
-        className="mt-2 min-h-16 w-full flex-1 resize-none rounded-md border bg-card px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
-      />
-      <div className="mt-2 flex items-center gap-2">
-        <Input
-          type="number"
-          value={cal}
-          onChange={(e) => setCal(e.target.value)}
+      {/* 填写行：输入框 + kcal + 按钮**挤在同一行**（2026-07-29 Rosie：「缩短一点呀，
+          这样的话本周复盘又在这一页放不下了」）——上一版按钮单独占一行，
+          三餐加起来多出约 120px，把本周复盘顶出了首屏。
+          textarea 靠 items-stretch（flex 默认）撑满行高、右侧那两个 items-end 贴底。 */}
+      <div className="mt-2 flex flex-1 gap-2">
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && dirty) submit();
+            // Enter 直接提交（Shift+Enter 换行）——填一行小字还要挪去点按钮太累
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (dirty) submit();
+            }
           }}
-          placeholder="大约 kcal"
-          className="w-24 bg-card"
+          placeholder="我今天这一餐吃了……（回车提交）"
+          className="min-h-9 min-w-32 flex-1 resize-none rounded-md border bg-card px-3 py-1.5 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
         />
-        <Button
-          size="sm"
-          variant={dirty ? "default" : "outline"}
-          disabled={!dirty}
-          onClick={submit}
-          className="ml-auto"
-          title={dirty ? "把这一餐写进库（也会同步到小表格周表）" : "没有未提交的改动"}
-        >
-          {dirty ? "确认提交" : empty ? "还没填" : "已保存 ✓"}
-        </Button>
+        <div className="flex shrink-0 items-end gap-2">
+          <Input
+            type="number"
+            value={cal}
+            onChange={(e) => setCal(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && dirty) submit();
+            }}
+            placeholder="kcal"
+            className="w-20 bg-card"
+          />
+          <Button
+            size="sm"
+            variant={dirty ? "default" : "outline"}
+            disabled={!dirty}
+            onClick={submit}
+            title={dirty ? "把这一餐写进库（也会同步到小表格周表）" : "没有未提交的改动"}
+          >
+            {dirty ? "确认提交" : empty ? "还没填" : "已保存 ✓"}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -466,6 +477,8 @@ function Page() {
     午: { content: "", calories: "" },
     晚: { content: "", calories: "" },
   });
+  // 读完库了吗——MealRow 的草稿只取一次初值，读完之前不能渲染它（见渲染处注释）
+  const [mealsLoaded, setMealsLoaded] = useState(false);
 
   // 记一杯 表单
   const [dSub, setDSub] = useState<DrinkSubtype>("奶茶");
@@ -500,13 +513,17 @@ function Page() {
       })
       .catch(() => {});
     reloadTreats();
-    getMeals(today).then((m) => {
-      setMeals({
-        早: { content: m.早.content ?? "", calories: m.早.calories?.toString() ?? "" },
-        午: { content: m.午.content ?? "", calories: m.午.calories?.toString() ?? "" },
-        晚: { content: m.晚.content ?? "", calories: m.晚.calories?.toString() ?? "" },
-      });
-    });
+    setMealsLoaded(false);
+    getMeals(today)
+      .then((m) => {
+        setMeals({
+          早: { content: m.早.content ?? "", calories: m.早.calories?.toString() ?? "" },
+          午: { content: m.午.content ?? "", calories: m.午.calories?.toString() ?? "" },
+          晚: { content: m.晚.content ?? "", calories: m.晚.calories?.toString() ?? "" },
+        });
+      })
+      // ⚠️ 读失败也要放行，否则三餐永远卡在「读取中」、连手填都做不了
+      .finally(() => setMealsLoaded(true));
   }, [today, yesterday, reloadTreats]);
 
   /** 存体重：前晚睡前写昨天的 pm，今晨空腹写今天的 am（同一个体重库，别另存） */
@@ -765,14 +782,22 @@ function Page() {
                 )}
               </div>
 
-              {MEALS.map((m) => (
-                <MealRow
-                  key={m.key}
-                  meal={m}
-                  saved={meals[m.key]}
-                  onSubmit={(content, calories) => submitMeal(m.key, content, calories)}
-                />
-              ))}
+              {/* ⚠️ 必须等库读完才渲染：MealRow 的草稿只取一次初值、不跟 props 同步，
+                  先挂载会把草稿定格成空串 ⇒ 库里有记录、界面却是空框 + 亮着的
+                  「确认提交」，一点就清空（2026-07-29 上线当天踩的）。
+                  key={today} 让跨天时重新取初值，不会留着昨天的草稿。 */}
+              {mealsLoaded ? (
+                MEALS.map((m) => (
+                  <MealRow
+                    key={`${today}-${m.key}`}
+                    meal={m}
+                    saved={meals[m.key]}
+                    onSubmit={(content, calories) => submitMeal(m.key, content, calories)}
+                  />
+                ))
+              ) : (
+                <p className="py-6 text-center text-sm text-muted-foreground">读取三餐记录…</p>
+              )}
             </div>
           </section>
 
