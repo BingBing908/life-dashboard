@@ -26,6 +26,7 @@ import {
   listTodos,
   QUADRANTS,
   setTodoDueDate,
+  setTodoQuadrant,
   toggleTodo,
   updateTodoTitle,
   type Quadrant,
@@ -41,20 +42,36 @@ const Q_STYLE: Record<Quadrant, { bg: string; text: string; dot: string }> = {
   nn: { bg: "bg-zinc-100",  text: "text-zinc-600",   dot: "bg-zinc-400" },
 };
 
-function QuadrantTag({ q }: { q: Quadrant }) {
+/** 象限彩签。传了 onChange 就可点——**点一下换下一个象限**（iu→in→nu→nn→iu 循环）。
+ *  2026-07-29 Rosie 要求：判断重要程度经常是事后才改的，原来只能删掉重建太麻烦。
+ *  用循环而不是下拉菜单，是因为只有四个值、循环一两下就到，比开菜单快。 */
+function QuadrantTag({ q, onChange }: { q: Quadrant; onChange?: (next: Quadrant) => void }) {
   const s = Q_STYLE[q];
   const name = QUADRANTS.find((x) => x.key === q)?.name ?? q;
+  const cls = cn(
+    "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px]",
+    s.bg,
+    s.text,
+  );
+  if (!onChange) {
+    return (
+      <span className={cls}>
+        <span className={cn("size-1.5 rounded-full", s.dot)} />
+        {name}
+      </span>
+    );
+  }
+  const idx = QUADRANTS.findIndex((x) => x.key === q);
+  const next = QUADRANTS[(idx + 1) % QUADRANTS.length];
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px]",
-        s.bg,
-        s.text,
-      )}
+    <button
+      onClick={() => onChange(next.key)}
+      title={`点一下改成「${next.name}」`}
+      className={cn(cls, "transition-colors hover:ring-1 hover:ring-primary/40")}
     >
       <span className={cn("size-1.5 rounded-full", s.dot)} />
       {name}
-    </span>
+    </button>
   );
 }
 
@@ -185,6 +202,12 @@ function Page() {
   async function handleDelete(id: string) {
     setTodos((ts) => ts.filter((t) => t.id !== id));
     await deleteTodo(id);
+  }
+
+  /** 点彩签换象限（重要程度经常是事后才想清楚的，原来只能删掉重建） */
+  async function handleQuadrant(id: string, q: Quadrant) {
+    patch(id, { quadrant: q });
+    await setTodoQuadrant(id, q);
   }
 
   async function toggleToday(t: Todo) {
@@ -357,7 +380,7 @@ function Page() {
                     >
                       今天
                     </button>
-                    <QuadrantTag q={t.quadrant} />
+                    <QuadrantTag q={t.quadrant} onChange={(nq) => handleQuadrant(t.id, nq)} />
                     <button
                       className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
                       title="删除"

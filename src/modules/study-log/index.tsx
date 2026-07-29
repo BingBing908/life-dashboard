@@ -98,9 +98,19 @@ function withMeta(e: Entry, patch: Record<string, unknown>): string {
 function needsDictation(e: Entry): boolean {
   return e.kind === "古诗" || e.kind === "精读文章" || (e.board === "english" && e.kind === "谚语");
 }
-/** 交了作业的练笔（Claude 批改后写进 meta.homework）＝提交即完成，不用手动标 */
+/** 交了作业的（Claude 批改后写进 meta.homework）＝提交即完成，不用手动标 */
 function hasHomework(m: Record<string, unknown>): boolean {
   return typeof m.homework === "string" && (m.homework as string).trim().length > 0;
+}
+
+/** 带练习题、要靠「批改」判完成的内容：语文练笔 + PM 的概念课/产品拆解。
+ *  ⚠️ PM 每一课/每一期末尾都有练习题（今日小任务/思考题），2026-07-29 Rosie 要求
+ *  「从标记看完改成批改练习后算看完」，并且**批改要跟题目一一对应、不再单开练习条目**
+ *  ——所以批改写进该题条目自己的 `meta.homework`，原来那三条打包的「练习批改 ①②③」
+ *  已拆散挂回各自题目并软删。同 kind='练习' 的老条目也照这个规则算（防遗留数据）。 */
+function gradedByHomework(e: Entry): boolean {
+  if (e.kind === "练笔") return true;
+  return e.board === "pm" && (e.kind === "PM概念" || e.kind === "产品拆解" || e.kind === "练习");
 }
 /** 是否「今天看完」：要默写的＝默写过≥1遍；练笔＝交了作业（有 meta.homework）；其余＝手动标 meta.done */
 export function entryDone(e: Entry): boolean {
@@ -115,7 +125,7 @@ export function entryDone(e: Entry): boolean {
     const word = (m.wordAtt as unknown[]) ?? [];
     return art.length >= 1 || word.length >= 1;
   }
-  if (e.kind === "练笔") return hasHomework(m);
+  if (gradedByHomework(e)) return hasHomework(m);
   return !!m.done;
 }
 
@@ -379,7 +389,9 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         )}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {onPatch && !dictKind && entry.kind !== "练习" && entry.kind !== "练笔" && (
+          {/* 手动「标看完」只留给没有练习题、也不用默写的内容（成语/谚语/新闻/历史…）。
+              带练习题的（练笔、PM 概念课/产品拆解）改成「批改后算完成」，见 gradedByHomework。 */}
+          {onPatch && !dictKind && !gradedByHomework(entry) && (
             <button
               onClick={() => onPatch(entry.id, { done: !done })}
               className={cn(
@@ -398,12 +410,12 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
               {done ? "✓ 已默写" : "默写后算看完"}
             </span>
           )}
-          {entry.kind === "练笔" && (
+          {!dictKind && gradedByHomework(entry) && (
             <span
               className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
-              title="交作业（Claude 批改后）即算完成"
+              title="把答案发我、批改写进这条的作业框后，自动算完成"
             >
-              {done ? "✓ 已完成" : "交作业后算完成"}
+              {done ? "✓ 已批改" : "交作业后算完成"}
             </span>
           )}
         </div>
