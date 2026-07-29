@@ -547,8 +547,10 @@ function Page() {
       >
         {/* ───────── 左栏 ───────── */}
         <div className="flex flex-col gap-6">
-          {/* flex-1：这一栏的剩余高度由「今天吃什么」吸收（内容顶对齐，不拉伸内容） */}
-          <section className="flex-1 rounded-xl border bg-card p-4">
+          {/* flex-1：这一栏的剩余高度由「今天吃什么」吸收，再往下由三个餐框分掉
+              （2026-07-29 Rosie：「白白的放在这里好丑，剩下的分给早午晚餐」）。
+              ⚠️ 补剂不参与分——它是只读参考，拉高只会更空。 */}
+          <section className="flex flex-1 flex-col rounded-xl border bg-card p-4">
             <h2 className="text-lg font-semibold">今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
@@ -569,11 +571,12 @@ function Page() {
               </div>
             )}
 
-            <div className="mt-3 space-y-2.5">
+            <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2.5">
               {/* 补剂：搬到早餐上面（2026-07-29 Rosie 定）。它本来就按早/午/晚排，
                   跟三餐同一个时间轴；而且「随餐吃 / 跟早餐一起」这句提示终于挨着餐了。
-                  做成只读浅色小块，跟下面三张能输入的餐卡区分开——它是参考不是录入。 */}
-              <div className="rounded-lg bg-muted px-3 py-2.5">
+                  做成只读浅色小块，跟下面三张能输入的餐卡区分开——它是参考不是录入。
+                  shrink-0：不参与分剩余高度（只读的东西拉高只会更空）。 */}
+              <div className="shrink-0 rounded-lg bg-muted px-3 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="font-medium">补剂</span>
                   <span className="text-xs text-muted-foreground">
@@ -615,7 +618,8 @@ function Page() {
               </div>
 
               {MEALS.map((m) => (
-                <div key={m.key} className="rounded-lg bg-muted px-3 py-2.5">
+                // flex-1：三个餐框平分补剂之外的剩余高度；min-h-28 保底不会被挤扁
+                <div key={m.key} className="flex min-h-28 flex-1 flex-col rounded-lg bg-muted px-3 py-2.5">
                   <p className="font-medium">{m.label}</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     <span className="mr-1">🍳 自己做</span>
@@ -625,7 +629,8 @@ function Page() {
                     <span className="mr-1">🥡 外卖</span>
                     {m.takeout}
                   </p>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {/* mt-auto：框被拉高后输入行沉到底，上面推荐、下面填写，中间不留空洞 */}
+                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
                     <Input
                       value={meals[m.key].content}
                       onChange={(e) =>
@@ -651,16 +656,22 @@ function Page() {
             </div>
           </section>
 
-          {/* 本周复盘：挪到左栏最下（看完今天，顺着往下就是这周）。走 hash，Tauri 桌面端也通用 */}
+          {/* 本周复盘：挪到左栏最下（看完今天，顺着往下就是这周）。走 hash，Tauri 桌面端也通用。
+              2026-07-29 加大一倍——它是这页唯一的出口，原来那条太细、像个脚注。 */}
           <button
             onClick={() => {
               window.location.hash = "/mini-table/tbl-meals-week";
             }}
-            className="w-full rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+            className="w-full shrink-0 rounded-xl border bg-card px-5 py-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
           >
-            <span className="text-sm font-medium text-primary">本周复盘 →</span>
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              三餐周表：体重 / 三餐 / 零食饮品 / 总摄入，都自动填好了
+            <span className="flex items-center gap-2 text-lg font-semibold text-primary">
+              本周复盘 <span aria-hidden="true">→</span>
+            </span>
+            <span className="mt-1 block text-sm text-muted-foreground">
+              三餐周表：空腹/睡前体重 · 早午晚吃了什么 · 零食饮品 · 总摄入卡路里
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground/70">
+              全部自动填好，直接看这一周的走势
             </span>
           </button>
         </div>
