@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CalendarCheck, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck, ExternalLink, Play, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DoneToggle, type PlanState } from "@/components/DoneToggle";
 import { Fireworks } from "@/components/Fireworks";
@@ -486,15 +486,9 @@ function ThreeRowCard({
   const canCheck = !noteRequired || done || noteVal.trim().length > 0;
   return (
     <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
+      {/* 一行的顺序（2026-07-29 Rosie 定）：时间 · 标题 …… 视频 · 状态键 · 删除。
+          状态键从最左挪到最右——最好的位置该给标题，不该给每张卡都长一样的两个按钮。 */}
       <div className="flex items-center gap-3">
-        <DoneToggle
-          state={state}
-          canComplete={canCheck}
-          onDone={onDone}
-          onSkip={onSkip}
-          onClear={onClear}
-          disabledHint="先写「做了什么」才能标记完成"
-        />
         {timeSlot && (
           <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
             {timeSlot}
@@ -504,12 +498,20 @@ function ThreeRowCard({
         {url && (
           <button
             onClick={() => openLink(url)}
-            title="打开"
+            title={url}
             className="flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-primary hover:bg-accent"
           >
-            <ExternalLink className="size-4" /> 打开
+            <Play className="size-3.5" /> 视频
           </button>
         )}
+        <DoneToggle
+          state={state}
+          canComplete={canCheck}
+          onDone={onDone}
+          onSkip={onSkip}
+          onClear={onClear}
+          disabledHint="先写「做了什么」才能标记完成"
+        />
         {onDelete && (
           <button onClick={onDelete} title="删除（计划外·自己加的）" className="shrink-0 text-muted-foreground hover:text-destructive">
             <Trash2 className="size-4" />
@@ -529,16 +531,11 @@ function ThreeRowCard({
             inputClassName="w-full text-xs"
           />
         </div>
-      ) : (
-        url && (
-          <button
-            onClick={() => openLink(url)}
-            className="mt-1.5 block max-w-full truncate text-left text-xs text-primary/80 hover:underline"
-          >
-            {url}
-          </button>
-        )
-      )}
+      ) : null
+      /* 原来这儿还会把整条网址用小字铺出来——跟右上角那个按钮完全重复，而且
+         等宽长网址是整张卡最丑的一处（2026-07-29 Rosie 指出）。已删除，
+         要打开就点「视频」，想看地址 hover 按钮有 title。 */
+      }
       <input
         value={noteVal}
         onChange={(e) => onNote(e.target.value)}
