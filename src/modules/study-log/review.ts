@@ -149,9 +149,70 @@ function poemBody(e: Entry): string {
   return m ? m[1].trim() : "";
 }
 
+const lines = (s: string): string[] =>
+  s.split("\n").map((x) => x.trim()).filter(Boolean);
+
+/**
+ * 拆掉古诗的「题头」（标题行 + 作者行），只留诗句。
+ *
+ * ⚠️ **2026-07-29 修的真 bug**：Rosie 把《塞下曲》正文一字不差地默对了，却被判错——
+ * 因为 `meta.recite` 里连标题和作者一起存着（「塞下曲 · 其三　卢纶〔唐〕」），
+ * 她写成「塞下曲其三 唐卢纶」，格式不同就算错。**标题和作者不该是默写内容**，
+ * 它们是「要默哪一首」的提示。
+ *
+ * 判据：诗句一定含中文标点（，。！？；），题头行不含。从头往下扫，
+ * 连续不含标点的短行都算题头，遇到第一行带标点的就开始算正文。
+ */
+function splitPoem(text: string): { head: string; body: string } {
+  const ls = lines(text);
+  const head: string[] = [];
+  let i = 0;
+  while (i < ls.length && !/[，。！？；]/.test(ls[i]) && ls[i].length <= 24) {
+    head.push(ls[i]);
+    i++;
+  }
+  // 万一整段都不含标点（异常数据），别把正文吃光——那就当没有题头
+  if (i >= ls.length) return { head: "", body: ls.join("\n") };
+  return { head: head.join(" · "), body: ls.slice(i).join("\n") };
+}
+
 /** 正文第一行非空文本（英语谚语的英文句就在第一行） */
 function firstLine(e: Entry): string {
-  return (e.body ?? "").split("\n").map((s) => s.trim()).find(Boolean) ?? "";
+  return lines(e.body ?? "")[0] ?? "";
+}
+
+/**
+ * 复习时给的**提示**——不用默，只用来认出「这是哪一条」。
+ *
+ * ⚠️ 没有提示是不行的（2026-07-29 Rosie 反馈）：英语谚语只给一个空框，
+ * 她根本想不起来该默哪句；精读文章同理。提示的原则是
+ * **给足够认出来的信息，但不能把答案给出去**：
+ * · 古诗 → 标题 + 作者（诗句才是要默的）
+ * · 英语谚语 → 中文释义（英文句才是要默的）
+ * · 英语精读 → 整段中文翻译（英文才是要默的）
+ */
+export function reviewHint(e: Entry): string {
+  const m = metaObj(e);
+  if (e.kind === "古诗") {
+    const src = (typeof m.recite === "string" && m.recite.trim()) || poemBody(e) || e.body || "";
+    return splitPoem(src).head;
+  }
+  if (e.kind === "谚语") {
+    // body 第一行是英文句，第二行是中文释义
+    return lines(e.body ?? "")[1] ?? "";
+  }
+  if (e.kind === "精读文章") {
+    return typeof m.article_cn === "string" ? m.article_cn : "";
+  }
+  return "";
+}
+
+/** 提示该怎么显示（古诗的题头是一行，精读的中文是一大段，样式不一样） */
+export function hintLabel(e: Entry): string {
+  if (e.kind === "古诗") return "默这一首";
+  if (e.kind === "谚语") return "这句中文是";
+  if (e.kind === "精读文章") return "中文对照（照它默英文）";
+  return "提示";
 }
 
 /**
@@ -174,7 +235,9 @@ export function reviewTarget(e: Entry, stage = 0): string {
     return recite || full.split(/(?<=[.!?])\s+/)[0] || full;
   }
   if (e.kind === "谚语") return recite || firstLine(e);
-  return recite || poemBody(e) || e.body || ""; // 古诗
+  // 古诗：⚠️ 必须剥掉题头（标题/作者），它们是提示不是答案——见 splitPoem 的注释
+  const poemSrc = recite || poemBody(e) || e.body || "";
+  return splitPoem(poemSrc).body || poemSrc;
 }
 
 /** 这一轮默的是「只背诵句」而不是全文——UI 要说清楚，否则她会以为文章被弄丢了 */

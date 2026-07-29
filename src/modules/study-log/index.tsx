@@ -39,6 +39,7 @@ import { dueWords, wordPassPatch, type WordCard } from "./wordReview";
 import {
   REVIEW_INTERVALS,
   dueEntries,
+  hintLabel,
   isDueToday,
   isGraduated,
   isShortRound,
@@ -47,6 +48,7 @@ import {
   passPatch,
   recallCard,
   reviewDates,
+  reviewHint,
   reviewKindOf,
   reviewStage,
   reviewTarget,
@@ -1255,11 +1257,17 @@ function Card() {
  *  → 全部订正后再总体默写 → 全对即「复习通过」。判对＝该句词序完全一致（忽略大小写/标点）。 */
 function ReviewDictation({
   target,
+  hint,
+  hintLabel: hintCaption,
   passed,
   accent,
   onPass,
 }: {
   target: string;
+  /** 认出「这是哪一条」的提示（古诗＝标题作者、谚语＝中文、精读＝中文对照）。
+   *  ⚠️ 不能不给：只给个空框她根本不知道要默什么（2026-07-29 修）。 */
+  hint?: string;
+  hintLabel?: string;
   passed: boolean;
   accent: string;
   /** 通过时回报这次默得难不难：wrong＝第一遍整篇错了几句，rounds＝默了几轮才全对 */
@@ -1366,12 +1374,24 @@ function ReviewDictation({
   return (
     <div className="mt-2 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
       <p className="mb-2 text-sm font-medium">
-        凭记忆默写全文{round > 1 ? `（第 ${round} 轮 · 订正后复验）` : ""}
+        凭记忆默写{round > 1 ? `（第 ${round} 轮 · 订正后复验）` : ""}
       </p>
+      {/* 提示：告诉她默哪一条，但不给答案。古诗给标题作者、谚语给中文、精读给中文对照 */}
+      {hint && (
+        <div
+          className="mb-2 rounded-md border p-2.5"
+          style={{ background: accent + "0e", borderColor: accent + "33" }}
+        >
+          <p className="mb-0.5 text-[11px]" style={{ color: accent }}>
+            {hintCaption ?? "提示"}
+          </p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">{hint}</p>
+        </div>
+      )}
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="在这里默写整篇（什么都不看）……"
+        placeholder="在这里默写（对着上面的提示，别看原文）……"
         className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
       />
       {graded && wrong.length > 0 && (
@@ -1482,7 +1502,15 @@ function ReviewBoard({
                   只默背诵句
                 </span>
               )}
-              {e.title && <span className="text-sm font-medium">{e.title}</span>}
+              {/* ⚠️ recall 型（成语）的标题**就是答案**（「成语 · 韦编三绝」），
+                  所以没通过之前不能显示——2026-07-29 Rosie 发现答案写在题目上方。
+                  通过之后再显示，方便回看。 */}
+              {e.title &&
+                (reviewKindOf(e)?.mode !== "recall" || passedToday ? (
+                  <span className="text-sm font-medium">{e.title}</span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">（答对了才显示是哪个）</span>
+                ))}
               <span className="text-xs text-muted-foreground">
                 第 {nth}/{REVIEW_INTERVALS.length} 次{e.entry_date ? ` · 学于 ${formatDateCn(e.entry_date)}` : ""}
               </span>
@@ -1526,6 +1554,8 @@ function ReviewBoard({
               return (
                 <ReviewDictation
                   target={reviewTarget(e, targetStage)}
+                  hint={reviewHint(e)}
+                  hintLabel={hintLabel(e)}
                   passed={passedToday}
                   accent={acc(e.board)}
                   onPass={pass}
