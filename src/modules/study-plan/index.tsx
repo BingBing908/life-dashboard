@@ -657,21 +657,30 @@ function Page() {
   const autoKey = autoDomainKey();
   const activeKey = selected ?? autoKey;
   const active = DOMAINS.find((d) => d.key === activeKey)!;
+  /**
+   * 工作域「今天该露面」的待办：未完成的（due≤今天，含逾期）+ **今天**完成的。
+   * 今天以前就完成的不算——那些归待办页的「历史已完成」。
+   *
+   * ⚠️ 抽成函数是因为**列表和进度必须用同一个判断**：原先进度那边只过滤了
+   * `due_date <= today`，把历史上所有标过「今天」且早已做完的待办算进了分母，
+   * 于是出现「右边列表空的，左轴却显示工作 10/10」（2026-07-29 Rosie 发现）。
+   * 跟 domainItems 同一个教训：同一套判断写两遍就会走偏。
+   */
+  function todaysWorkTodos(): Todo[] {
+    return todos
+      .filter(
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+      )
+      .sort((a, b) => Number(!!a.done) - Number(!!b.done)); // 今天完成的沉到最下，不消失
+  }
+
   const planCards = active.source === "plan" ? pendingFirst(domainItems(active, todays)) : [];
-  const todoCards =
-    active.source === "todo"
-      ? todos
-          // 只显示：未完成的（due≤今天）+ 今天完成的；今天以前完成的归到待办的「历史已完成」
-          .filter(
-            (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
-          )
-          .sort((a, b) => Number(!!a.done) - Number(!!b.done)) // 今天完成的沉到最下，不消失
-      : [];
+  const todoCards = active.source === "todo" ? todaysWorkTodos() : [];
 
   /** 每个领域今天的完成度（左侧时间轴的迷你进度条 + 「今天」清单的分组角标） */
   function domainProgress(d: Domain): { done: number; total: number } {
     if (d.source === "todo") {
-      const list = todos.filter((t) => t.due_date && t.due_date <= today);
+      const list = todaysWorkTodos();
       return { done: list.filter((t) => t.done).length, total: list.length };
     }
     const list = domainItems(d, todays);
@@ -1141,17 +1150,7 @@ function Page() {
               const p = domainProgress(d);
               const isNow = d.key === autoKey;
               const planRows = d.source === "plan" ? pendingFirst(domainItems(d, todays)) : [];
-              const todoRows =
-                d.source === "todo"
-                  ? todos
-                      .filter(
-                        (t) =>
-                          t.due_date &&
-                          t.due_date <= today &&
-                          (!t.done || (t.done_at ?? "").slice(0, 10) === today),
-                      )
-                      .sort((a, b) => Number(!!a.done) - Number(!!b.done))
-                  : [];
+              const todoRows = d.source === "todo" ? todaysWorkTodos() : [];
               if (planRows.length === 0 && todoRows.length === 0) return null;
               return (
                 <div key={d.key}>
