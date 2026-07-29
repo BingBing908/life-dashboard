@@ -178,63 +178,8 @@ function pickCheer(): string {
   return CHEERS[Math.floor(Math.random() * CHEERS.length)];
 }
 
-/** 分栏小标题（今日计划 / 已完成 / 未完成） */
-function ColHead({ label, n, tone }: { label: string; n: number; tone?: "ok" | "skip" }) {
-  return (
-    <div className="mb-2 flex items-center gap-2 border-b pb-1.5">
-      <span
-        className={cn(
-          "text-sm font-medium",
-          tone === "ok" ? "text-emerald-700" : tone === "skip" ? "text-amber-700" : undefined,
-        )}
-      >
-        {label}
-      </span>
-      <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
-    </div>
-  );
-}
-
-/** 已完成／未完成 的窄条（不再占大卡片的位置，但笔记还看得见，可一键撤销） */
-function DoneStrip({
-  title,
-  timeSlot,
-  note,
-  tone,
-  onUndo,
-}: {
-  title: string;
-  timeSlot: string | null;
-  note: string;
-  tone: "ok" | "skip";
-  onUndo: () => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "group rounded-lg border px-3 py-2 text-sm",
-        tone === "ok" ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/50",
-      )}
-    >
-      <div className="flex items-start gap-2">
-        <span className={cn("shrink-0", tone === "ok" ? "text-emerald-600" : "text-amber-600")}>
-          {tone === "ok" ? "✓" : "—"}
-        </span>
-        <span className={cn("min-w-0 flex-1", tone === "ok" && "line-through decoration-1")}>{title}</span>
-        <button
-          onClick={onUndo}
-          className="invisible shrink-0 text-xs text-muted-foreground hover:text-foreground group-hover:visible"
-          title="撤销，回到待做"
-        >
-          撤销
-        </button>
-      </div>
-      {timeSlot && <p className="ml-5 text-[11px] tabular-nums text-muted-foreground">{timeSlot}</p>}
-      {note.trim() && <p className="ml-5 mt-0.5 text-xs text-muted-foreground">做了：{note}</p>}
-    </div>
-  );
-}
-
+/* ColHead / DoneStrip 已删（2026-07-29）：按状态分栏那版被换成「单栏 + 换色沉底」，
+   已决定的条目不再压缩成窄条，所以这两个组件没有调用方了。历史做法见 git log。 */
 /** 「今天」紧凑清单的一行：时间｜标题｜详解截断｜状态键｜视频。刻意不放笔记框和详解全文——
  *  那是「当前」的活儿，这里只求一屏扫完 + 随手补勾。 */
 function CompactRow({
@@ -259,9 +204,16 @@ function CompactRow({
   onClear: () => void;
 }) {
   const done = state === "done";
+  const skip = state === "skip";
   return (
-    <div className="grid items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-accent/30"
-      style={{ gridTemplateColumns: "94px minmax(0,1fr) minmax(0,1.1fr) auto auto" }}>
+    // 已决定的只换底色（完成绿 / 未完成黄），行高不变、内容不压缩——跟「当前」的卡片同一套语言
+    <div
+      className={cn(
+        "grid items-center gap-3 border-b px-3 py-2 last:border-b-0",
+        done ? "bg-emerald-50/50" : skip ? "bg-amber-50/50" : "hover:bg-accent/30",
+      )}
+      style={{ gridTemplateColumns: "94px minmax(0,1fr) minmax(0,1.1fr) auto auto" }}
+    >
       <span className="text-[11px] tabular-nums text-muted-foreground">{timeSlot ?? "—"}</span>
       <span className={cn("truncate text-sm", done && "text-muted-foreground line-through decoration-1")}>
         {title}
@@ -482,10 +434,20 @@ function ThreeRowCard({
   onSetUrl?: (v: string) => void; // 仅计划外传，点「＋加链接」就地写链接
 }) {
   const done = state === "done";
-  const decided = state !== "pending";
+  const skip = state === "skip";
   const canCheck = !noteRequired || done || noteVal.trim().length > 0;
   return (
-    <div className={cn("rounded-xl border bg-card p-4", decided && "opacity-60")}>
+    // 已决定的**不压缩、不折叠**，只换颜色（2026-07-29 Rosie 定）：已完成绿、未完成黄。
+    // 用淡底 + 左色条而不是实心色块——面积大但强度低，扫得见又不刺眼。
+    // 也不再整卡 opacity-60：那会让笔记文字一起变灰、看不清。
+    <div
+      className={cn(
+        "rounded-xl border bg-card p-4 border-l-4",
+        done && "border-emerald-300 border-l-emerald-500 bg-emerald-50/40",
+        skip && "border-amber-300 border-l-amber-500 bg-amber-50/40",
+        !done && !skip && "border-l-transparent",
+      )}
+    >
       {/* 一行的顺序（2026-07-29 Rosie 定）：时间 · 标题 …… 视频 · 状态键 · 删除。
           状态键从最左挪到最右——最好的位置该给标题，不该给每张卡都长一样的两个按钮。 */}
       <div className="flex items-center gap-3">
@@ -1009,14 +971,24 @@ function Page() {
               )}
               {cheer?.fire && <Fireworks onDone={() => setCheer(null)} />}
 
-              {/* 按状态分栏（方案 C）：左＝今日计划（大卡片能写笔记），
-                  右＝已完成／未完成。勾掉一条就从左边挪到右边，做完的不再挡着阅读动线。 */}
-              <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,1.55fr) minmax(240px,1fr)" }}>
+              {/* 单栏，按状态排序（2026-07-29 Rosie 定稿）：
+                  待做在上、已完成和未完成沉到底下，**卡片保持原样大小不压缩、不折叠**，
+                  只是整张卡换个底色（完成=绿 / 未完成=黄）。
+                  ⚠️ 原来那版分成左右两栏，八成时间右栏是空的、白占半个屏幕；
+                  全标完之后又反过来主次颠倒。单栏 + 换色沉底两个问题一起没了。 */}
+              <div>
                 <div>
-                  <ColHead label="今日计划" n={active.source === "todo" ? todoPending.length : curPending.length} />
+                  <div className="mb-2 flex items-center gap-2 border-b pb-1.5 text-sm">
+                    <span className="font-medium">今日计划</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {active.source === "todo"
+                        ? `${todoPending.length} 待做 · ${todoDone.length} 已完成`
+                        : `${curPending.length} 待做 · ${curDone.length} 已完成 · ${curSkip.length} 未完成`}
+                    </span>
+                  </div>
                   <div className="space-y-3">
                     {active.source === "plan" &&
-                      curPending.map((i) => (
+                      [...curPending, ...curDone, ...curSkip].map((i) => (
                         <ThreeRowCard
                           key={i.id}
                           title={i.title}
@@ -1036,13 +1008,13 @@ function Page() {
                         />
                       ))}
                     {active.source === "todo" &&
-                      todoPending.map((t) => (
+                      [...todoPending, ...todoDone].map((t) => (
                         <ThreeRowCard
                           key={t.id}
                           title={t.title}
                           detail={null}
                           url={null}
-                          state="pending"
+                          state={t.done ? "done" : "pending"}
                           noteRequired={active.noteRequired}
                           notePlaceholder={placeholderFor(active)}
                           noteVal={notes[t.id] ?? ""}
@@ -1052,69 +1024,14 @@ function Page() {
                           onClear={() => toggleWork(t)}
                         />
                       ))}
-                    {(active.source === "todo" ? todoPending.length : curPending.length) === 0 && (
+                    {(active.source === "todo" ? todoCards.length : planCards.length) === 0 && (
                       <p className="py-8 text-sm text-muted-foreground">
-                        {(active.source === "todo" ? todoCards.length : planCards.length) === 0
-                          ? active.source === "todo"
-                            ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
-                            : "这个时段今天没有安排。"
-                          : "这一段都处理完了 🎉"}
+                        {active.source === "todo"
+                          ? "今天没有工作待办——上面加一条，或去待办把要做的点进今天。"
+                          : "这个时段今天没有安排。"}
                       </p>
                     )}
                   </div>
-                </div>
-
-                <div className="space-y-5">
-                  <div>
-                    <ColHead label="已完成" n={active.source === "todo" ? todoDone.length : curDone.length} tone="ok" />
-                    <div className="space-y-2">
-                      {active.source === "plan" &&
-                        curDone.map((i) => (
-                          <DoneStrip
-                            key={i.id}
-                            title={i.title}
-                            timeSlot={i.time_slot}
-                            note={notes[i.id] ?? ""}
-                            tone="ok"
-                            onUndo={() => setStatus(i, null)}
-                          />
-                        ))}
-                      {active.source === "todo" &&
-                        todoDone.map((t) => (
-                          <DoneStrip
-                            key={t.id}
-                            title={t.title}
-                            timeSlot={null}
-                            note={notes[t.id] ?? ""}
-                            tone="ok"
-                            onUndo={() => toggleWork(t)}
-                          />
-                        ))}
-                      {(active.source === "todo" ? todoDone.length : curDone.length) === 0 && (
-                        <p className="text-xs text-muted-foreground">还没有</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* skip 单独一栏：主动决定不做，跟「还没做」不是一回事 */}
-                  {active.source === "plan" && (
-                    <div>
-                      <ColHead label="未完成" n={curSkip.length} tone="skip" />
-                      <div className="space-y-2">
-                        {curSkip.map((i) => (
-                          <DoneStrip
-                            key={i.id}
-                            title={i.title}
-                            timeSlot={i.time_slot}
-                            note={notes[i.id] ?? ""}
-                            tone="skip"
-                            onUndo={() => setStatus(i, null)}
-                          />
-                        ))}
-                        {curSkip.length === 0 && <p className="text-xs text-muted-foreground">没有</p>}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1142,7 +1059,9 @@ function Page() {
             </span>
           </div>
 
-          <div className="overflow-hidden rounded-xl border bg-card">
+          {/* A3 分组卡片（2026-07-29 Rosie 选）：每条线独立一张圆角卡、卡头用领域色，
+              视觉分组最清楚，一眼看出「这是运动那一块」。 */}
+          <div className="space-y-3">
             {DOMAINS.map((d) => {
               const p = domainProgress(d);
               const isNow = d.key === autoKey;
@@ -1150,10 +1069,17 @@ function Page() {
               const todoRows = d.source === "todo" ? todaysWorkTodos() : [];
               if (planRows.length === 0 && todoRows.length === 0) return null;
               return (
-                <div key={d.key}>
+                <div
+                  key={d.key}
+                  className={cn(
+                    "overflow-hidden rounded-xl border bg-card",
+                    isNow && "ring-1",
+                  )}
+                  style={isNow ? { borderColor: d.color + "66", boxShadow: `0 0 0 1px ${d.color}33` } : undefined}
+                >
                   <div
-                    className="flex items-center gap-2 border-b px-3 py-1.5"
-                    style={{ background: isNow ? d.tint : "var(--color-muted)" }}
+                    className="flex items-center gap-2 border-b px-3 py-2"
+                    style={{ background: isNow ? d.tint : "color-mix(in oklab, var(--color-muted) 60%, transparent)" }}
                   >
                     <span className="size-2 shrink-0 rounded-full" style={{ background: d.color }} />
                     <span className="text-sm font-medium" style={{ color: d.textc }}>

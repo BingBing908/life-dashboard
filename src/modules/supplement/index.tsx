@@ -3,19 +3,21 @@ import { ChevronLeft, ChevronRight, Trash2, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { toDateStr, todayStr } from "@/lib/dates";
+import { addDays, toDateStr, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { dayNumOf, getPeriodOn } from "../study-plan/data";
 import {
   deleteTreat,
   getCalTarget,
   getMeals,
+  getWeightLog,
   listDrinks,
   listSnacks,
   logDrink,
   logSnack,
   setCalTarget,
   setMeal,
+  setWeightEntry,
   SNACK_SUBTYPES,
   type Drink,
   type DrinkSubtype,
@@ -78,6 +80,80 @@ const DRINK_COLOR: Record<DrinkSubtype, { dot: string; chip: string }> = {
   果茶: { dot: "bg-green-500", chip: "bg-green-50 text-green-700" },
   酸奶: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700" },
 };
+
+/**
+ * 体重两格：**前晚睡前** + **今晨空腹**（2026-07-29 Rosie 要求，放在补剂上面）。
+ *
+ * 这两个数配成一对是有讲究的：它们之间的差＝**一夜之间的变化**，
+ * 主要是排水和排空，比「今天 vs 昨天同一时刻」更能看出前一天吃咸没吃咸。
+ * ⚠️ 存的还是同一个体重库（`app_settings` 的 `weight:<date>:am|pm`），
+ * 所以跟总览、跟小表格三餐周表是同一份数据——「前晚睡前」写的是**昨天的 pm**，
+ * 今晚在总览填的睡前，明天就变成这里的「前晚」。别再另存一份。
+ */
+function WeightPair({
+  lastNight,
+  thisMorning,
+  onSave,
+}: {
+  lastNight: string;
+  thisMorning: string;
+  onSave: (which: "lastPm" | "todayAm", v: string) => void;
+}) {
+  const [pm, setPm] = useState(lastNight);
+  const [am, setAm] = useState(thisMorning);
+  // 外部数据（云同步拉到的）变了要跟上
+  useEffect(() => setPm(lastNight), [lastNight]);
+  useEffect(() => setAm(thisMorning), [thisMorning]);
+
+  const a = Number(am);
+  const p = Number(pm);
+  const delta = am !== "" && pm !== "" && isFinite(a) && isFinite(p) ? a - p : null;
+
+  return (
+    <div className="mb-4 rounded-xl border bg-card p-4">
+      <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-lg font-semibold">体重</h2>
+        {delta !== null && (
+          <span className="text-sm text-muted-foreground">
+            一夜{delta <= 0 ? "掉了 " : "涨了 "}
+            <b className={delta <= 0 ? "text-emerald-600" : "text-amber-600"}>
+              {Math.abs(delta).toFixed(1)}kg
+            </b>
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <label className="flex flex-1 items-center gap-2 text-sm">
+          <span className="shrink-0 text-muted-foreground">前晚睡前</span>
+          <Input
+            type="number"
+            step="0.1"
+            value={pm}
+            onChange={(e) => setPm(e.target.value)}
+            onBlur={(e) => onSave("lastPm", e.target.value)}
+            placeholder="kg"
+            className="w-20"
+          />
+        </label>
+        <label className="flex flex-1 items-center gap-2 text-sm">
+          <span className="shrink-0 text-muted-foreground">今晨空腹</span>
+          <Input
+            type="number"
+            step="0.1"
+            value={am}
+            onChange={(e) => setAm(e.target.value)}
+            onBlur={(e) => onSave("todayAm", e.target.value)}
+            placeholder="kg"
+            className="w-20"
+          />
+        </label>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        跟总览、小表格三餐周表是同一份数据，填一处三处都有。
+      </p>
+    </div>
+  );
+}
 
 /** 「记到 X／回到今天」那一行——饮品和零食两个表单共用（同一个 drinkDate，点一次日历两边都跟着走） */
 function DateLine({
@@ -284,6 +360,10 @@ function Page() {
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [snacks, setSnacks] = useState<Snack[]>([]);
   const [calTarget, setCalTargetState] = useState(1400);
+  // 体重两格：前晚睡前（昨天的 pm）+ 今晨空腹（今天的 am），走同一个体重库
+  const yesterday = addDays(today, -1);
+  const [wLastPm, setWLastPm] = useState("");
+  const [wTodayAm, setWTodayAm] = useState("");
   const [meals, setMeals] = useState<Record<MealKey, { content: string; calories: string }>>({
     早: { content: "", calories: "" },
     午: { content: "", calories: "" },
@@ -312,6 +392,12 @@ function Page() {
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
     getCalTarget().then(setCalTargetState).catch(() => {});
+    getWeightLog()
+      .then((w) => {
+        setWLastPm(w[yesterday]?.pm != null ? String(w[yesterday].pm) : "");
+        setWTodayAm(w[today]?.am != null ? String(w[today].am) : "");
+      })
+      .catch(() => {});
     reloadTreats();
     getMeals(today).then((m) => {
       setMeals({
@@ -320,7 +406,20 @@ function Page() {
         晚: { content: m.晚.content ?? "", calories: m.晚.calories?.toString() ?? "" },
       });
     });
-  }, [today, reloadTreats]);
+  }, [today, yesterday, reloadTreats]);
+
+  /** 存体重：前晚睡前写昨天的 pm，今晨空腹写今天的 am（同一个体重库，别另存） */
+  async function saveWeight(which: "lastPm" | "todayAm", str: string) {
+    const v = str.trim() === "" ? null : Number(str);
+    if (v != null && !isFinite(v)) return;
+    if (which === "lastPm") {
+      setWLastPm(str);
+      await setWeightEntry(yesterday, "pm", v);
+    } else {
+      setWTodayAm(str);
+      await setWeightEntry(today, "am", v);
+    }
+  }
 
   async function addDrink() {
     await logDrink({
@@ -448,8 +547,9 @@ function Page() {
           gridTemplateRows: "auto 1fr",
         }}
       >
-      {/* 补剂：右上 */}
+      {/* 右上：体重两格 + 补剂 */}
       <section style={{ gridColumn: 2, gridRow: 1 }}>
+        <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
         <h2 className="mb-1 text-lg font-semibold">补剂（今天 · {DAY_NAMES[todayNum]}）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
