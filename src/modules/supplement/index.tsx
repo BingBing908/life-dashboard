@@ -157,6 +157,99 @@ function WeightPair({
   );
 }
 
+/**
+ * 一餐（推荐 + 填写 + 确认提交）。
+ *
+ * ⚠️⚠️ **不再实时保存，改成显式「确认提交」**（2026-07-29 Rosie：「给三餐框里都加个
+ * 确认提交按钮，提交后内容有修改需要再次点击确认提交，现在实时同步有概率搞错掉」）。
+ * 原来是 `onBlur` 自动存：焦点一离开就写库，写的可能是打了一半的内容；
+ * 又因为云同步是"最后写入胜出"，半截内容有机会盖掉别处的好数据。
+ * 现在草稿只在本地，**点了才写库**。
+ *
+ * 「有修改就要再点一次」＝ `dirty`（草稿 ≠ 已存值）自然推导出来的，不用另存标记位：
+ * 提交成功后父组件把 saved 更新成新值 → dirty 自动变 false → 按钮回到「已保存」。
+ *
+ * ⚠️ 组件必须定义在**模块顶层**：嵌在 Page 函数体里的话，父组件每次 setState
+ * 都会给它新的函数身份 → React 卸载重挂载 → 输入框失焦（"只能打一个字"，踩过）。
+ *
+ * ⚠️ 草稿用 `useState(saved.*)` 只做初值，**刻意不用 effect 跟 props 同步**：
+ * 那样云同步一拉到新数据就会把她正在打的字冲掉。saved 变了而 dirty 还是 true，
+ * 说明她有未提交的改动，保留草稿才是对的。
+ */
+function MealRow({
+  meal,
+  saved,
+  onSubmit,
+}: {
+  meal: { key: MealKey; label: string; cook: string; takeout: string };
+  saved: { content: string; calories: string };
+  onSubmit: (content: string, calories: string) => void;
+}) {
+  const [content, setContent] = useState(saved.content);
+  const [cal, setCal] = useState(saved.calories);
+  const dirty = content !== saved.content || cal !== saved.calories;
+  const empty = content.trim() === "" && cal.trim() === "";
+
+  /** ⚠️ 提交时把草稿也归一成 trim 后的值——否则父级存的是 trim 过的、
+   *  草稿还带着末尾空格，dirty 会永远是 true、按钮一直停在「确认提交」 */
+  function submit() {
+    const c = content.trim();
+    setContent(c);
+    onSubmit(c, cal);
+  }
+
+  return (
+    // flex-1：这一栏多出来的高度分给三餐（2026-07-29 Rosie 要求），而且是分给
+    // **填写框本身**（下面 textarea 也 flex-1），不是让框空一块——踩过那个坑
+    <div className="flex flex-1 flex-col rounded-lg bg-muted px-3 py-2.5">
+      <p className="font-medium">{meal.label}</p>
+      <p className="mt-0.5 text-sm text-muted-foreground">
+        <span className="mr-1">🍳 自己做</span>
+        {meal.cook}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        <span className="mr-1">🥡 外卖</span>
+        {meal.takeout}
+      </p>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter 直接提交（Shift+Enter 换行）——填一行小字还要挪去点按钮太累
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (dirty) submit();
+          }
+        }}
+        placeholder="我今天这一餐吃了……（回车提交，Shift+回车换行）"
+        className="mt-2 min-h-16 w-full flex-1 resize-none rounded-md border bg-card px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
+      />
+      <div className="mt-2 flex items-center gap-2">
+        <Input
+          type="number"
+          value={cal}
+          onChange={(e) => setCal(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && dirty) submit();
+          }}
+          placeholder="大约 kcal"
+          className="w-24 bg-card"
+        />
+        <Button
+          size="sm"
+          variant={dirty ? "default" : "outline"}
+          disabled={!dirty}
+          onClick={submit}
+          className="ml-auto"
+          title={dirty ? "把这一餐写进库（也会同步到小表格周表）" : "没有未提交的改动"}
+        >
+          {dirty ? "确认提交" : empty ? "还没填" : "已保存 ✓"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** 「记到 X／回到今天」那一行——饮品和零食两个表单共用（同一个 drinkDate，点一次日历两边都跟着走） */
 function DateLine({
   date,
@@ -456,9 +549,12 @@ function Page() {
     reloadTreats();
   }
 
-  async function saveMeal(k: MealKey) {
-    const m = meals[k];
-    await setMeal(today, k, m.content.trim(), m.calories ? Number(m.calories) : null);
+  /** 点了「确认提交」才写库（不再 onBlur 自动存，见 MealRow 的注释）。
+   *  先更新父级 saved，MealRow 的 dirty 随即变 false、按钮回到「已保存」。 */
+  async function submitMeal(k: MealKey, content: string, calories: string) {
+    const c = content.trim();
+    setMeals((s) => ({ ...s, [k]: { content: c, calories } }));
+    await setMeal(today, k, c, calories ? Number(calories) : null);
   }
 
   const shownDrinks = drinks.filter((d) => d.date === drinkDate);
@@ -557,9 +653,12 @@ function Page() {
     // 版式定稿（2026-07-29 方案 1）：统一一套规格——卡片 rounded-xl + p-4 + bg-card + 标题在卡内，
     // 卡内小块 rounded-lg + bg-muted（浅一层，层级一眼读得出）。三餐不再等分撑高（那片空白是撑出来的）。
     // 左栏＝今天吃什么（补剂 → 早 → 午 → 晚）+ 本周复盘；右栏＝体重 / 饮品 / 零食 / 月历。
-    // 撑满视口（2026-07-29 Rosie 要求「删完没填满就自动扩充」）：两栏拉伸等高，
-    // 各自的**最后一张卡**吸收剩余高度、内容仍顶对齐——卡片边框到底看着是有意的。
-    // ⚠️ 不要再像上一版那样把剩余高度平摊给每张餐卡，那会让每张卡中间空一块。
+    // 撑满视口（2026-07-29 Rosie 要求「删完没填满就自动扩充」）：两栏拉伸等高。
+    // **左栏的剩余高度归「今天吃什么」**（2026-07-29 二次调整：「把本周复盘的跳转框
+    // 长度缩短一点，多出来的高度分散到今天吃什么里面，可以给早午晚餐填写的框搞大一点」）——
+    // 一路传到三餐的 textarea 上，长高的是**能写字的地方**。
+    // ⚠️ 别再平摊给每张餐卡的**外框**：那样长高的是留白、每张卡中间空一块（踩过）。
+    //    这次能分是因为里面有个 flex-1 的 textarea 真的吃得下高度。
     <div className="flex min-h-full flex-col gap-6 p-6">
       {caloriePanel}
 
@@ -568,12 +667,10 @@ function Page() {
       <div className={cn(TWO_COL, "flex-1 items-stretch")}>
         {/* ───────── 左栏 ───────── */}
         <div className="flex flex-col gap-6">
-          {/* 这张卡＝自然高度（2026-07-29 Rosie 要「加个高度上限」）。
-              ⚠️ 没用 max-height：到了上限它会**裁掉内容**（外卖那行窄屏会换行，一裁就看不见）。
-              改成不再拉伸、只留 min-h 保底，效果一样且没有裁切风险。
-              这一栏的剩余高度改由下面的「本周复盘」按钮吸收——按钮变大只是更好点，
-              比餐框内部空一块合理。 */}
-          <section className={CARD}>
+          {/* 这张卡吸收本栏的剩余高度（flex-1），一路往下传给三餐的 textarea。
+              ⚠️ 没用 max-height 做上限：到了上限它会**裁掉内容**（外卖那行窄屏会换行，
+              一裁就看不见），所以是"能长多高长多高"而不是"限死"。 */}
+          <section className={cn(CARD, "flex min-h-0 flex-1 flex-col")}>
             <h2 className="text-lg font-semibold">今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
@@ -594,7 +691,8 @@ function Page() {
               </div>
             )}
 
-            <div className="mt-3 flex flex-col gap-2.5">
+            {/* min-h-0 + flex-1：把 section 拿到的剩余高度往下传给三餐（补剂 shrink-0 不参与） */}
+            <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2.5">
               {/* 补剂：搬到早餐上面（2026-07-29 Rosie 定）。它本来就按早/午/晚排，
                   跟三餐同一个时间轴；而且「随餐吃 / 跟早餐一起」这句提示终于挨着餐了。
                   **每颗可点＝已服用**（2026-07-29 二次要求），所以它不再是只读参考、
@@ -668,58 +766,31 @@ function Page() {
               </div>
 
               {MEALS.map((m) => (
-                // min-h-28 保底、**不再 flex-1 拉伸**（Rosie 要「高度上限」）。
-                // 没用 max-h：到了上限它会裁掉内容，见上面 section 的注释。
-                <div key={m.key} className="flex min-h-28 flex-col rounded-lg bg-muted px-3 py-2.5">
-                  <p className="font-medium">{m.label}</p>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    <span className="mr-1">🍳 自己做</span>
-                    {m.cook}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    <span className="mr-1">🥡 外卖</span>
-                    {m.takeout}
-                  </p>
-                  {/* mt-auto：框被拉高后输入行沉到底，上面推荐、下面填写，中间不留空洞 */}
-                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-                    <Input
-                      value={meals[m.key].content}
-                      onChange={(e) =>
-                        setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], content: e.target.value } }))
-                      }
-                      onBlur={() => saveMeal(m.key)}
-                      placeholder="我今天这一餐吃了……"
-                      className="min-w-48 flex-1 bg-card"
-                    />
-                    <Input
-                      type="number"
-                      value={meals[m.key].calories}
-                      onChange={(e) =>
-                        setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], calories: e.target.value } }))
-                      }
-                      onBlur={() => saveMeal(m.key)}
-                      placeholder="大约 kcal"
-                      className="w-24 bg-card"
-                    />
-                  </div>
-                </div>
+                <MealRow
+                  key={m.key}
+                  meal={m}
+                  saved={meals[m.key]}
+                  onSubmit={(content, calories) => submitMeal(m.key, content, calories)}
+                />
               ))}
             </div>
           </section>
 
-          {/* 本周复盘：挪到左栏最下（看完今天，顺着往下就是这周）。走 hash，Tauri 桌面端也通用。
-              2026-07-29 加大一倍——它是这页唯一的出口，原来那条太细、像个脚注。 */}
+          {/* 本周复盘：左栏最下（看完今天，顺着往下就是这周）。走 hash，Tauri 桌面端也通用。
+              **shrink-0 + 一行版**（2026-07-29 Rosie：「跳转框长度缩短一点，多出来的高度
+              分散到今天吃什么里面」）——它是个出口不是内容，占一行就够；原来 flex-1
+              让它吃掉整栏剩余高度，撑成一大片空白。说明文字挪成同一行的小字。 */}
           <button
             onClick={() => {
               window.location.hash = "/mini-table/tbl-meals-week";
             }}
-            className="flex w-full flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border bg-card px-5 py-6 text-center transition-colors hover:border-primary/40 hover:bg-accent/40"
+            className="flex w-full shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 rounded-xl border bg-card px-5 py-3 text-center transition-colors hover:border-primary/40 hover:bg-accent/40"
           >
-            <span className="flex items-center gap-2 text-lg font-semibold text-primary">
+            <span className="flex items-center gap-2 font-semibold text-primary">
               本周复盘 <span aria-hidden="true">→</span>
             </span>
-            <span className="text-sm text-muted-foreground">
-              三餐周表：空腹/睡前体重 · 早午晚吃了什么 · 零食饮品 · 总摄入卡路里
+            <span className="text-xs text-muted-foreground">
+              体重 · 早午晚 · 零食饮品 · 总摄入，都自动填好了
             </span>
           </button>
         </div>
