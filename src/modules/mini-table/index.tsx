@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Plus, Table2, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
@@ -57,7 +59,10 @@ function TableTile({
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
-      className="group flex min-h-36 cursor-pointer flex-col gap-3 rounded-xl border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-md"
+      className={cn(
+        CARD,
+        "group flex min-h-36 cursor-pointer flex-col gap-3 transition-all hover:border-primary/40 hover:shadow-md",
+      )}
     >
       <div className="flex items-start gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

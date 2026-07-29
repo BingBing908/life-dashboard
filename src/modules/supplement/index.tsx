@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Trash2, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CARD, TWO_COL } from "@/lib/ui";
 import { addDays, toDateStr, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { dayNumOf, getPeriodOn } from "../study-plan/data";
@@ -110,7 +111,7 @@ function WeightPair({
   const delta = am !== "" && pm !== "" && isFinite(a) && isFinite(p) ? a - p : null;
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className={CARD}>
       <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-lg font-semibold">体重</h2>
         {delta !== null && (
@@ -289,7 +290,7 @@ function DrinkCalendar({
   }
 
   return (
-    <div className={cn("rounded-xl border bg-card p-4", className)}>
+    <div className={cn(CARD, className)}>
       <div className="mb-1 flex items-center">
         <span className="text-sm font-medium">
           {ym.y}年{ym.m}月
@@ -483,7 +484,7 @@ function Page() {
   const belowBmr = calTarget > 0 && calTarget < BMR;
 
   const caloriePanel = (
-    <section className="shrink-0 rounded-xl border bg-card p-4">
+    <section className={cn(CARD, "shrink-0")}>
       <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
         <h2 className="text-lg font-semibold">今日卡路里</h2>
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -540,10 +541,9 @@ function Page() {
     <div className="flex min-h-full flex-col gap-6 p-6">
       {caloriePanel}
 
-      <div
-        className="grid flex-1 items-stretch gap-6"
-        style={{ gridTemplateColumns: "minmax(0,1.18fr) minmax(0,1fr)" }}
-      >
+      {/* 窄屏（< lg，含浏览器放大到很大时）自动塞成一栏，别硬挤成两条竖线。
+          用 Tailwind 断点类而不是内联 gridTemplateColumns——内联样式没有断点，缩放就崩。 */}
+      <div className={cn(TWO_COL, "flex-1 items-stretch")}>
         {/* ───────── 左栏 ───────── */}
         <div className="flex flex-col gap-6">
           {/* 这张卡＝自然高度（2026-07-29 Rosie 要「加个高度上限」）。
@@ -551,7 +551,7 @@ function Page() {
               改成不再拉伸、只留 min-h 保底，效果一样且没有裁切风险。
               这一栏的剩余高度改由下面的「本周复盘」按钮吸收——按钮变大只是更好点，
               比餐框内部空一块合理。 */}
-          <section className="rounded-xl border bg-card p-4">
+          <section className={CARD}>
             <h2 className="text-lg font-semibold">今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
@@ -664,16 +664,13 @@ function Page() {
             onClick={() => {
               window.location.hash = "/mini-table/tbl-meals-week";
             }}
-            className="flex w-full flex-1 flex-col justify-center rounded-xl border bg-card px-5 py-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+            className="flex w-full flex-1 flex-col items-center justify-center gap-1.5 rounded-xl border bg-card px-5 py-6 text-center transition-colors hover:border-primary/40 hover:bg-accent/40"
           >
             <span className="flex items-center gap-2 text-lg font-semibold text-primary">
               本周复盘 <span aria-hidden="true">→</span>
             </span>
-            <span className="mt-1 block text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               三餐周表：空腹/睡前体重 · 早午晚吃了什么 · 零食饮品 · 总摄入卡路里
-            </span>
-            <span className="mt-0.5 block text-xs text-muted-foreground/70">
-              全部自动填好，直接看这一周的走势
             </span>
           </button>
         </div>
@@ -683,7 +680,7 @@ function Page() {
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
           {/* 饮品打卡 */}
-          <section className="rounded-xl border bg-card p-4">
+          <section className={CARD}>
             <div className="flex flex-wrap items-baseline gap-x-2">
               <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
               <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
@@ -744,7 +741,7 @@ function Page() {
           </section>
 
           {/* 零食打卡 */}
-          <section className="rounded-xl border bg-card p-4">
+          <section className={CARD}>
             <div className="flex flex-wrap items-baseline gap-x-2">
               <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
               <span className="text-sm text-muted-foreground">

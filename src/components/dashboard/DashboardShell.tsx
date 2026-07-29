@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import {
   dayNumOf,
@@ -196,7 +197,7 @@ export function DashboardShell({ onOpenModule }: Props) {
               <button
                 key={m.label}
                 onClick={() => onOpenModule(m.id)}
-                className="rounded-xl border bg-card p-4 text-left transition-colors hover:bg-accent/40"
+                className={cn(CARD, "text-left transition-colors hover:bg-accent/40")}
               >
                 <div className="text-sm text-muted-foreground">{m.label}</div>
                 <div className="mt-1 text-2xl font-medium">{m.value}</div>
@@ -204,7 +205,7 @@ export function DashboardShell({ onOpenModule }: Props) {
               </button>
             ))
           : Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="rounded-xl border bg-card p-4">
+              <div key={i} className={CARD}>
                 <div className="text-sm text-muted-foreground">…</div>
                 <div className="mt-1 text-2xl font-medium">—</div>
               </div>
@@ -212,7 +213,7 @@ export function DashboardShell({ onOpenModule }: Props) {
       </div>
 
       {/* 本周时间轴完成：柱子按「条数」画（不是按比例），左侧带刻度，一眼看出总量和完成了多少 */}
-      <div className="mb-6 rounded-xl border bg-card p-4">
+      <div className={cn("mb-6", CARD)}>
         <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-sm font-medium">本周时间轴完成</h2>
           {s && (
@@ -264,7 +265,7 @@ export function DashboardShell({ onOpenModule }: Props) {
       </div>
 
       {/* 体重趋势（空腹体重，朝 12/27 目标线） */}
-      <div className="mb-6 rounded-xl border bg-card p-4">
+      <div className={cn("mb-6", CARD)}>
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
           <h2 className="text-sm font-medium">最近七天体重趋势</h2>
           <span className="text-xs text-muted-foreground">目标 12/27 ≤ {WEIGHT_GOAL}kg</span>

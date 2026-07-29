@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
@@ -42,10 +43,13 @@ const Q_STYLE: Record<Quadrant, { bg: string; text: string; dot: string }> = {
   nn: { bg: "bg-zinc-100",  text: "text-zinc-600",   dot: "bg-zinc-400" },
 };
 
-/** 象限彩签。传了 onChange 就可点——**点一下换下一个象限**（iu→in→nu→nn→iu 循环）。
+/** 象限彩签。传了 onChange 就可点——**点一下展开四个象限，直接挑要改成哪个**。
  *  2026-07-29 Rosie 要求：判断重要程度经常是事后才改的，原来只能删掉重建太麻烦。
- *  用循环而不是下拉菜单，是因为只有四个值、循环一两下就到，比开菜单快。 */
+ *  ⚠️ 最初做成「点一下跳下一个」的循环（iu→in→nu→nn→iu），当天就被否了：
+ *  「能不能改成点一下选变成哪个，而不是必须得按顺序点一遍才行」——循环最坏要点三下，
+ *  而且每点一下都写一次库、经过两个不想要的中间状态。改成直接选，一次到位。 */
 function QuadrantTag({ q, onChange }: { q: Quadrant; onChange?: (next: Quadrant) => void }) {
+  const [open, setOpen] = useState(false);
   const s = Q_STYLE[q];
   const name = QUADRANTS.find((x) => x.key === q)?.name ?? q;
   const cls = cn(
@@ -61,17 +65,40 @@ function QuadrantTag({ q, onChange }: { q: Quadrant; onChange?: (next: Quadrant)
       </span>
     );
   }
-  const idx = QUADRANTS.findIndex((x) => x.key === q);
-  const next = QUADRANTS[(idx + 1) % QUADRANTS.length];
   return (
-    <button
-      onClick={() => onChange(next.key)}
-      title={`点一下改成「${next.name}」`}
-      className={cn(cls, "transition-colors hover:ring-1 hover:ring-primary/40")}
-    >
-      <span className={cn("size-1.5 rounded-full", s.dot)} />
-      {name}
-    </button>
+    <span className="relative inline-flex shrink-0">
+      {/* 关菜单靠这层透明底罩：点页面任何地方都收起，不用 ref + document 监听 */}
+      {open && <span className="fixed inset-0 z-10" onClick={() => setOpen(false)} />}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="点一下改重要程度"
+        className={cn(cls, "transition-colors hover:ring-1 hover:ring-primary/40")}
+      >
+        <span className={cn("size-1.5 rounded-full", s.dot)} />
+        {name}
+      </button>
+      {open && (
+        <span className="absolute top-full right-0 z-20 mt-1 flex min-w-32 flex-col gap-0.5 rounded-lg border bg-card p-1 shadow-md">
+          {QUADRANTS.map((x) => (
+            <button
+              key={x.key}
+              onClick={() => {
+                setOpen(false);
+                if (x.key !== q) onChange(x.key);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs whitespace-nowrap hover:bg-accent",
+                x.key === q && "font-medium",
+              )}
+            >
+              <span className={cn("size-1.5 shrink-0 rounded-full", Q_STYLE[x.key].dot)} />
+              {x.name}
+              {x.key === q && <span className="ml-auto text-muted-foreground">·当前</span>}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -270,7 +297,7 @@ function Page() {
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
-        <section className="rounded-xl border bg-card p-4">
+        <section className={CARD}>
           <div className="mb-3 flex items-baseline gap-2">
             <h2 className="text-lg font-semibold">待办</h2>
             <span className="text-xs text-muted-foreground">点小框筛选，点「今天」标记当天要做</span>
@@ -446,7 +473,7 @@ function Page() {
         </section>
 
         {/* 打卡（窄） */}
-        <section className="rounded-xl border bg-card p-4">
+        <section className={CARD}>
           <HabitPanel compact weekly />
         </section>
       </div>

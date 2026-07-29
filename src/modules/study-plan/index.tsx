@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { seedUuid } from "@/lib/db";
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
@@ -442,7 +443,8 @@ function ThreeRowCard({
     // 也不再整卡 opacity-60：那会让笔记文字一起变灰、看不清。
     <div
       className={cn(
-        "rounded-xl border bg-card p-4 border-l-4",
+        CARD,
+        "border-l-4",
         done && "border-emerald-300 border-l-emerald-500 bg-emerald-50/40",
         skip && "border-amber-300 border-l-amber-500 bg-amber-50/40",
         !done && !skip && "border-l-transparent",
@@ -1151,7 +1153,7 @@ function Page() {
             {SEMESTER_TARGET}
           </div>
           {SEMESTER_PLAN.map((m) => (
-            <section key={m.title} className="rounded-xl border bg-card p-4">
+            <section key={m.title} className={CARD}>
               <div className="mb-2 flex flex-wrap items-baseline gap-2">
                 <h2 className="text-lg font-semibold">{m.title}</h2>
                 <span className="text-sm text-muted-foreground">{m.period}</span>

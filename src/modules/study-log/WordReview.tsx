@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { todayStr } from "@/lib/dates";
 import type { Entry } from "./data";
 import { dueWords, wordStats, type WordCard } from "./wordReview";
@@ -65,7 +66,7 @@ export function WordReview({
   if (stats.total === 0) return null;
 
   return (
-    <div className="mb-4 rounded-xl border bg-card p-3">
+    <div className={cn("mb-4", CARD)}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="text-sm font-medium">单词复习</h3>
         <span className="text-xs text-muted-foreground">

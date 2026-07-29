@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
+import { CARD } from "@/lib/ui";
 import { formatDateCn, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
@@ -382,7 +383,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const dictLabel = entry.kind === "古诗" ? "默写这首" : "默写这句";
   const done = entryDone(entry);
   return (
-    <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
+    <div className={cn("group", CARD, done && "opacity-70")}>
       <div className="flex items-center gap-2">
         {entry.kind && (
           <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>
@@ -880,7 +881,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
   const [mode, setMode] = useState<"none" | "word" | "article">("none");
 
   return (
-    <div className={cn("group rounded-lg border bg-background p-3", done && "opacity-70")}>
+    <div className={cn("group", CARD, done && "opacity-70")}>
       <div className="mb-2 flex items-center gap-2">
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
         {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
@@ -1214,7 +1215,7 @@ function MovieCard({ cfg, movie, onPatch, onDelete }: { cfg: BoardCfg; movie: En
   const cover = metaGet(movie, "cover");
   const rating = Number(metaGet(movie, "rating") || 0);
   return (
-    <div className="group flex gap-3 rounded-xl border bg-card p-3">
+    <div className={cn(CARD, "group flex gap-3")}>
       <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg" style={{ background: cfg.c.bg }}>
         {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : (
           <div className="flex h-full items-center justify-center"><Film className="size-7" style={{ color: cfg.c.accent }} /></div>
@@ -1489,7 +1490,7 @@ function ReviewBoard({
         const over = passedToday ? 0 : overdueDays(e, today);
         const due = nextDue(e);
         return (
-          <div key={e.id} className="rounded-lg border bg-background p-3">
+          <div key={e.id} className={CARD}>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: acc(e.board) + "22", color: acc(e.board) }}>
                 {reviewKindOf(e)?.label ?? "复习"}
