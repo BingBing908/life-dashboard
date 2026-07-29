@@ -386,7 +386,7 @@ function Page() {
   const belowBmr = calTarget > 0 && calTarget < BMR;
 
   const caloriePanel = (
-    <section className="rounded-xl border bg-card p-4">
+    <section className="shrink-0 rounded-xl border bg-card p-4">
       <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
         <h2 className="text-lg font-semibold">今日卡路里</h2>
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -434,14 +434,15 @@ function Page() {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    // 撑满一屏：卡路里面板固定高，下面的网格吃掉剩余高度，页面底部不再空一大截
+    <div className="flex h-full min-h-0 flex-col gap-6 p-6">
       {caloriePanel}
       {/* 布局（2026-07-28 第二轮，按 Rosie 标的红框）：
           左＝三餐（纵跨到底）｜右＝补剂在上，下面再分左右两小栏——
           左小栏是饮品打卡+零食打卡（表单竖着排），右小栏是月历 + 底部「本周复盘」跳转按钮。
           这样月历去填原先右侧那片空白，两个打卡表单也不会被挤成窄条。 */}
       <div
-        className="grid gap-6"
+        className="grid min-h-0 flex-1 gap-6"
         style={{
           gridTemplateColumns: "minmax(0,1.15fr) minmax(560px,1.35fr)",
           gridTemplateRows: "auto 1fr",
@@ -472,7 +473,8 @@ function Page() {
       </section>
 
       {/* 三餐：左侧，纵跨到底 */}
-      <section style={{ gridColumn: 1, gridRow: "1 / 3" }}>
+      {/* flex flex-col：让里面的三餐列表能用 flex-1 吃掉这一列的剩余高度 */}
+      <section className="flex min-h-0 flex-col" style={{ gridColumn: 1, gridRow: "1 / 3" }}>
         <h2 className="mb-1 text-lg font-semibold">三餐（今天）</h2>
         <p className="mb-3 text-sm text-muted-foreground">
           写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
@@ -490,9 +492,10 @@ function Page() {
             </ul>
           </div>
         )}
-        <div className="space-y-3">
+        {/* 三餐纵向铺开、三张卡等分剩余高度，页面底部不再空一大截（2026-07-29） */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           {MEALS.map((m) => (
-            <div key={m.key} className="rounded-lg border p-4">
+            <div key={m.key} className="flex min-h-32 flex-1 flex-col rounded-lg border p-4">
               <p className="mb-1.5 font-medium">{m.label}</p>
               <p className="text-sm">
                 <span className="mr-1 text-muted-foreground">🍳 自己做</span>
@@ -502,7 +505,8 @@ function Page() {
                 <span className="mr-1 text-muted-foreground">🥡 外卖</span>
                 {m.takeout}
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              {/* mt-auto：卡片被拉高后输入行沉到底，不会上半截挤一起、下半截空着 */}
+              <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
                 <Input
                   value={meals[m.key].content}
                   onChange={(e) =>
