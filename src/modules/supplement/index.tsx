@@ -110,7 +110,7 @@ function WeightPair({
   const delta = am !== "" && pm !== "" && isFinite(a) && isFinite(p) ? a - p : null;
 
   return (
-    <div className="mb-4 rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4">
       <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-lg font-semibold">体重</h2>
         {delta !== null && (
@@ -289,7 +289,7 @@ function DrinkCalendar({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-2.5">
+    <div className="rounded-xl border bg-card p-4">
       <div className="mb-1 flex items-center">
         <span className="text-sm font-medium">
           {ym.y}年{ym.m}月
@@ -458,8 +458,7 @@ function Page() {
   const monthPrefix = today.slice(0, 8);
   const monthCount = drinks.filter((d) => d.date.startsWith(monthPrefix)).length;
   const snackMonthCount = snacks.filter((s) => s.date.startsWith(monthPrefix)).length;
-
-  const fmt = (a: string[]) => (a.length ? a.join(" · ") : "—");
+
   const todaySupp = SCHEDULE[todayNum];
 
   function changeTarget(v: string) {
@@ -533,256 +532,269 @@ function Page() {
   );
 
   return (
-    // 撑满一屏：卡路里面板固定高，下面的网格吃掉剩余高度，页面底部不再空一大截
-    <div className="flex h-full min-h-0 flex-col gap-6 p-6">
+    // 版式定稿（2026-07-29 方案 1）：统一一套规格——卡片 rounded-xl + p-4 + bg-card + 标题在卡内，
+    // 卡内小块 rounded-lg + bg-muted（浅一层，层级一眼读得出）。三餐不再等分撑高（那片空白是撑出来的）。
+    // 左栏＝今天吃什么（补剂 → 早 → 午 → 晚）+ 本周复盘；右栏＝体重 / 饮品 / 零食 / 月历。
+    <div className="space-y-6 p-6">
       {caloriePanel}
-      {/* 布局（2026-07-28 第二轮，按 Rosie 标的红框）：
-          左＝三餐（纵跨到底）｜右＝补剂在上，下面再分左右两小栏——
-          左小栏是饮品打卡+零食打卡（表单竖着排），右小栏是月历 + 底部「本周复盘」跳转按钮。
-          这样月历去填原先右侧那片空白，两个打卡表单也不会被挤成窄条。 */}
-      <div
-        className="grid min-h-0 flex-1 gap-6"
-        style={{
-          gridTemplateColumns: "minmax(0,1.15fr) minmax(560px,1.35fr)",
-          gridTemplateRows: "auto 1fr",
-        }}
-      >
-      {/* 右上：体重两格 + 补剂 */}
-      <section style={{ gridColumn: 2, gridRow: 1 }}>
-        <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
-        <h2 className="mb-1 text-lg font-semibold">补剂（今天 · {DAY_NAMES[todayNum]}）</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起。
-        </p>
-        {periodOn ? (
-          <div className="rounded-xl border border-pink-200 bg-pink-50 px-4 py-3 text-sm text-pink-700">
-            🩸 经期中：无需进食补剂
-          </div>
-        ) : (
-          <div className="divide-y overflow-hidden rounded-xl border">
-            {([["早", todaySupp.morning], ["午", todaySupp.noon], ["晚", todaySupp.evening]] as const).map(
-              ([label, arr]) => (
-                <div key={label} className="flex items-center gap-4 px-4 py-2.5 text-sm">
-                  <span className="w-8 shrink-0 text-muted-foreground">{label}</span>
-                  <span className={arr.length ? "" : "text-muted-foreground"}>{fmt(arr)}</span>
-                </div>
-              ),
-            )}
-          </div>
-        )}
-      </section>
 
-      {/* 三餐：左侧，纵跨到底 */}
-      {/* flex flex-col：让里面的三餐列表能用 flex-1 吃掉这一列的剩余高度 */}
-      <section className="flex min-h-0 flex-col" style={{ gridColumn: 1, gridRow: "1 / 3" }}>
-        <h2 className="mb-1 text-lg font-semibold">三餐（今天）</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          写下你实际吃了什么，把内容发我、我帮你算热量，再把数字填进「大约 kcal」。
-        </p>
-        {periodOn && (
-          <div className="mb-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-            <p className="mb-1.5 text-sm font-medium text-pink-800">🩸 经期饮食建议</p>
-            <ul className="space-y-1 text-sm text-pink-700">
-              {PERIOD_MEAL_TIPS.map((t) => (
-                <li key={t} className="flex gap-1.5">
-                  <span className="shrink-0">·</span>
-                  <span>{t}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {/* 三餐纵向铺开、三张卡等分剩余高度，页面底部不再空一大截（2026-07-29） */}
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {MEALS.map((m) => (
-            <div key={m.key} className="flex min-h-32 flex-1 flex-col rounded-lg border p-4">
-              <p className="mb-1.5 font-medium">{m.label}</p>
-              <p className="text-sm">
-                <span className="mr-1 text-muted-foreground">🍳 自己做</span>
-                {m.cook}
-              </p>
-              <p className="mb-2 mt-1 text-sm">
-                <span className="mr-1 text-muted-foreground">🥡 外卖</span>
-                {m.takeout}
-              </p>
-              {/* mt-auto：卡片被拉高后输入行沉到底，不会上半截挤一起、下半截空着 */}
-              <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-                <Input
-                  value={meals[m.key].content}
-                  onChange={(e) =>
-                    setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], content: e.target.value } }))
-                  }
-                  onBlur={() => saveMeal(m.key)}
-                  placeholder="我今天这一餐吃了……"
-                  className="min-w-48 flex-1"
-                />
-                <Input
-                  type="number"
-                  value={meals[m.key].calories}
-                  onChange={(e) =>
-                    setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], calories: e.target.value } }))
-                  }
-                  onBlur={() => saveMeal(m.key)}
-                  placeholder="大约 kcal"
-                  className="w-24"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 右下区：左＝饮品+零食两个表单，右＝月历 + 本周复盘按钮 */}
       <div
-        style={{ gridColumn: 2, gridRow: 2 }}
         className="grid items-start gap-6"
+        style={{ gridTemplateColumns: "minmax(0,1.18fr) minmax(0,1fr)" }}
       >
-      <div className="grid gap-6" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(230px,260px)" }}>
-      <div className="min-w-0 space-y-6">
-      {/* 饮品打卡 */}
-      <section>
-        <div className="mb-1 flex items-baseline gap-2">
-          <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
-          <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
-        </div>
-        <div className="space-y-3">
-          <div className="space-y-2 rounded-xl border p-3">
-            <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
-            <div className="flex flex-wrap gap-2">
-              {SUBTYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setDSub(t)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-sm transition-colors",
-                    dSub === t ? DRINK_COLOR[t].chip + " font-medium" : "border text-muted-foreground",
-                  )}
-                >
-                  {t}
-                </button>
+        {/* ───────── 左栏 ───────── */}
+        <div className="space-y-6">
+          <section className="rounded-xl border bg-card p-4">
+            <h2 className="text-lg font-semibold">今天吃什么</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
+              三餐写下你实际吃了什么，把内容发我、我帮你算热量。
+            </p>
+
+            {periodOn && (
+              <div className="mt-3 rounded-lg border border-pink-200 bg-pink-50 p-3">
+                <p className="mb-1.5 text-sm font-medium text-pink-800">🩸 经期饮食建议</p>
+                <ul className="space-y-1 text-sm text-pink-700">
+                  {PERIOD_MEAL_TIPS.map((t) => (
+                    <li key={t} className="flex gap-1.5">
+                      <span className="shrink-0">·</span>
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-3 space-y-2.5">
+              {/* 补剂：搬到早餐上面（2026-07-29 Rosie 定）。它本来就按早/午/晚排，
+                  跟三餐同一个时间轴；而且「随餐吃 / 跟早餐一起」这句提示终于挨着餐了。
+                  做成只读浅色小块，跟下面三张能输入的餐卡区分开——它是参考不是录入。 */}
+              <div className="rounded-lg bg-muted px-3 py-2.5">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium">补剂</span>
+                  <span className="text-xs text-muted-foreground">
+                    脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起
+                  </span>
+                </div>
+                {periodOn ? (
+                  <p className="mt-1.5 text-sm text-pink-700">🩸 经期中：无需进食补剂</p>
+                ) : (
+                  <div className="mt-1.5 space-y-1">
+                    {(
+                      [
+                        ["早", todaySupp.morning],
+                        ["午", todaySupp.noon],
+                        ["晚", todaySupp.evening],
+                      ] as const
+                    ).map(([label, arr]) => (
+                      <div key={label} className="flex items-baseline gap-2.5 text-sm">
+                        <span className="w-5 shrink-0 text-xs text-muted-foreground">{label}</span>
+                        {arr.length ? (
+                          <span className="flex flex-wrap gap-1.5">
+                            {arr.map((name) => (
+                              <span
+                                key={name}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-0.5 text-xs text-violet-700"
+                              >
+                                <span className="size-1.5 rounded-full bg-violet-500" />
+                                {name}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground/60">无</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {MEALS.map((m) => (
+                <div key={m.key} className="rounded-lg bg-muted px-3 py-2.5">
+                  <p className="font-medium">{m.label}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    <span className="mr-1">🍳 自己做</span>
+                    {m.cook}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    <span className="mr-1">🥡 外卖</span>
+                    {m.takeout}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Input
+                      value={meals[m.key].content}
+                      onChange={(e) =>
+                        setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], content: e.target.value } }))
+                      }
+                      onBlur={() => saveMeal(m.key)}
+                      placeholder="我今天这一餐吃了……"
+                      className="min-w-48 flex-1 bg-card"
+                    />
+                    <Input
+                      type="number"
+                      value={meals[m.key].calories}
+                      onChange={(e) =>
+                        setMeals((s) => ({ ...s, [m.key]: { ...s[m.key], calories: e.target.value } }))
+                      }
+                      onBlur={() => saveMeal(m.key)}
+                      placeholder="大约 kcal"
+                      className="w-24 bg-card"
+                    />
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-32" />
-              <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-32 flex-1" />
-              <select
-                value={dSugar}
-                onChange={(e) => setDSugar(e.target.value)}
-                className="h-9 rounded-md border bg-transparent px-2 text-sm"
-              >
-                {SUGARS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+          </section>
+
+          {/* 本周复盘：挪到左栏最下（看完今天，顺着往下就是这周）。走 hash，Tauri 桌面端也通用 */}
+          <button
+            onClick={() => {
+              window.location.hash = "/mini-table/tbl-meals-week";
+            }}
+            className="w-full rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+          >
+            <span className="text-sm font-medium text-primary">本周复盘 →</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              三餐周表：体重 / 三餐 / 零食饮品 / 总摄入，都自动填好了
+            </span>
+          </button>
+        </div>
+
+        {/* ───────── 右栏 ───────── */}
+        <div className="space-y-6">
+          <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
+
+          {/* 饮品打卡 */}
+          <section className="rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
+              <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
+            </div>
+            <div className="mt-3 space-y-2 rounded-lg bg-muted px-3 py-2.5">
+              <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
+              <div className="flex flex-wrap gap-2">
+                {SUBTYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setDSub(t)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-sm transition-colors",
+                      dSub === t
+                        ? DRINK_COLOR[t].chip + " font-medium"
+                        : "border bg-card text-muted-foreground",
+                    )}
+                  >
+                    {t}
+                  </button>
                 ))}
-              </select>
-              <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal(可空)" className="w-24" />
-              <Button onClick={addDrink}>记一杯</Button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            {shownDrinks.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
-              </p>
-            )}
-            {shownDrinks.map((d) => (
-              <TreatRow
-                key={d.id}
-                dot={DRINK_COLOR[d.subtype].dot}
-                text={[d.brand, d.name].filter(Boolean).join(" ") + (d.sugar ? ` · ${d.sugar}` : "")}
-                calories={d.calories}
-                onDelete={async () => {
-                  await deleteTreat(d.id);
-                  reloadTreats();
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 零食打卡 */}
-      <section>
-        <div className="mb-1 flex items-baseline gap-2">
-          <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
-          <span className="text-sm text-muted-foreground">
-            本月 {snackMonthCount} 次
-            {shownSnacks.length > 0 && ` · ${drinkDate === today ? "今天" : drinkDate.slice(5)} ${shownSnacks.length} 次`}
-          </span>
-        </div>
-        <p className="mb-2 text-sm text-muted-foreground">
-          顶饿又不炸：一小把坚果 / 无糖酸奶 / 黑巧 2 块 / 一个水果。热量算进上面的「已吃」。
-        </p>
-        <div className="space-y-3">
-          <div className="space-y-2 rounded-xl border p-3">
-            <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
-            <div className="flex flex-wrap gap-2">
-              {SNACK_SUBTYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setSSub(t)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-sm transition-colors",
-                    sSub === t ? "bg-amber-50 font-medium text-amber-700" : "border text-muted-foreground",
-                  )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-28 bg-card" />
+                <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-28 flex-1 bg-card" />
+                <select
+                  value={dSugar}
+                  onChange={(e) => setDSugar(e.target.value)}
+                  className="h-9 rounded-md border bg-card px-2 text-sm"
                 >
-                  {t}
-                </button>
-              ))}
+                  {SUGARS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
+                <Button onClick={addDrink}>记一杯</Button>
+              </div>
+              {/* 「今天还没记」收进卡内，不再是裸文本贴在卡外飘着 */}
+              {shownDrinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground/70">
+                  {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {shownDrinks.map((d) => (
+                    <TreatRow
+                      key={d.id}
+                      dot={DRINK_COLOR[d.subtype].dot}
+                      text={[d.brand, d.name].filter(Boolean).join(" ") + (d.sugar ? ` · ${d.sugar}` : "")}
+                      calories={d.calories}
+                      onDelete={async () => {
+                        await deleteTreat(d.id);
+                        reloadTreats();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                value={sName}
-                onChange={(e) => setSName(e.target.value)}
-                placeholder="吃了什么（一小把巴旦木…）"
-                className="min-w-36 flex-1"
-              />
-              <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal(可空)" className="w-24" />
-              <Button onClick={addSnack}>记一笔</Button>
-            </div>
-          </div>
+          </section>
 
-          <div className="space-y-1.5">
-            {shownSnacks.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                {drinkDate === today ? "今天还没记零食。" : `${drinkDate.slice(5)} 还没记零食。`}
-              </p>
-            )}
-            {shownSnacks.map((s) => (
-              <TreatRow
-                key={s.id}
-                dot="bg-amber-500"
-                text={[s.subtype, s.name].filter(Boolean).join(" · ")}
-                calories={s.calories}
-                onDelete={async () => {
-                  await deleteTreat(s.id);
-                  reloadTreats();
-                }}
-              />
-            ))}
-          </div>
+          {/* 零食打卡 */}
+          <section className="rounded-xl border bg-card p-4">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
+              <span className="text-sm text-muted-foreground">
+                本月 {snackMonthCount} 次
+                {shownSnacks.length > 0 &&
+                  ` · ${drinkDate === today ? "今天" : drinkDate.slice(5)} ${shownSnacks.length} 次`}
+              </span>
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              顶饿又不炸：一小把坚果 / 无糖酸奶 / 黑巧 2 块 / 一个水果。热量算进上面的「已吃」。
+            </p>
+            <div className="mt-3 space-y-2 rounded-lg bg-muted px-3 py-2.5">
+              <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
+              <div className="flex flex-wrap gap-2">
+                {SNACK_SUBTYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setSSub(t)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-sm transition-colors",
+                      sSub === t
+                        ? "bg-amber-100 font-medium text-amber-700"
+                        : "border bg-card text-muted-foreground",
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={sName}
+                  onChange={(e) => setSName(e.target.value)}
+                  placeholder="吃了什么（一小把巴旦木…）"
+                  className="min-w-32 flex-1 bg-card"
+                />
+                <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
+                <Button onClick={addSnack}>记一笔</Button>
+              </div>
+              {shownSnacks.length === 0 ? (
+                <p className="text-sm text-muted-foreground/70">
+                  {drinkDate === today ? "今天还没记零食。" : `${drinkDate.slice(5)} 还没记零食。`}
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {shownSnacks.map((s) => (
+                    <TreatRow
+                      key={s.id}
+                      dot="bg-amber-500"
+                      text={[s.subtype, s.name].filter(Boolean).join(" · ")}
+                      calories={s.calories}
+                      onDelete={async () => {
+                        await deleteTreat(s.id);
+                        reloadTreats();
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* 月历：饮品零食共用（点某天两边都补记到那天） */}
+          <DrinkCalendar drinks={drinks} snacks={snacks} selected={drinkDate} onSelect={setDrinkDate} />
         </div>
-      </section>
-
-      </div>
-
-      {/* 右小栏：月历（饮品零食共用，点某天两边都补记到那天）+ 本周复盘跳转 */}
-      <div className="flex flex-col gap-3">
-        <DrinkCalendar drinks={drinks} snacks={snacks} selected={drinkDate} onSelect={setDrinkDate} />
-        <button
-          onClick={() => {
-            window.location.hash = "/mini-table/tbl-meals-week";
-          }}
-          className="rounded-xl border bg-card px-4 py-3 text-left text-sm transition-colors hover:border-primary/40 hover:bg-accent/40"
-        >
-          <span className="font-medium text-primary">本周复盘 →</span>
-          <span className="mt-0.5 block text-xs text-muted-foreground">
-            三餐周表：体重 / 三餐 / 零食饮品 / 总摄入，都自动填好了
-          </span>
-        </button>
-      </div>
-      </div>
-      </div>
       </div>
     </div>
   );
