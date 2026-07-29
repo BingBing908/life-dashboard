@@ -11,8 +11,23 @@ import type { Entry } from "./data";
  * 读的时候当作 `[reviewedAt]` 兼容；写的时候两个都写，老版本页面也不至于读空。
  */
 
-/** 第几次复习安排在学完后的第几天 */
-export const REVIEW_INTERVALS = [1, 3, 7, 15, 30];
+/**
+ * 一条内容一共复习 5 次。
+ *
+ * ⚠️⚠️ **锚点是「上一次实际复习那天」，不是固定的学完日**（2026-07-29 Rosie 拍板，
+ * 原话：「艾宾浩斯遗忘曲线这个要灵活一点呀，应该是按我第一次复习默写算第一天，
+ * 而不是固定日期，不然我逾期复习就一直放在这吗」）。
+ *
+ * 原来算 `entry_date + [1,3,7,15,30]`，问题是**逾期会一直挂着**：7 月 21 日学的诗，
+ * 第一次该 22 日复习，她 29 日才打开——按固定日期，第 2 次早在 24 日就"到期"了，
+ * 于是她刚默完一遍，这条立刻又逾期 5 天卡在列表里，永远还不完。而且间隔的意义也没了：
+ * 22 日和 24 日之间隔 2 天才是记忆曲线要的，7 月 29 日连着做两轮等于白做。
+ *
+ * 现在改成**每次复习都重置时钟**：`REVIEW_GAPS[n]` ＝ 第 n 次复习距上一次的天数。
+ * 从 [1,3,7,15,30] 的**差值**来，所以对按时复习的人排出的日期跟原来一模一样，
+ * 只有拖延时才不同——拖了就顺延，不倒扣。
+ */
+export const REVIEW_GAPS = [1, 2, 4, 8, 15];
 
 /**
  * 会进复习队列的内容类型。
@@ -113,15 +128,22 @@ export function reviewStage(e: Entry): number {
   return reviewDates(e).length;
 }
 
-/** 五个间隔全走完＝记牢了，不再进队列 */
+/** 五次全走完＝记牢了，不再进队列 */
 export function isGraduated(e: Entry): boolean {
-  return reviewStage(e) >= REVIEW_INTERVALS.length;
+  return reviewStage(e) >= REVIEW_GAPS.length;
+}
+
+/** 排程的锚点：复习过就是**最后一次复习那天**，没复习过就是学完那天。见 REVIEW_GAPS 的注释 */
+function anchorOf(e: Entry): string | null {
+  const log = reviewDates(e);
+  return log.length ? log[log.length - 1] : (e.entry_date ?? null);
 }
 
 /** 下一次该复习的日期；已毕业/无日期返回 null */
 export function nextDue(e: Entry): string | null {
   if (!e.entry_date || isGraduated(e)) return null;
-  return addDays(e.entry_date, REVIEW_INTERVALS[reviewStage(e)]);
+  const anchor = anchorOf(e);
+  return anchor ? addDays(anchor, REVIEW_GAPS[reviewStage(e)]) : null;
 }
 
 /**
@@ -257,13 +279,29 @@ function section(e: Entry, name: string): string {
  * 万一哪天标题不带前缀，就整个标题当答案。
  * ⚠️ 抽不出意思（body 没有【意思】节）就返回 null——宁可不排这条，
  * 也别给一道没有题面的题。
+ *
+ * ⚠️⚠️ **题面必须抹掉答案**（2026-07-29 Rosie：「成语别写出处，又把原文露出来了」）。
+ * 泄题有**两处**，只堵出处是不够的：
+ * ①【出处】几乎必然含成语本身（「读《易》，韦编三绝。」）——直接不给，出处不是复习必需的。
+ * ②【意思】**也含**！中文释义的惯用写法就是「……后用『韦编三绝』形容读书勤奋」，
+ *   答案明晃晃写在题面里。所以题面里出现答案的地方一律换成 ____。
+ * 这不是内容写错了——释义带上词条是正常辞书体，注入侧不用改，读的时候遮掉就行。
  */
-export function recallCard(e: Entry): { prompt: string; answer: string; hint?: string } | null {
+export function recallCard(e: Entry): { prompt: string; answer: string } | null {
   const answer = (e.title ?? "").split("·").pop()?.trim() ?? "";
-  const prompt = section(e, "意思");
-  if (!answer || !prompt) return null;
-  const src = section(e, "出处");
-  return { prompt, answer, hint: src ? src.split("\n")[0].slice(0, 60) : undefined };
+  const raw = section(e, "意思");
+  if (!answer || !raw) return null;
+  // 连引号一起吃掉，否则会留下一对空引号「」把字数漏出去
+  const prompt = raw
+    .replace(new RegExp(`[「『“"]?${escapeRe(answer)}[」』”"]?`, "g"), "____")
+    .trim();
+  if (!prompt) return null;
+  return { prompt, answer };
+}
+
+/** 成语里可能有正则元字符（虽然罕见），转义一下再拼进 RegExp */
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** 今天要复习的，学得早的排前面（也就是逾期最久的先还） */
@@ -308,8 +346,8 @@ export type StepState = "passed" | "due" | "upcoming";
 export interface ReviewStep {
   /** 第几次（1..5） */
   n: number;
-  /** 学完后第几天 */
-  interval: number;
+  /** 距上一次复习几天（＝REVIEW_GAPS[n-1]；原来是"学完后第几天"，改成相对后这个才准） */
+  gap: number;
   state: StepState;
   /** 计划日期（未通过的）或实际通过日期（已通过的） */
   date: string | null;
@@ -318,12 +356,21 @@ export interface ReviewStep {
 
 export function reviewSteps(e: Entry, today = todayStr()): ReviewStep[] {
   const log = reviewLog(e);
-  return REVIEW_INTERVALS.map((interval, idx) => {
+  const out: ReviewStep[] = [];
+  // 未来几格的计划日期要**顺着锚点往后推**，不能各自从 entry_date 算——
+  // 否则她拖了几天，后面几格全成了"已经逾期"（就是 Rosie 说的"一直放在这"）。
+  let cursor = anchorOf(e);
+  for (let idx = 0; idx < REVIEW_GAPS.length; idx++) {
+    const gap = REVIEW_GAPS[idx];
     const rec = log[idx];
-    if (rec) return { n: idx + 1, interval, state: "passed" as StepState, date: rec.d, rec };
-    const planned = e.entry_date ? addDays(e.entry_date, interval) : null;
+    if (rec) {
+      out.push({ n: idx + 1, gap, state: "passed", date: rec.d, rec });
+      continue;
+    }
+    cursor = cursor ? addDays(cursor, gap) : null;
     // 只有「下一个该做的」那一格算 due，后面的都是 upcoming
-    const state: StepState = idx === log.length && planned && planned <= today ? "due" : "upcoming";
-    return { n: idx + 1, interval, state, date: planned };
-  });
+    const state: StepState = idx === log.length && cursor && cursor <= today ? "due" : "upcoming";
+    out.push({ n: idx + 1, gap, state, date: cursor });
+  }
+  return out;
 }

@@ -17,17 +17,14 @@ import { cn } from "@/lib/utils";
 export function ReviewQuiz({
   prompt,
   answer,
-  hint,
   passed,
   accent,
   onPass,
 }: {
-  /** 题面（成语的意思） */
+  /** 题面（成语的意思，答案已被 recallCard 换成 ____） */
   prompt: string;
   /** 正确答案（成语本身） */
   answer: string;
-  /** 可选的辅助提示，如出处 */
-  hint?: string;
   passed: boolean;
   accent: string;
   onPass: (stats: { wrong: number; rounds: number }) => void;
@@ -84,7 +81,6 @@ export function ReviewQuiz({
       >
         {prompt}
       </p>
-      {hint && <p className="mb-2 text-xs text-muted-foreground">出处：{hint}</p>}
       <input
         value={text}
         onChange={(e) => {

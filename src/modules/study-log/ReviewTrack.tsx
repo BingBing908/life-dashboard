@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { formatDateCn, todayStr } from "@/lib/dates";
 import type { Entry } from "./data";
 import {
-  REVIEW_INTERVALS,
+  REVIEW_GAPS,
   isGraduated,
   isReviewable,
   nextDue,
@@ -21,7 +21,7 @@ import {
  * 历次通过日期一直存在 `meta.revs` 里，但界面上只显示「第 N/5 次」，
  * **数据有、看不到**。
  *
- * 所以这里把完整曲线摊开：五个间隔（1/3/7/15/30 天）画成五格，
+ * 所以这里把完整曲线摊开：五次复习画成五格（每格标「距上次几天」），
  * 已通过的显示日期 + 那次默得难不难，没到的显示计划日期。
  * 「难不难」＝第一遍错几句 / 默了几轮，只有日期是答不了她那个问题的。
  */
@@ -75,7 +75,7 @@ export function ReviewTrack({
         <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <span className="font-medium text-foreground">复习曲线</span>
           <span className="text-muted-foreground">
-            已通过 {log.length}/{REVIEW_INTERVALS.length} 次
+            已通过 {log.length}/{REVIEW_GAPS.length} 次
           </span>
           {withStats > 0 && (
             <span className="text-muted-foreground">
@@ -83,10 +83,10 @@ export function ReviewTrack({
             </span>
           )}
           {grad ? (
-            <span className="text-emerald-600">· 五轮走完，记牢了</span>
+            <span className="text-emerald-600">· 五次走完，记牢了</span>
           ) : due ? (
             <span className={over > 0 ? "text-amber-600" : "text-muted-foreground"}>
-              · {passedToday ? "下次" : over > 0 ? `已逾期 ${over} 天，应在` : "下次"} {formatDateCn(due)}
+              · {over > 0 && !passedToday ? `晚了 ${over} 天（本该 ${formatDateCn(due)}）` : `下次 ${formatDateCn(due)}`}
             </span>
           ) : null}
           {log.length > 0 && (
@@ -121,11 +121,15 @@ export function ReviewTrack({
               }
               title={
                 isPassed
-                  ? `第 ${s.n} 次（学完后第 ${s.interval} 天）· ${s.date} · ${hardness(s.rec!).text}`
-                  : `第 ${s.n} 次 · 计划 ${s.date ?? "—"}（学完后第 ${s.interval} 天）`
+                  ? `第 ${s.n} 次 · ${s.date} · ${hardness(s.rec!).text}`
+                  : `第 ${s.n} 次 · 计划 ${s.date ?? "—"}（上次之后 ${s.gap} 天）`
               }
             >
-              <div className="text-[10px] leading-tight opacity-80">{s.interval}天</div>
+              {/* 标的是「距上次复习几天」——排程锚在上一次实际复习上，
+                  写成「学完后第 N 天」会跟真实日期对不上（见 review.ts 的 REVIEW_GAPS） */}
+              <div className="text-[10px] leading-tight opacity-80">
+                {isPassed ? `第${s.n}次` : `+${s.gap}天`}
+              </div>
               <div className="text-[11px] font-medium leading-tight tabular-nums">
                 {isPassed ? s.date!.slice(5).replace("-", "/") : isDue ? "今天" : s.date?.slice(5).replace("-", "/") ?? "—"}
               </div>

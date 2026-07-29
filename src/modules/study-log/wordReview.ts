@@ -1,6 +1,6 @@
 import { addDays, daysBetween, todayStr } from "@/lib/dates";
 import type { Entry } from "./data";
-import { REVIEW_INTERVALS, type RevRecord } from "./review";
+import { REVIEW_GAPS, type RevRecord } from "./review";
 
 /**
  * 单词级间隔复习。
@@ -79,9 +79,9 @@ export function wordSrsOf(e: Entry): Record<string, RevRecord[]> {
   return out;
 }
 
-/** 单词是不是学完满 5 轮＝记牢了 */
+/** 单词是不是过满 5 轮＝记牢了 */
 export function wordGraduated(stage: number): boolean {
-  return stage >= REVIEW_INTERVALS.length;
+  return stage >= REVIEW_GAPS.length;
 }
 
 /**
@@ -98,7 +98,10 @@ export function dueWords(entries: Entry[], today = todayStr()): WordCard[] {
       const stage = log.length;
       if (wordGraduated(stage)) continue;
       if (log.some((r) => r.d === today)) continue; // 今天已过，一天最多推进一级
-      const due = addDays(e.entry_date, REVIEW_INTERVALS[stage]);
+      // 锚点＝**上次答对那天**（没答过就是学完那天），跟条目排程同一套规则：
+      // 拖延就顺延，不会一直挂着逾期。见 review.ts 的 REVIEW_GAPS
+      const anchor = log.length ? log[log.length - 1].d : e.entry_date;
+      const due = addDays(anchor, REVIEW_GAPS[stage]);
       if (due > today) continue;
       out.push({
         entryId: e.id,

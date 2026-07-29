@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
 import { CARD } from "@/lib/ui";
-import { formatDateCn, todayStr } from "@/lib/dates";
+import { addDays, formatDateCn, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
@@ -38,17 +38,14 @@ import { WordReview } from "./WordReview";
 import { ReviewTrack } from "./ReviewTrack";
 import { dueWords, wordPassPatch, type WordCard } from "./wordReview";
 import {
-  REVIEW_INTERVALS,
+  REVIEW_GAPS,
   dueEntries,
   hintLabel,
   isDueToday,
-  isGraduated,
   isShortRound,
-  nextDue,
   overdueDays,
   passPatch,
   recallCard,
-  reviewDates,
   reviewHint,
   reviewKindOf,
   reviewStage,
@@ -67,7 +64,7 @@ type BoardCfg = {
 };
 
 // 复习不进 BOARDS（不占大磁贴），单独一个小按钮进入
-const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "学完第 1/3/7/15/30 天各默一次，默到全对才算过", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
+const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "每默过一次，下次隔 1/2/4/8/15 天再来；默到全对才算过、这条就从列表里消失", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
 
 const BOARDS: BoardCfg[] = [
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
@@ -529,21 +526,58 @@ const enOk = (u: string, a: string) => {
 
 // ---- 复习默写：断句 + 「句子词序完全一致」判对（忽略大小写/标点）----
 /** 按标点/换行断句（英文按 .!?;、中文按 。！？；，标点跟着句子走） */
+/** 断句。⚠️ 中文的「，、」也断——古诗一个五言句就是一句，
+ *  这样订正时只重打真写错的那五个字，不用把整联重来（2026-07-29）。
+ *  ASCII 逗号刻意**不**断，否则英语精读会被切成一堆从句碎片。 */
 function splitSents(s: string): string[] {
   return (s || "")
-    .replace(/([.!?。！？；;])\s*/g, "$1\n")
+    .replace(/([.!?。！？；;，、])\s*/g, "$1\n")
     .split(/[\n]+/)
     .map((x) => x.trim())
     .filter(Boolean);
 }
-const enWords = (s: string) => s.toLowerCase().match(/[a-z0-9']+/g) ?? [];
-const cjkChars = (s: string) => s.match(/[一-鿿]/g) ?? [];
-/** 一句是否默对：有汉字按「字」序、否则按「词」序，须完全一致 */
+/** 归一成 token 序列：中文按字、英文按词，标点/空白/换行全丢掉 */
+const tokensOf = (s: string): string[] =>
+  (s || "").toLowerCase().match(/[一-鿿]|[a-z0-9']+/g) ?? [];
+/** 一句是否默对：token 序列完全一致（中文按字序、英文按词序） */
 function sentEq(ans: string, ref: string): boolean {
-  const hasCjk = /[一-鿿]/.test(ref);
-  const a = hasCjk ? cjkChars(ans) : enWords(ans);
-  const b = hasCjk ? cjkChars(ref) : enWords(ref);
+  const a = tokensOf(ans);
+  const b = tokensOf(ref);
   return b.length > 0 && a.length === b.length && a.every((w, i) => w === b[i]);
+}
+/** 在 hay 的 from 位置起找 needle 这串 token，返回起点下标，找不到返回 -1 */
+function findSeq(hay: string[], needle: string[], from: number): number {
+  if (needle.length === 0) return -1;
+  outer: for (let i = from; i + needle.length <= hay.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (hay[i + j] !== needle[j]) continue outer;
+    return i;
+  }
+  return -1;
+}
+/**
+ * 批改整篇默写，返回**没写对的句子下标**。
+ *
+ * ⚠️⚠️ **2026-07-29 修的真 bug**（Rosie：「我只错了一句，逐句订正不应该仅订正错的吗，
+ * 为啥对的也要订正」）：原来是 `splitSents(她写的)[i]` 逐位去对 `sents[i]`——**按位置对齐**。
+ * 她默《塞下曲》时每个五言句敲了个回车，她那边断出 4 段、原文断出 2 句，位置整体错开，
+ * 于是写对的句子也被判错、两句全得订正。换行、空格、标点写不写，都不该影响判对。
+ *
+ * 现在改成**顺序查找**：把她写的整段归一成一串 token，每句原文按顺序在里面找，
+ * 找到就把游标推到该句之后。于是
+ * ①换行/标点/空格怎么敲都无所谓；②句内字序仍须完全一致；
+ * ③句子顺序也仍须对（游标只前进，写颠倒了后一句就找不到）。
+ */
+function gradeSents(answer: string, sents: string[]): number[] {
+  const hay = tokensOf(answer);
+  const bad: number[] = [];
+  let cursor = 0;
+  sents.forEach((s, i) => {
+    const need = tokensOf(s);
+    const at = findSeq(hay, need, cursor);
+    if (at < 0) bad.push(i);
+    else cursor = at + need.length;
+  });
+  return bad;
 }
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -1289,11 +1323,8 @@ function ReviewDictation({
   const [firstWrong, setFirstWrong] = useState<number | null>(null);
 
   function gradeTotal() {
-    const ans = splitSents(text);
-    const bad: number[] = [];
-    sents.forEach((s, i) => {
-      if (!sentEq(ans[i] ?? "", s)) bad.push(i);
-    });
+    // 顺序查找对齐，不按位置——她敲的换行不该让写对的句子背锅。见 gradeSents 注释
+    const bad = gradeSents(text, sents);
     setGraded(true);
     setWrong(bad);
     // 只记第一遍的错句数（后面几轮是订正后的复验，不代表记忆强度）
@@ -1440,13 +1471,28 @@ function ReviewBoard({
 }) {
   const today = todayStr();
   const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
-  // 通过后条目会立刻从到期队列里消失、把正在看的卡片抽走。记下本次进来通过的，
-  // 让它留在页面上显示「✓ 通过 · 下次 X 月 X 日」，下次进复习页才隐去。
-  const [justPassed, setJustPassed] = useState<string[]>([]);
+  /**
+   * 默到全对的条目**直接从列表消失**（2026-07-29 Rosie：「我默写全对那就应该算完成复习了，
+   * 就从复习里消失了，现在是全对也还在里面，这不对呀」）。
+   *
+   * ⚠️ 原来是反着做的：怕「通过后卡片立刻被抽走」很跳，所以用 justPassed 把它留在页面上
+   * 显示「✓ 通过 · 下次 X 月 X 日」。方向错了——列表是**待办**，做完就该清掉，
+   * 留着反而看不出还剩几条。确认感改由下面这行绿字承担：条目走了，但「刚过了哪几条、
+   * 下次什么时候」还看得见。
+   */
+  const [passedNow, setPassedNow] = useState<{ id: string; label: string; due: string }[]>([]);
   const items = entries
-    .filter((e) => isDueToday(e, today) || justPassed.includes(e.id))
+    .filter((e) => isDueToday(e, today))
     .sort((a, b) => (a.entry_date ?? "").localeCompare(b.entry_date ?? ""));
-  const left = items.filter((e) => !reviewDates(e).includes(today)).length;
+
+  /** 刚过了哪几条（条目已从列表移除，这行是唯一的完成反馈） */
+  const passedLine =
+    passedNow.length > 0 ? (
+      <p className="text-sm text-emerald-700">
+        ✓ 刚默完 <span className="font-medium">{passedNow.length}</span> 条：
+        {passedNow.map((p) => `${p.label}${p.due ? `（下次 ${p.due}）` : "（五次走完·记牢了）"}`).join("　·　")}
+      </p>
+    ) : null;
 
   if (items.length === 0) {
     return (
@@ -1454,10 +1500,13 @@ function ReviewBoard({
         {/* 单词队列独立于条目队列——条目都复习完了单词也可能还有 */}
         <WordReview entries={entries} onPass={onWordPass} />
         <div className="space-y-2 py-10 text-sm text-muted-foreground">
-          <p>今天没有到期的条目复习 🎉</p>
+          <p className="font-medium text-emerald-700">
+            {passedNow.length > 0 ? "今天的复习都默完了 🎉" : "今天没有到期的条目复习 🎉"}
+          </p>
+          {passedLine}
           <p>
-            复习按「学完后第 {REVIEW_INTERVALS.join("/")} 天」各排一次——古诗、英语精读、
-            英语谚语、成语都会回到这里，之后间隔越拉越长，五轮全对就算记牢了。
+            每默过一次，下次就隔 {REVIEW_GAPS.join("/")} 天再来（越往后越疏）——古诗、英语精读、
+            英语谚语、成语都会回到这里，五次全对就算记牢了。
           </p>
           <UpcomingLine entries={entries} today={today} />
         </div>
@@ -1469,26 +1518,19 @@ function ReviewBoard({
     <div className="space-y-3">
       <WordReview entries={entries} onPass={onWordPass} />
       <div className="space-y-1">
-        {left > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            今天要复习 <span className="font-medium text-foreground">{left}</span> 条（间隔 {REVIEW_INTERVALS.join("/")} 天）：
-            整篇默一遍→批改→把写错的句子一句句订正到全对→再整篇默一遍全对，才算通过。
-          </p>
-        ) : (
-          <p className="text-sm font-medium text-emerald-700">今天的复习都默完了 🎉</p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          今天要复习 <span className="font-medium text-foreground">{items.length}</span> 条：
+          整篇默一遍→批改→把写错的句子一句句订正到全对→再整篇默一遍全对，才算通过。
+        </p>
+        {passedLine}
         <UpcomingLine entries={entries} today={today} />
       </div>
       {items.map((e) => {
-        const passedToday = reviewDates(e).includes(today);
-        // 已通过次数；正在做（或刚做完）的就是第 nth 次
+        // 列表里只剩「今天还没过」的，所以这一轮就是第 stage+1 次、原文按 stage 取
         const stage = reviewStage(e);
-        const nth = passedToday ? stage : stage + 1;
-        // 这一轮的原文按「已通过次数」取：刚过的那条要看它这次默的是什么，所以回退一轮
-        const targetStage = passedToday ? Math.max(0, stage - 1) : stage;
-        const short = isShortRound(e, targetStage);
-        const over = passedToday ? 0 : overdueDays(e, today);
-        const due = nextDue(e);
+        const nth = stage + 1;
+        const short = isShortRound(e, stage);
+        const over = overdueDays(e, today);
         return (
           <div key={e.id} className={CARD}>
             <div className="flex flex-wrap items-center gap-2">
@@ -1503,39 +1545,49 @@ function ReviewBoard({
                   只默背诵句
                 </span>
               )}
-              {/* ⚠️ recall 型（成语）的标题**就是答案**（「成语 · 韦编三绝」），
-                  所以没通过之前不能显示——2026-07-29 Rosie 发现答案写在题目上方。
-                  通过之后再显示，方便回看。 */}
+              {/* ⚠️ recall 型（成语）的标题**就是答案**（「成语 · 韦编三绝」），不能显示——
+                  2026-07-29 Rosie 发现答案写在题目上方。答对后卡片就走了，所以这里只藏不放。 */}
               {e.title &&
-                (reviewKindOf(e)?.mode !== "recall" || passedToday ? (
+                (reviewKindOf(e)?.mode !== "recall" ? (
                   <span className="text-sm font-medium">{e.title}</span>
                 ) : (
                   <span className="text-sm text-muted-foreground">（答对了才显示是哪个）</span>
                 ))}
               <span className="text-xs text-muted-foreground">
-                第 {nth}/{REVIEW_INTERVALS.length} 次{e.entry_date ? ` · 学于 ${formatDateCn(e.entry_date)}` : ""}
+                第 {nth}/{REVIEW_GAPS.length} 次{e.entry_date ? ` · 学于 ${formatDateCn(e.entry_date)}` : ""}
               </span>
               {over > 0 && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700" title="到期那天没打开，攒下来了">
-                  逾期 {over} 天
+                <span
+                  className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700"
+                  title="上次之后该复习的那天没打开，攒下来了。今天默过就顺延，不会一直逾期"
+                >
+                  晚了 {over} 天
                 </span>
               )}
-              <span
-                className={cn("ml-auto shrink-0 rounded-full px-2.5 py-0.5 text-xs", passedToday ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
-              >
-                {passedToday
-                  ? isGraduated(e)
-                    ? "✓ 五轮走完 · 记牢了"
-                    : `✓ 通过 · 下次 ${due ? formatDateCn(due) : ""}`
-                  : "默到全对算复习过"}
+              <span className="ml-auto shrink-0 rounded-full border px-2.5 py-0.5 text-xs text-muted-foreground">
+                默到全对算复习过
               </span>
             </div>
-            {/* 完整复习曲线：五个间隔各自的状态 + 历次难度明细 */}
+            {/* 完整复习曲线：五次各自的状态 + 历次难度明细 */}
             <ReviewTrack entry={e} accent={acc(e.board)} />
             {/* 两种复习形式：默写型走 ReviewDictation，成语这类 recall 型走 ReviewQuiz */}
             {(() => {
               const pass = (stats: { wrong: number; rounds: number }) => {
-                setJustPassed((p) => (p.includes(e.id) ? p : [...p, e.id]));
+                // 记一行「刚默完」再上报——上报后这条就不再到期、卡片会从列表消失，
+                // 所以完成反馈得先留下来（label 对成语用标题，此时已经可以露答案了）
+                const nextD = addDays(today, REVIEW_GAPS[stage + 1] ?? 0);
+                setPassedNow((p) =>
+                  p.some((x) => x.id === e.id)
+                    ? p
+                    : [
+                        ...p,
+                        {
+                          id: e.id,
+                          label: e.title || reviewKindOf(e)?.label || "这条",
+                          due: stage + 1 >= REVIEW_GAPS.length ? "" : formatDateCn(nextD),
+                        },
+                      ],
+                );
                 onPass(e.id, stats);
               };
               if (reviewKindOf(e)?.mode === "recall") {
@@ -1545,8 +1597,7 @@ function ReviewBoard({
                   <ReviewQuiz
                     prompt={card.prompt}
                     answer={card.answer}
-                    hint={card.hint}
-                    passed={passedToday}
+                    passed={false}
                     accent={acc(e.board)}
                     onPass={pass}
                   />
@@ -1554,10 +1605,10 @@ function ReviewBoard({
               }
               return (
                 <ReviewDictation
-                  target={reviewTarget(e, targetStage)}
+                  target={reviewTarget(e, stage)}
                   hint={reviewHint(e)}
                   hintLabel={hintLabel(e)}
-                  passed={passedToday}
+                  passed={false}
                   accent={acc(e.board)}
                   onPass={pass}
                 />
