@@ -33,7 +33,9 @@ import {
   type Entry,
 } from "./data";
 import { ReviewQuiz } from "./ReviewQuiz";
+import { WordReview } from "./WordReview";
 import { ReviewTrack } from "./ReviewTrack";
+import { dueWords, wordPassPatch, type WordCard } from "./wordReview";
 import {
   REVIEW_INTERVALS,
   dueEntries,
@@ -1394,7 +1396,15 @@ function UpcomingLine({ entries, today }: { entries: Entry[]; today: string }) {
 /** 复习板块：按「学完后第 1/3/7/15/30 天」的间隔，把以前学的古诗 + 英语精读排回来重默
  *  （旧版只拉昨天，过一天就再也不出现）。逐句订正闭环，默到全对才算通过；
  *  通过即把今天记进 meta.revs，自动推进到下一个间隔，五轮走完＝记牢了。 */
-function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: string, stats: { wrong: number; rounds: number }) => void }) {
+function ReviewBoard({
+  entries,
+  onPass,
+  onWordPass,
+}: {
+  entries: Entry[];
+  onPass: (id: string, stats: { wrong: number; rounds: number }) => void;
+  onWordPass: (card: WordCard, stats: { wrong: number; rounds: number }) => void;
+}) {
   const today = todayStr();
   const acc = (k: Board) => BOARDS.find((b) => b.key === k)!.c.accent;
   // 通过后条目会立刻从到期队列里消失、把正在看的卡片抽走。记下本次进来通过的，
@@ -1407,19 +1417,24 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
 
   if (items.length === 0) {
     return (
-      <div className="space-y-2 py-10 text-sm text-muted-foreground">
-        <p>今天没有到期的复习 🎉</p>
-        <p>
-          复习按「学完后第 {REVIEW_INTERVALS.join("/")} 天」各排一次——今天在语文里背的古诗、
-          英语里学的精读，明天第一次回到这里，之后越拉越长，五轮全默对就算记牢了。
-        </p>
-        <UpcomingLine entries={entries} today={today} />
+      <div>
+        {/* 单词队列独立于条目队列——条目都复习完了单词也可能还有 */}
+        <WordReview entries={entries} onPass={onWordPass} />
+        <div className="space-y-2 py-10 text-sm text-muted-foreground">
+          <p>今天没有到期的条目复习 🎉</p>
+          <p>
+            复习按「学完后第 {REVIEW_INTERVALS.join("/")} 天」各排一次——古诗、英语精读、
+            英语谚语、成语都会回到这里，之后间隔越拉越长，五轮全对就算记牢了。
+          </p>
+          <UpcomingLine entries={entries} today={today} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      <WordReview entries={entries} onPass={onWordPass} />
       <div className="space-y-1">
         {left > 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -1543,6 +1558,8 @@ function Page() {
   const rvToday = todayStr();
   // 复习待办数：今天到期（含逾期）且还没默到全对的条数，通过一条即减一
   const reviewCount = dueEntries(all, rvToday).length;
+  // 单词是另一条队列（进度存在精读条目的 meta.wordSrs 里），按钮上分开显示
+  const wordDue = dueWords(all, rvToday).length;
 
   async function addLearning(kind: string, title: string, body: string) {
     const e = await createEntry({ board: board!, kind, entry_date: todayStr(), title, body });
@@ -1601,9 +1618,14 @@ function Page() {
             onClick={() => setBoard("review")}
             className="ml-auto flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors"
             style={{ borderColor: REVIEW_CFG.c.accent, color: REVIEW_CFG.c.text, background: REVIEW_CFG.c.bg }}
-            title="按 1/3/7/15/30 天间隔，默写以前学的古诗 / 英语精读"
+            title="按 1/3/7/15/30 天间隔复习：古诗 / 英语精读 / 英语谚语 / 成语 / 单词"
           >
-            <RotateCcw className="size-4" /> 复习{reviewCount > 0 ? ` (${reviewCount})` : ""}
+            <RotateCcw className="size-4" /> 复习
+            {reviewCount > 0 || wordDue > 0
+              ? ` (${[reviewCount > 0 && `${reviewCount} 条`, wordDue > 0 && `${wordDue} 词`]
+                  .filter(Boolean)
+                  .join(" · ")})`
+              : ""}
           </button>
         )}
       </div>
@@ -1616,6 +1638,15 @@ function Page() {
           onPass={(id, stats) => {
             const e = all.find((x) => x.id === id);
             if (e) patchEntry(id, passPatch(e, rvToday, stats));
+          }}
+          onWordPass={(card, stats) => {
+            // 单词进度写回它所属精读条目的 meta.wordSrs（不建新表）。
+            // 必须用最新的 all 里那条重算——同一条目的多个词会连着过，
+            // 每次都要基于上一次叠加后的 wordSrs。
+            const e = all.find((x) => x.id === card.entryId);
+            if (!e) return;
+            const patch = wordPassPatch(e, card.en, rvToday, stats);
+            if (Object.keys(patch).length > 0) patchEntry(card.entryId, patch);
           }}
         />
       )}
