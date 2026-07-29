@@ -39,16 +39,21 @@ export function DashboardShell({ onOpenModule }: Props) {
   const [periodOn, setPeriodState] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [weightLog, setWeightLog] = useState<Record<string, DayWeight>>({});
-  const [wAm, setWAm] = useState("");
-  const [wPm, setWPm] = useState("");
   const today = todayStr();
+  const yesterday = addDays(today, -1);
+  // 两格：前晚睡前（**昨天**的 pm）· 今晨空腹（今天的 am），跟饮食页同一个口径
+  // （2026-07-29 Rosie 要求统一）。这两个数的差＝一夜的变化。
+  // ⚠️ 故意不做「今晚睡前」那一格：她睡前不开界面，睡前体重本来就是**第二天早上
+  // 当「前晚」一起补**的。所以两格就够，加第三格反而是多余的入口。
+  const [wLastPm, setWLastPm] = useState("");
+  const [wAm, setWAm] = useState("");
 
   useEffect(() => {
     getPeriodOn().then(setPeriodState).catch(() => {});
     getWeightLog().then((w) => {
       setWeightLog(w);
+      setWLastPm(w[yesterday]?.pm != null ? String(w[yesterday].pm) : "");
       setWAm(w[today]?.am != null ? String(w[today].am) : "");
-      setWPm(w[today]?.pm != null ? String(w[today].pm) : "");
     }).catch(() => {});
     (async () => {
       const today = todayStr();
@@ -115,15 +120,16 @@ export function DashboardShell({ onOpenModule }: Props) {
     await setPeriodOn(next);
   }
 
-  async function saveWeight(slot: "am" | "pm", str: string) {
+  /** 存一格体重。date 可以是昨天（「前晚睡前」写的就是昨天的 pm） */
+  async function saveWeight(date: string, slot: "am" | "pm", str: string) {
     const v = str.trim() === "" ? null : Number(str);
     if (v != null && !isFinite(v)) return;
-    await setWeightEntry(today, slot, v);
+    await setWeightEntry(date, slot, v);
     setWeightLog((prev) => ({
       ...prev,
-      [today]: {
-        am: slot === "am" ? v : prev[today]?.am ?? null,
-        pm: slot === "pm" ? v : prev[today]?.pm ?? null,
+      [date]: {
+        am: slot === "am" ? v : prev[date]?.am ?? null,
+        pm: slot === "pm" ? v : prev[date]?.pm ?? null,
       },
     }));
   }
@@ -262,14 +268,18 @@ export function DashboardShell({ onOpenModule }: Props) {
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
           <h2 className="text-sm font-medium">最近七天体重趋势</h2>
           <span className="text-xs text-muted-foreground">目标 12/27 ≤ {WEIGHT_GOAL}kg</span>
+          {/* 口径跟饮食页统一（2026-07-29）：前晚睡前 → 今晨空腹，这两个数的差＝一夜的变化。
+              只有两格是对的：她睡前不开界面，睡前体重第二天早上当「前晚」一起补。 */}
           <label className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
-            今日空腹
-            <input type="number" step="0.1" value={wAm} onChange={(e) => setWAm(e.target.value)} onBlur={(e) => saveWeight("am", e.target.value)}
+            前晚睡前
+            <input type="number" step="0.1" value={wLastPm} onChange={(e) => setWLastPm(e.target.value)}
+              onBlur={(e) => saveWeight(yesterday, "pm", e.target.value)}
               className="h-7 w-16 rounded-md border bg-transparent px-2 text-sm" /> kg
           </label>
           <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            睡前
-            <input type="number" step="0.1" value={wPm} onChange={(e) => setWPm(e.target.value)} onBlur={(e) => saveWeight("pm", e.target.value)}
+            今晨空腹
+            <input type="number" step="0.1" value={wAm} onChange={(e) => setWAm(e.target.value)}
+              onBlur={(e) => saveWeight(today, "am", e.target.value)}
               className="h-7 w-16 rounded-md border bg-transparent px-2 text-sm" /> kg
           </label>
         </div>

@@ -342,7 +342,6 @@ function DrinkCalendar({
           );
         })}
       </div>
-      <p className="mt-1.5 text-center text-[10px] text-muted-foreground">点某天可补记那天的饮品/零食</p>
       <div className="mt-1.5 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-red-500 align-middle" />奶茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-green-500 align-middle" />果茶</span>
@@ -547,10 +546,12 @@ function Page() {
       >
         {/* ───────── 左栏 ───────── */}
         <div className="flex flex-col gap-6">
-          {/* flex-1：这一栏的剩余高度由「今天吃什么」吸收，再往下由三个餐框分掉
-              （2026-07-29 Rosie：「白白的放在这里好丑，剩下的分给早午晚餐」）。
-              ⚠️ 补剂不参与分——它是只读参考，拉高只会更空。 */}
-          <section className="flex flex-1 flex-col rounded-xl border bg-card p-4">
+          {/* 这张卡＝自然高度（2026-07-29 Rosie 要「加个高度上限」）。
+              ⚠️ 没用 max-height：到了上限它会**裁掉内容**（外卖那行窄屏会换行，一裁就看不见）。
+              改成不再拉伸、只留 min-h 保底，效果一样且没有裁切风险。
+              这一栏的剩余高度改由下面的「本周复盘」按钮吸收——按钮变大只是更好点，
+              比餐框内部空一块合理。 */}
+          <section className="rounded-xl border bg-card p-4">
             <h2 className="text-lg font-semibold">今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
@@ -571,7 +572,7 @@ function Page() {
               </div>
             )}
 
-            <div className="mt-3 flex min-h-0 flex-1 flex-col gap-2.5">
+            <div className="mt-3 flex flex-col gap-2.5">
               {/* 补剂：搬到早餐上面（2026-07-29 Rosie 定）。它本来就按早/午/晚排，
                   跟三餐同一个时间轴；而且「随餐吃 / 跟早餐一起」这句提示终于挨着餐了。
                   做成只读浅色小块，跟下面三张能输入的餐卡区分开——它是参考不是录入。
@@ -618,8 +619,9 @@ function Page() {
               </div>
 
               {MEALS.map((m) => (
-                // flex-1：三个餐框平分补剂之外的剩余高度；min-h-28 保底不会被挤扁
-                <div key={m.key} className="flex min-h-28 flex-1 flex-col rounded-lg bg-muted px-3 py-2.5">
+                // min-h-28 保底、**不再 flex-1 拉伸**（Rosie 要「高度上限」）。
+                // 没用 max-h：到了上限它会裁掉内容，见上面 section 的注释。
+                <div key={m.key} className="flex min-h-28 flex-col rounded-lg bg-muted px-3 py-2.5">
                   <p className="font-medium">{m.label}</p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
                     <span className="mr-1">🍳 自己做</span>
@@ -662,7 +664,7 @@ function Page() {
             onClick={() => {
               window.location.hash = "/mini-table/tbl-meals-week";
             }}
-            className="w-full shrink-0 rounded-xl border bg-card px-5 py-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+            className="flex w-full flex-1 flex-col justify-center rounded-xl border bg-card px-5 py-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
           >
             <span className="flex items-center gap-2 text-lg font-semibold text-primary">
               本周复盘 <span aria-hidden="true">→</span>
