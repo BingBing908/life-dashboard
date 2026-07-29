@@ -148,9 +148,6 @@ function WeightPair({
           />
         </label>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        跟总览、小表格三餐周表是同一份数据，填一处三处都有。
-      </p>
     </div>
   );
 }
@@ -250,11 +247,14 @@ function DrinkCalendar({
   snacks,
   selected,
   onSelect,
+  className,
 }: {
   drinks: Drink[];
   snacks: Snack[];
   selected: string;
   onSelect: (d: string) => void;
+  /** 让调用方把它变成「吸收本栏剩余高度」的那张卡（传 flex-1） */
+  className?: string;
 }) {
   const today = todayStr();
   const [ym, setYm] = useState(() => {
@@ -289,7 +289,7 @@ function DrinkCalendar({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className={cn("rounded-xl border bg-card p-4", className)}>
       <div className="mb-1 flex items-center">
         <span className="text-sm font-medium">
           {ym.y}年{ym.m}月
@@ -458,7 +458,7 @@ function Page() {
   const monthPrefix = today.slice(0, 8);
   const monthCount = drinks.filter((d) => d.date.startsWith(monthPrefix)).length;
   const snackMonthCount = snacks.filter((s) => s.date.startsWith(monthPrefix)).length;
-
+
   const todaySupp = SCHEDULE[todayNum];
 
   function changeTarget(v: string) {
@@ -535,16 +535,20 @@ function Page() {
     // 版式定稿（2026-07-29 方案 1）：统一一套规格——卡片 rounded-xl + p-4 + bg-card + 标题在卡内，
     // 卡内小块 rounded-lg + bg-muted（浅一层，层级一眼读得出）。三餐不再等分撑高（那片空白是撑出来的）。
     // 左栏＝今天吃什么（补剂 → 早 → 午 → 晚）+ 本周复盘；右栏＝体重 / 饮品 / 零食 / 月历。
-    <div className="space-y-6 p-6">
+    // 撑满视口（2026-07-29 Rosie 要求「删完没填满就自动扩充」）：两栏拉伸等高，
+    // 各自的**最后一张卡**吸收剩余高度、内容仍顶对齐——卡片边框到底看着是有意的。
+    // ⚠️ 不要再像上一版那样把剩余高度平摊给每张餐卡，那会让每张卡中间空一块。
+    <div className="flex min-h-full flex-col gap-6 p-6">
       {caloriePanel}
 
       <div
-        className="grid items-start gap-6"
+        className="grid flex-1 items-stretch gap-6"
         style={{ gridTemplateColumns: "minmax(0,1.18fr) minmax(0,1fr)" }}
       >
         {/* ───────── 左栏 ───────── */}
-        <div className="space-y-6">
-          <section className="rounded-xl border bg-card p-4">
+        <div className="flex flex-col gap-6">
+          {/* flex-1：这一栏的剩余高度由「今天吃什么」吸收（内容顶对齐，不拉伸内容） */}
+          <section className="flex-1 rounded-xl border bg-card p-4">
             <h2 className="text-lg font-semibold">今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
@@ -662,7 +666,7 @@ function Page() {
         </div>
 
         {/* ───────── 右栏 ───────── */}
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
           {/* 饮品打卡 */}
@@ -705,11 +709,9 @@ function Page() {
                 <Button onClick={addDrink}>记一杯</Button>
               </div>
               {/* 「今天还没记」收进卡内，不再是裸文本贴在卡外飘着 */}
-              {shownDrinks.length === 0 ? (
-                <p className="text-sm text-muted-foreground/70">
-                  {drinkDate === today ? "今天还没记饮品。" : `${drinkDate.slice(5)} 还没记饮品。`}
-                </p>
-              ) : (
+              {/* 空态不再显示「今天还没记…」（Rosie 2026-07-29 要求删）——
+                  表单就在上面，没记这件事本身不需要一句话来说 */}
+              {shownDrinks.length > 0 && (
                 <div className="space-y-1.5">
                   {shownDrinks.map((d) => (
                     <TreatRow
@@ -769,11 +771,7 @@ function Page() {
                 <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
                 <Button onClick={addSnack}>记一笔</Button>
               </div>
-              {shownSnacks.length === 0 ? (
-                <p className="text-sm text-muted-foreground/70">
-                  {drinkDate === today ? "今天还没记零食。" : `${drinkDate.slice(5)} 还没记零食。`}
-                </p>
-              ) : (
+              {shownSnacks.length > 0 && (
                 <div className="space-y-1.5">
                   {shownSnacks.map((s) => (
                     <TreatRow
@@ -792,8 +790,15 @@ function Page() {
             </div>
           </section>
 
-          {/* 月历：饮品零食共用（点某天两边都补记到那天） */}
-          <DrinkCalendar drinks={drinks} snacks={snacks} selected={drinkDate} onSelect={setDrinkDate} />
+          {/* 月历：饮品零食共用（点某天两边都补记到那天）。
+              flex-1＝这一栏的剩余高度归它，日历本身照旧顶对齐 */}
+          <DrinkCalendar
+            drinks={drinks}
+            snacks={snacks}
+            selected={drinkDate}
+            onSelect={setDrinkDate}
+            className="flex-1"
+          />
         </div>
       </div>
     </div>
