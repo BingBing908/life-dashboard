@@ -32,6 +32,7 @@ import {
   type Board,
   type Entry,
 } from "./data";
+import { ReviewQuiz } from "./ReviewQuiz";
 import { ReviewTrack } from "./ReviewTrack";
 import {
   REVIEW_INTERVALS,
@@ -42,6 +43,7 @@ import {
   nextDue,
   overdueDays,
   passPatch,
+  recallCard,
   reviewDates,
   reviewKindOf,
   reviewStage,
@@ -1474,15 +1476,35 @@ function ReviewBoard({ entries, onPass }: { entries: Entry[]; onPass: (id: strin
             </div>
             {/* 完整复习曲线：五个间隔各自的状态 + 历次难度明细 */}
             <ReviewTrack entry={e} accent={acc(e.board)} />
-            <ReviewDictation
-              target={reviewTarget(e, targetStage)}
-              passed={passedToday}
-              accent={acc(e.board)}
-              onPass={(stats) => {
+            {/* 两种复习形式：默写型走 ReviewDictation，成语这类 recall 型走 ReviewQuiz */}
+            {(() => {
+              const pass = (stats: { wrong: number; rounds: number }) => {
                 setJustPassed((p) => (p.includes(e.id) ? p : [...p, e.id]));
                 onPass(e.id, stats);
-              }}
-            />
+              };
+              if (reviewKindOf(e)?.mode === "recall") {
+                const card = recallCard(e);
+                if (!card) return null;
+                return (
+                  <ReviewQuiz
+                    prompt={card.prompt}
+                    answer={card.answer}
+                    hint={card.hint}
+                    passed={passedToday}
+                    accent={acc(e.board)}
+                    onPass={pass}
+                  />
+                );
+              }
+              return (
+                <ReviewDictation
+                  target={reviewTarget(e, targetStage)}
+                  passed={passedToday}
+                  accent={acc(e.board)}
+                  onPass={pass}
+                />
+              );
+            })()}
           </div>
         );
       })}

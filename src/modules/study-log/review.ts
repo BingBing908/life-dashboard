@@ -40,15 +40,22 @@ export const REVIEW_KINDS: ReviewKind[] = [
   { board: "english", kind: "精读文章", label: "英语精读", mode: "dictation" },
   // 2026-07-28 加：谚语短、复习成本约 20 秒，性价比最高
   { board: "english", kind: "谚语", label: "英语谚语", mode: "dictation" },
+  // 2026-07-28 加：成语用 recall（看意思答成语），约 25 秒
+  { board: "chinese", kind: "成语", label: "成语", mode: "recall" },
 ];
 
 export function reviewKindOf(e: Entry): ReviewKind | null {
   return REVIEW_KINDS.find((k) => k.board === e.board && k.kind === e.kind) ?? null;
 }
 
-/** 会进复习队列吗（没有 entry_date 的排不了程，直接不算） */
+/** 会进复习队列吗（没有 entry_date 的排不了程；recall 型还要能抽出题面，
+ *  否则会排出一道没有题目的题——宁可不排） */
 export function isReviewable(e: Entry): boolean {
-  return !!e.entry_date && !!reviewKindOf(e);
+  if (!e.entry_date) return false;
+  const k = reviewKindOf(e);
+  if (!k) return false;
+  if (k.mode === "recall") return !!recallCard(e);
+  return true;
 }
 
 function metaObj(e: Entry): Record<string, unknown> {
@@ -173,6 +180,27 @@ export function reviewTarget(e: Entry, stage = 0): string {
 /** 这一轮默的是「只背诵句」而不是全文——UI 要说清楚，否则她会以为文章被弄丢了 */
 export function isShortRound(e: Entry, stage = 0): boolean {
   return e.kind === "精读文章" && stage >= 2;
+}
+
+/** 从 body 抽某个【小节】的内容（成语的 body 是【读音】【意思】【出处】【例句】这种分节格式） */
+function section(e: Entry, name: string): string {
+  const m = (e.body ?? "").match(new RegExp(`【${name}】([\\s\\S]*?)(?=\\n*【|$)`));
+  return m ? m[1].trim() : "";
+}
+
+/**
+ * recall 模式的题目：题面＝意思，答案＝成语本身。
+ * 成语的标题格式是「成语 · 一鼓作气」，所以答案取 `·` 之后那截；
+ * 万一哪天标题不带前缀，就整个标题当答案。
+ * ⚠️ 抽不出意思（body 没有【意思】节）就返回 null——宁可不排这条，
+ * 也别给一道没有题面的题。
+ */
+export function recallCard(e: Entry): { prompt: string; answer: string; hint?: string } | null {
+  const answer = (e.title ?? "").split("·").pop()?.trim() ?? "";
+  const prompt = section(e, "意思");
+  if (!answer || !prompt) return null;
+  const src = section(e, "出处");
+  return { prompt, answer, hint: src ? src.split("\n")[0].slice(0, 60) : undefined };
 }
 
 /** 今天要复习的，学得早的排前面（也就是逾期最久的先还） */
