@@ -58,6 +58,63 @@ export async function setWeightEntry(date: string, slot: "am" | "pm", value: num
   );
 }
 
+/**
+ * 补剂服用打卡（2026-07-29 Rosie 要求：「补剂给我改成可以点击是否已经吃了的」）。
+ *
+ * ⚠️ **复用 `app_settings`、零改库**——跟体重库同一套做法（`weight:<date>:am|pm`），
+ * 她不用去 Supabase 跑 SQL，也自动跟着现有同步走。
+ * key ＝ `supp:<日期>:<slot>:<补剂名>`，值 `"1"`＝已服用、`""`＝没吃。
+ *
+ * ⚠️ 为什么一个补剂一个 key、不把一天塞成一条 JSON：同步是"最后写入胜出"，
+ * 整天一条的话两台设备当天各点几个、后同步的那台会把另一台的勾**整片盖掉**；
+ * 拆到单个补剂，冲突只可能发生在同一颗药上。体重当初就是为这个拆的 am/pm。
+ * 代价是行数多（一天约 5 行），但 app_settings 本来就是一堆小行，无所谓。
+ *
+ * ⚠️ 取消打卡写 `""` 而不是 DELETE：删了在别的设备上会被旧行重新"复活"
+ * （同步没有墓碑），写空值才是干净的"已知没吃"。
+ */
+export type SuppSlot = "morning" | "noon" | "evening";
+
+/** 某天已服用的补剂集合，元素形如 `"morning|维D"` */
+export async function getSuppTaken(date: string): Promise<Set<string>> {
+  const db = await getDb();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    "SELECT key, value FROM app_settings WHERE key LIKE $1",
+    [`supp:${date}:%`],
+  );
+  const s = new Set<string>();
+  for (const r of rows) {
+    if (r.value !== "1") continue;
+    // key = supp:<date>:<slot>:<name>；名字里不含冒号，所以取第 3、4 段即可
+    const parts = r.key.split(":");
+    if (parts.length >= 5) s.add(`${parts[3]}|${parts[4]}`);
+  }
+  return s;
+}
+
+export async function setSuppTaken(
+  date: string,
+  slot: SuppSlot,
+  name: string,
+  taken: boolean,
+): Promise<void> {
+  const db = await getDb();
+  const key = `supp:${date}:${slot}:${name}`;
+  // 单调递增时间戳：防注入/其它设备的未来时间戳把这条盖回（同 setWeightEntry）
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM app_settings WHERE key = $1",
+    [key],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
+    [key, taken ? "1" : "", ts],
+  );
+}
+
 export type DrinkSubtype = "奶茶" | "果茶" | "酸奶";
 
 /** 零食品类。⚠️ 零食**复用 `treat_log`**（2026-07-28 定：不建新表、零改库，Rosie 不用去 Supabase 跑 SQL）：

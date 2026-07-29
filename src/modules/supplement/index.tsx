@@ -11,6 +11,7 @@ import {
   deleteTreat,
   getCalTarget,
   getMeals,
+  getSuppTaken,
   getWeightLog,
   listDrinks,
   listSnacks,
@@ -18,6 +19,8 @@ import {
   logSnack,
   setCalTarget,
   setMeal,
+  // 跟组件里的 setSuppTaken(state) 同名，改个别名避免遮蔽
+  setSuppTaken as setSuppTakenDb,
   setWeightEntry,
   SNACK_SUBTYPES,
   type Drink,
@@ -25,6 +28,7 @@ import {
   type MealKey,
   type Snack,
   type SnackSubtype,
+  type SuppSlot,
 } from "./data";
 
 /** 基础代谢（Mifflin-St Jeor，女 164cm/68kg/24岁，往低估）；低于它有掉发风险 */
@@ -378,6 +382,9 @@ function Page() {
   const [dCal, setDCal] = useState("");
   const [drinkDate, setDrinkDate] = useState(today); // 记到哪天（点日历改，默认今天）
 
+  // 今天已服用的补剂（元素形如 "morning|维D"，存 app_settings、零改库）
+  const [suppTaken, setSuppTaken] = useState<Set<string>>(new Set());
+
   // 记一笔零食 表单（跟饮品共用 drinkDate，所以点一次日历两边都补记到那天）
   const [sSub, setSSub] = useState<SnackSubtype>("坚果");
   const [sName, setSName] = useState("");
@@ -392,6 +399,7 @@ function Page() {
   useEffect(() => {
     getPeriodOn().then(setPeriodOn).catch(() => {});
     getCalTarget().then(setCalTargetState).catch(() => {});
+    getSuppTaken(today).then(setSuppTaken).catch(() => {});
     getWeightLog()
       .then((w) => {
         setWLastPm(w[yesterday]?.pm != null ? String(w[yesterday].pm) : "");
@@ -460,6 +468,20 @@ function Page() {
   const snackMonthCount = snacks.filter((s) => s.date.startsWith(monthPrefix)).length;
 
   const todaySupp = SCHEDULE[todayNum];
+  const suppTotal =
+    todaySupp.morning.length + todaySupp.noon.length + todaySupp.evening.length;
+  const suppDone = suppTaken.size;
+
+  /** 点一下切换「已服用」。先改本地 state 再落库——等库回来再更新会有明显延迟感 */
+  function toggleSupp(slot: SuppSlot, name: string) {
+    const k = `${slot}|${name}`;
+    const next = new Set(suppTaken);
+    const took = !next.has(k);
+    if (took) next.add(k);
+    else next.delete(k);
+    setSuppTaken(next);
+    setSuppTakenDb(today, slot, name, took);
+  }
 
   function changeTarget(v: string) {
     const n = Math.round(Number(v));
@@ -575,13 +597,24 @@ function Page() {
             <div className="mt-3 flex flex-col gap-2.5">
               {/* 补剂：搬到早餐上面（2026-07-29 Rosie 定）。它本来就按早/午/晚排，
                   跟三餐同一个时间轴；而且「随餐吃 / 跟早餐一起」这句提示终于挨着餐了。
-                  做成只读浅色小块，跟下面三张能输入的餐卡区分开——它是参考不是录入。
-                  shrink-0：不参与分剩余高度（只读的东西拉高只会更空）。 */}
+                  **每颗可点＝已服用**（2026-07-29 二次要求），所以它不再是只读参考、
+                  而是当天的一份打卡；但仍留 bg-muted 小块的形态，跟下面三张餐卡区分。
+                  shrink-0：不参与分剩余高度。 */}
               <div className="shrink-0 rounded-lg bg-muted px-3 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="font-medium">补剂</span>
+                  {!periodOn && suppTotal > 0 && (
+                    <span
+                      className={cn(
+                        "text-xs",
+                        suppDone === suppTotal ? "font-medium text-emerald-600" : "text-muted-foreground",
+                      )}
+                    >
+                      {suppDone === suppTotal ? `全吃完了 ${suppDone}/${suppTotal} ✓` : `已服用 ${suppDone}/${suppTotal}`}
+                    </span>
+                  )}
                   <span className="text-xs text-muted-foreground">
-                    脂溶性的（维D、辅酶Q10）随餐吃吸收好；复合维B 空腹易反胃，跟早餐一起
+                    点一下＝已服用；脂溶性的（维D、辅酶Q10）随餐吃吸收好，复合维B 空腹易反胃、跟早餐一起
                   </span>
                 </div>
                 {periodOn ? (
@@ -590,24 +623,40 @@ function Page() {
                   <div className="mt-1.5 space-y-1">
                     {(
                       [
-                        ["早", todaySupp.morning],
-                        ["午", todaySupp.noon],
-                        ["晚", todaySupp.evening],
+                        ["早", "morning", todaySupp.morning],
+                        ["午", "noon", todaySupp.noon],
+                        ["晚", "evening", todaySupp.evening],
                       ] as const
-                    ).map(([label, arr]) => (
+                    ).map(([label, slot, arr]) => (
                       <div key={label} className="flex items-baseline gap-2.5 text-sm">
                         <span className="w-5 shrink-0 text-xs text-muted-foreground">{label}</span>
                         {arr.length ? (
                           <span className="flex flex-wrap gap-1.5">
-                            {arr.map((name) => (
-                              <span
-                                key={name}
-                                className="inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-0.5 text-xs text-violet-700"
-                              >
-                                <span className="size-1.5 rounded-full bg-violet-500" />
-                                {name}
-                              </span>
-                            ))}
+                            {arr.map((name) => {
+                              const took = suppTaken.has(`${slot}|${name}`);
+                              return (
+                                <button
+                                  key={name}
+                                  onClick={() => toggleSupp(slot, name)}
+                                  title={took ? "点一下改回没吃" : "点一下标记已服用"}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs transition-colors",
+                                    took
+                                      ? "bg-emerald-500 text-white"
+                                      : "bg-card text-violet-700 hover:ring-1 hover:ring-violet-300",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "size-1.5 rounded-full",
+                                      took ? "bg-white/90" : "bg-violet-500",
+                                    )}
+                                  />
+                                  {name}
+                                  {took && <span aria-hidden="true">✓</span>}
+                                </button>
+                              );
+                            })}
                           </span>
                         ) : (
                           <span className="text-sm text-muted-foreground/60">无</span>
