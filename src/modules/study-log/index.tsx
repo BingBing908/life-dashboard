@@ -124,7 +124,22 @@ function gradedByHomework(e: Entry, m: Record<string, unknown>): boolean {
   if (e.kind === "练笔") return true;
   return e.board === "pm" && (e.kind === "PM概念" || e.kind === "产品拆解" || e.kind === "练习");
 }
-/** 是否「今天看完」：要默写的＝默写过≥1遍；练笔＝交了作业（有 meta.homework）；其余＝手动标 meta.done */
+/** 默写完成度：**文章和单词本各记各的**（2026-07-30 Rosie：「我默写完单词给文章也标成已默写了，
+ *  改一下，把单词本和文章独立开，仅仅前端显示是叠加在一起的」）。
+ *  ⚠️ 原来是 `art.length>=1 || word.length>=1`——默完任一边整条就算看完，于是她默了单词、文章一个字
+ *  没写，头部照样顶着绿色「✓ 已默写」（`eng-20260720-1` 就是这个状态）。
+ *  ⚠️⚠️ **但也不能简单换成 `&&`**：`needsDictation` 还覆盖**古诗**和**英语谚语**，这两类没有单词本
+ *  （走 `EntryDoc` 的 `ArticleDictation`，只写 `artAtt`），一律要求 `wordAtt` 会让它们**永远无法完成**；
+ *  没配生词的精读文章同理。所以「要不要看单词那一边」由**有没有单词本**决定，不由 kind 决定。
+ *  ⚠️ 这是这条规则的**唯一实现**，`ReadingCard` 的两个独立徽标也读它，别在组件里重算一份。 */
+function dictState(m: Record<string, unknown>) {
+  const hasWordBook = ((m.words as unknown[]) ?? []).length > 0;
+  const artOk = ((m.artAtt as unknown[]) ?? []).length >= 1;
+  const wordOk = ((m.wordAtt as unknown[]) ?? []).length >= 1;
+  return { hasWordBook, artOk, wordOk, allOk: artOk && (!hasWordBook || wordOk) };
+}
+
+/** 是否「今天看完」：要默写的＝该默的两边都默过≥1遍；练笔＝交了作业（有 meta.homework）；其余＝手动标 meta.done */
 export function entryDone(e: Entry): boolean {
   let m: Record<string, unknown> = {};
   try {
@@ -132,11 +147,7 @@ export function entryDone(e: Entry): boolean {
   } catch {
     m = {};
   }
-  if (needsDictation(e)) {
-    const art = (m.artAtt as unknown[]) ?? [];
-    const word = (m.wordAtt as unknown[]) ?? [];
-    return art.length >= 1 || word.length >= 1;
-  }
+  if (needsDictation(e)) return dictState(m).allOk;
   if (gradedByHomework(e, m)) return hasHomework(m);
   return !!m.done;
 }
@@ -610,6 +621,7 @@ function Blurred({ active, children }: { active: boolean; children: React.ReactN
 function WordBook({
   words,
   wordAtt,
+  dictated,
   mode,
   onSetMode,
   onWords,
@@ -617,6 +629,8 @@ function WordBook({
 }: {
   words: Word[];
   wordAtt: WordAtt[];
+  /** 单词本自己那一份完成状态（跟文章互不影响，见 dictState） */
+  dictated: boolean;
   mode: "none" | "word" | "article";
   onSetMode: (m: "none" | "word" | "article") => void;
   onWords: (w: Word[]) => void;
@@ -632,7 +646,10 @@ function WordBook({
   }
   return (
     <div className="rounded-md border p-2.5" style={{ background: accent + "0d" }}>
-      <p className="mb-1.5 text-xs text-muted-foreground">单词本 · {words.length}（生词/短语，可增删）</p>
+      <p className="mb-1.5 text-xs text-muted-foreground">
+        单词本 · {words.length}（生词/短语，可增删）
+        {dictated && <span className="ml-1 font-medium text-emerald-600">✓ 已默写</span>}
+      </p>
       <Blurred active={mode === "word"}>
         <div className="space-y-0.5">
           {words.map((w, i) => (
@@ -923,7 +940,8 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
   const recite = (m.recite as string) || "";
   const wordAtt = (m.wordAtt as WordAtt[]) || [];
   const artAtt = (m.artAtt as ArtAtt[]) || [];
-  const done = entryDone(entry); // 精读＝默写过（文章或单词）才算看完
+  // 文章／单词本各自独立打勾，`done`＝该默的都默过（没配生词时只看文章）。规则唯一实现在 dictState
+  const { hasWordBook, artOk, wordOk, allOk: done } = dictState(m);
   const [showCn, setShowCn] = useState(false);
   const [mode, setMode] = useState<"none" | "word" | "article">("none");
 
@@ -933,11 +951,16 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
         {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
+          {/* 顶部这枚是**总状态**（两边都齐才变绿）；文章／单词各自的勾挂在各自那一块上，见下 */}
           <span
             className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
-            title="默写过≥1遍（文章或单词）才算看完"
+            title={hasWordBook ? "文章和单词本各记各的，两边都默过≥1遍才算看完" : "默写过≥1遍才算看完"}
           >
-            {done ? "✓ 已默写" : "默写后算看完"}
+            {done
+              ? "✓ 已默写"
+              : hasWordBook
+                ? `文章 ${artOk ? "✓" : "—"} · 单词 ${wordOk ? "✓" : "—"}`
+                : "默写后算看完"}
           </span>
         </div>
       </div>
@@ -962,6 +985,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
             <button onClick={() => setMode(mode === "article" ? "none" : "article")} className="rounded-md px-2.5 py-1 text-xs text-primary-foreground" style={{ background: accent }}>
               {mode === "article" ? "收起默写" : `默写文章${artAtt.length ? ` (${artAtt.length}/5)` : ""}`}
             </button>
+            {artOk && <span className="self-center text-xs font-medium text-emerald-600">✓ 文章已默写</span>}
           </div>
           {showCn && articleCn && (
             <Blurred active={mode === "article"}>
@@ -973,6 +997,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
         <WordBook
           words={words}
           wordAtt={wordAtt}
+          dictated={wordOk}
           mode={mode}
           onSetMode={setMode}
           onWords={(w) => onPatch(entry.id, { words: w })}

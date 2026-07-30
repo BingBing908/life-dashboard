@@ -670,12 +670,15 @@ function Page() {
     prevPending.current = { key: activeKey, n: pendingLeft };
     if (!prev || prev.key !== activeKey) return; // 刚切领域，不算「刚做完」
     if (prev.n === 0 || pendingLeft !== 0 || decidedTotal === 0) return;
+    // ⚠️ 文案必须说**这一个领域**（2026-07-30 修）：触发条件只是当前领域的待做清空，一天有六七个领域，
+    // 原来那句「今日计划都处理完了 🎉」是在骗人——Rosie 今天 2/12 就撞上了。要改成全天级请连触发条件一起改，
+    // 别只改文案（她 2026-07-30 明确选了「保持领域级，只把文案改对」）。
     setCheer(
       skipLeft === 0
-        ? { fire: true, text: "今日计划都处理完了 🎉" }
+        ? { fire: true, text: `${active.name}都做完了 🎉` }
         : { fire: false, text: pickCheer() },
     );
-  }, [activeKey, pendingLeft, skipLeft, decidedTotal]);
+  }, [activeKey, active.name, pendingLeft, skipLeft, decidedTotal]);
   // 鼓励语几秒后自己消失；烟花那条由 Fireworks 播完回调来关
   useEffect(() => {
     if (!cheer || cheer.fire) return;
