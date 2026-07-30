@@ -103,12 +103,24 @@ function hasHomework(m: Record<string, unknown>): boolean {
   return typeof m.homework === "string" && (m.homework as string).trim().length > 0;
 }
 
-/** 带练习题、要靠「批改」判完成的内容：语文练笔 + PM 的概念课/产品拆解。
+/** 带练习题、要靠「批改」判完成的内容：语文练笔 + PM 的概念课/产品拆解 + **任何显式声明了
+ *  练习题的条目**（`meta.exercise === true`）。
  *  ⚠️ PM 每一课/每一期末尾都有练习题（今日小任务/思考题），2026-07-29 Rosie 要求
  *  「从标记看完改成批改练习后算看完」，并且**批改要跟题目一一对应、不再单开练习条目**
  *  ——所以批改写进该题条目自己的 `meta.homework`，原来那三条打包的「练习批改 ①②③」
- *  已拆散挂回各自题目并软删。同 kind='练习' 的老条目也照这个规则算（防遗留数据）。 */
-function gradedByHomework(e: Entry): boolean {
+ *  已拆散挂回各自题目并软删。同 kind='练习' 的老条目也照这个规则算（防遗留数据）。
+ *
+ *  ⚠️⚠️ **`meta.exercise` 这条是给「偶尔带一道题」的条目用的**（2026-07-30 Rosie：
+ *  「我不要求每一条新闻都向我提出练习题，但我希望提出了练习题的新闻条目不被允许直接标已读，
+ *  要我给你提交了作业才算已读」）。典型是 AI 新闻/术语卡末尾顺手接一道题
+ *  （如「这也是你前两天学的北极星指标的现成练习题——你会给 XBOW 定哪个北极星？」）。
+ *  **注入侧的规矩：出了题就在 meta 里写 `exercise: true`，没出题就别写。** 见 CLAUDE.md 喂养段。
+ *  ⚠️ **绝不能改成「检测正文里有没有问号」**：①「对 AI PM 的意义」那段里的反思式设问
+ *  （「哪一步在逼用户先打字描述？」）满篇都是，会把大量普通新闻误判成待交作业；
+ *  ②这是拿自由文本猜意图，跟「别去解析进度笔记」是同一类错误。审计时实测过：
+ *  按问号扫，33 条 AI 条目里有 2 条是这种误报。 */
+function gradedByHomework(e: Entry, m: Record<string, unknown>): boolean {
+  if (m.exercise === true) return true;
   if (e.kind === "练笔") return true;
   return e.board === "pm" && (e.kind === "PM概念" || e.kind === "产品拆解" || e.kind === "练习");
 }
@@ -125,7 +137,7 @@ export function entryDone(e: Entry): boolean {
     const word = (m.wordAtt as unknown[]) ?? [];
     return art.length >= 1 || word.length >= 1;
   }
-  if (gradedByHomework(e)) return hasHomework(m);
+  if (gradedByHomework(e, m)) return hasHomework(m);
   return !!m.done;
 }
 
@@ -389,9 +401,10 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         )}
         {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {/* 手动「标看完」只留给没有练习题、也不用默写的内容（成语/谚语/新闻/历史…）。
-              带练习题的（练笔、PM 概念课/产品拆解）改成「批改后算完成」，见 gradedByHomework。 */}
-          {onPatch && !dictKind && !gradedByHomework(entry) && (
+          {/* 手动「标看完」只留给**没有练习题**、也不用默写的内容（成语/谚语/普通新闻/历史…）。
+              带练习题的改成「交作业后算完成」，见 gradedByHomework——包括语文练笔、PM 概念课/
+              产品拆解，以及**任何 `meta.exercise === true` 的条目**（AI 新闻/术语卡偶尔带一道题）。 */}
+          {onPatch && !dictKind && !gradedByHomework(entry, meta) && (
             <button
               onClick={() => onPatch(entry.id, { done: !done })}
               className={cn(
@@ -410,7 +423,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
               {done ? "✓ 已默写" : "默写后算看完"}
             </span>
           )}
-          {!dictKind && gradedByHomework(entry) && (
+          {!dictKind && gradedByHomework(entry, meta) && (
             <span
               className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
               title="把答案发我、批改写进这条的作业框后，自动算完成"
