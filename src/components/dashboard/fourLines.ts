@@ -90,7 +90,6 @@ function planLine(
 ): LineCell {
   const cfg = LINE_TARGETS.find((l) => l.key === key)!;
   const mine = items.filter((i) => i.track === track);
-  const ids = new Set(mine.map((i) => i.id));
 
   // ── ① 指针：该线所有条目里，笔记日期最新的那条
   let pointer: string | null = null;
