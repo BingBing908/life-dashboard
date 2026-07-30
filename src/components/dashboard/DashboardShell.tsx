@@ -75,7 +75,13 @@ export function DashboardShell({ onOpenModule }: Props) {
 
       // ⚠️ 顶排的「待办」只数**今天该做的**（标了今天、或过期没做的），不是全部待办；
       // 全部条数放在副标题里，免得跟待办页看到的总数对不上（2026-07-28 Rosie 反馈）。
-      const todayTodos = todos.filter((t) => t.due_date && t.due_date <= today);
+      // ⚠️⚠️ 已完成的只算**今天**完成的（按 done_at 分流，跟待办页和时间轴工作域同一条规则）。
+      // 原来只判 `due_date <= today`，于是**历史上**标过「今天」又做完的待办永远留在这个
+      // 分母里、还算作已完成——攒了十几条之后每天一睁眼就显示「11/11 今天要做」，
+      // 看着像全做完了，实际今天一件没动（2026-07-29 Rosie 截图发现）。
+      const todayTodos = todos.filter(
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+      );
       const todoDone = todayTodos.filter((t) => t.done).length;
       const todoAll = todos.filter((t) => !t.done).length;
 
