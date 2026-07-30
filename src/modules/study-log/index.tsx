@@ -69,7 +69,9 @@ const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, h
 const BOARDS: BoardCfg[] = [
   { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
   { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔"], hint: "每日成语+谚语 · 古诗背诵 · 练笔输出", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
-  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "术语卡"], hint: "每日 5 条新闻 + 术语卡", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
+  // kinds 只喂「加一条」表单的下拉框（渲染不看它，LearningBoard 只筛 kind !== 'note'）。
+  // 2026-07-30：补上一直漏的「趋势汇总」，并加入减负改版后的「速览」（3 则合一，见 CLAUDE.md 喂养段）
+  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "每日 2 条深读 + 3 条速览 + 术语卡 + 趋势", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
   { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "时间线框架 + 每日一卡", c: { bg: "#FAEEDA", text: "#633806", sub: "#854F0B", accent: "#BA7517" } },
   { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "看懂日线 · 基金入门（教知识、不荐买卖）", c: { bg: "#EAF3DE", text: "#27500A", sub: "#3B6D11", accent: "#639922" } },
   { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "练习"], hint: "PM 概念 · AI 产品拆解 · 用自己的项目练表达", c: { bg: "#F1EFE8", text: "#2C2C2A", sub: "#5F5E5A", accent: "#888780" } },
@@ -103,12 +105,24 @@ function hasHomework(m: Record<string, unknown>): boolean {
   return typeof m.homework === "string" && (m.homework as string).trim().length > 0;
 }
 
-/** 带练习题、要靠「批改」判完成的内容：语文练笔 + PM 的概念课/产品拆解 + **任何显式声明了
- *  练习题的条目**（`meta.exercise === true`）。
- *  ⚠️ PM 每一课/每一期末尾都有练习题（今日小任务/思考题），2026-07-29 Rosie 要求
- *  「从标记看完改成批改练习后算看完」，并且**批改要跟题目一一对应、不再单开练习条目**
- *  ——所以批改写进该题条目自己的 `meta.homework`，原来那三条打包的「练习批改 ①②③」
- *  已拆散挂回各自题目并软删。同 kind='练习' 的老条目也照这个规则算（防遗留数据）。
+/** 带练习题、要靠「批改」判完成的内容：**任何显式声明了练习题的条目**（`meta.exercise === true`）
+ *  ＋语文练笔（它的 body 就是题，硬编码兜底）。
+ *
+ *  ⚠️⚠️ **2026-07-30 去掉了 PM 的 board/kind 硬编码**（原来是
+ *  `e.board === "pm" && kind in (PM概念|产品拆解|练习)`）。起因是 Rosie 说「日日学任务太繁重，
+ *  学完就没时间工作」，量出来每天有三四道**要动手写**的作业（练笔＋PM概念＋PM拆解＋偶尔 AI 题），
+ *  而输出比阅读慢得多。她定的新节奏是**每天最多一道作业**（一三五 PM／二四练笔，见 CLAUDE.md 喂养段）。
+ *  但只改喂养规则做不到：PM 内容她要天天看，而硬编码让**任何** PM 条目不管出没出题都顶着
+ *  「交作业后算完成」、没法手动标已读——内容和作业被焊死在一起了。
+ *  所以统一到**显式标记**上：出题就写 `exercise: true`，没出题的 PM 条目回到普通的「标看完」。
+ *  这也正是本文件 2026-07-30 立 `meta.exercise` 时定的原则——**判据要显式，别拿 board/kind 猜**。
+ *  ⚠️ 迁移已做完：云端 10 条老 PM 条目（`pm-20260721-c1` … `pm-20260729-teardown`）都补上了
+ *  `exercise: true`，所以行为零回退。**其中 3 条没有 `meta.done`**
+ *  （`pm-20260728-teardown`／`pm-20260729-concept`／`pm-20260729-teardown`），
+ *  要是漏了这步补标记，它们会直接掉回「未读」——以后再动这个判据前先跑一遍这个审计。
+ *
+ *  ⚠️ 批改要跟题目一一对应、**不再单开练习条目**：批改写进该题条目自己的 `meta.homework`
+ *  （2026-07-29 Rosie 要求），原来那三条打包的「练习批改 ①②③」已拆散挂回各自题目并软删。
  *
  *  ⚠️⚠️ **`meta.exercise` 这条是给「偶尔带一道题」的条目用的**（2026-07-30 Rosie：
  *  「我不要求每一条新闻都向我提出练习题，但我希望提出了练习题的新闻条目不被允许直接标已读，
@@ -121,8 +135,8 @@ function hasHomework(m: Record<string, unknown>): boolean {
  *  按问号扫，33 条 AI 条目里有 2 条是这种误报。 */
 function gradedByHomework(e: Entry, m: Record<string, unknown>): boolean {
   if (m.exercise === true) return true;
-  if (e.kind === "练笔") return true;
-  return e.board === "pm" && (e.kind === "PM概念" || e.kind === "产品拆解" || e.kind === "练习");
+  // 练笔的 body 就是那道题，不存在「没出题的练笔」，所以留硬编码兜底、不依赖注入侧记得写标记
+  return e.kind === "练笔";
 }
 /** 默写完成度：**文章和单词本各记各的**（2026-07-30 Rosie：「我默写完单词给文章也标成已默写了，
  *  改一下，把单词本和文章独立开，仅仅前端显示是叠加在一起的」）。
