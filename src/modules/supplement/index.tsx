@@ -676,24 +676,28 @@ function Page() {
     // 一路传到三餐的 textarea 上，长高的是**能写字的地方**。
     // ⚠️ 别再平摊给每张餐卡的**外框**：那样长高的是留白、每张卡中间空一块（踩过）。
     //    这次能分是因为里面有个 flex-1 的 textarea 真的吃得下高度。
-    // ⚠️⚠️ **这一页刻意「正好一屏」，不让整页纵向滚**（2026-07-30 Rosie：「用 90% 的大小去看
-    //    饮食这一页太大了，能不能搞成刚刚合适一页放下的大小」）。做法是 `h-full` + 一路
-    //    `min-h-0`，再把溢出交给**两栏各自**（overflow-y-auto），而不是交给整页：
-    //    ①页面不滚 ⇒ 顶部卡路里预算条永远在视野里（它是这页的主控件，滚走了就白搭）；
-    //    ②溢出留在栏内 ⇒ 谁装不下谁自己滚，另一栏不受影响。
-    //    ⚠️ 别改成 `overflow-hidden` 一刀切——那是**裁掉**内容（月历直接少半个月），
-    //       比滚动糟得多；这条跟「别用 max-height 做上限」是同一个道理。
-    //    ⚠️ 也别把 min-h-full 加回来：min-h-full 是「至少一屏、可以更高」，正是她嫌太长的原因。
-    //    纵向节奏比别页紧一档（gap-4 / py-4，别页是 gap-6 / p-6）：这页是**仪表型**，
-    //    目标是一屏看完；阅读型页面（日日学）反过来要更松，见 lib/ui.ts 的 READ_BODY。
-    <div className="flex h-full min-h-0 flex-col gap-4 px-6 py-4">
+    // 这一页是**仪表型**（目标「一屏看完」），所以纵向节奏比别页紧一档：
+    // gap-4 / py-4，别页是 gap-6 / p-6。阅读型页面（日日学）反过来要更松，
+    // 见 lib/ui.ts 的 READ_BODY / READ_TITLE。
+    //
+    // ⚠️⚠️ **别再用「给两栏各自 overflow-y-auto」来强行压成一屏**（2026-07-30 试过，当天回滚）。
+    //    两个后果，Rosie 一眼就看出来了（原话「我包边没了」）：
+    //    ① CSS 规则：`overflow-y` 一旦不是 visible，另一轴的 `visible` 会被**计算成 auto**——
+    //       所以只写 `overflow-y-auto` 会凭空多出一条**横向**滚动条（她截图里左栏底下那条）；
+    //    ② 滚动容器在 **padding box** 处裁切，而卡片的 `rounded-xl border` 正好贴着那条边，
+    //       描边被切掉 ⇒ 卡片看起来"没有包边"。要保住描边就得在滚动容器里留出 padding，
+    //       但那又会让卡片变窄、且滚起来上下边缘照样被切。
+    //    结论：**这一页宁可整页滚，也不要栏内滚**。真要压进一屏就得**减内容高度**
+    //    （合并饮品/零食两张卡、月历做小），不是加滚动容器——加容器只是把溢出藏起来，
+    //    还顺手破了卡片规格。
+    <div className="flex min-h-full flex-col gap-4 px-6 py-4">
       {caloriePanel}
 
       {/* 窄屏（< lg，含浏览器放大到很大时）自动塞成一栏，别硬挤成两条竖线。
           用 Tailwind 断点类而不是内联 gridTemplateColumns——内联样式没有断点，缩放就崩。 */}
-      <div className={cn(TWO_COL, "min-h-0 flex-1 items-stretch gap-4")}>
+      <div className={cn(TWO_COL, "flex-1 items-stretch gap-4")}>
         {/* ───────── 左栏 ───────── */}
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+        <div className="flex flex-col gap-4">
           {/* 这张卡吸收本栏的剩余高度（flex-1），一路往下传给三餐的 textarea。
               ⚠️ 没用 max-height 做上限：到了上限它会**裁掉内容**（外卖那行窄屏会换行，
               一裁就看不见），所以是"能长多高长多高"而不是"限死"。 */}
@@ -830,10 +834,10 @@ function Page() {
           </button>
         </div>
 
-        {/* ───────── 右栏 ───────── */}
-        {/* 这一栏是溢出的主来源（体重 + 饮品 + 零食 + 月历，四块都是固定高度、不像三餐会缩），
-            所以它最需要 min-h-0 + 自己滚。 */}
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
+        {/* ───────── 右栏 ─────────
+            这一栏是整页高度的**瓶颈**：体重 / 饮品 / 零食 / 月历四块都是固定高度，
+            不像左栏三餐的 textarea 会自己缩。所以想让这页更短，只能从这四块里减。 */}
+        <div className="flex flex-col gap-4">
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
           {/* 饮品打卡 */}
