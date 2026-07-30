@@ -159,23 +159,27 @@ export function DashboardShell({ onOpenModule }: Props) {
   const weekDone = s ? s.bars.reduce((n, b) => n + (b?.done ?? 0), 0) : 0;
   const weekTotal = s ? s.bars.reduce((n, b) => n + (b?.total ?? 0), 0) : 0;
   const barMax = Math.max(1, ...(s?.bars ?? []).map((b) => b?.total ?? 0));
+  // ⚠️ 顶排顺序＝**按她每天真实的使用频率排**，不按模块注册顺序（2026-07-30 Rosie 指定：
+  // 日日学 → 待办 → 时间轴 → 打卡 → 卡路里）。来自第 5 课用户访谈那次自查：她答「每天真在
+  // 用的是日日学和待办，时间轴也用到」——那三个都是「看完就有动作」的决策型数字，所以排前面；
+  // 卡路里/打卡是状态型、偶尔看，排后面。改顺序就改这个数组，别去动网格。
   const metrics: { label: string; value: string; sub: string; id: string }[] = s
     ? [
-        { label: "时间轴", value: `${s.plan.done}/${s.plan.total}`, sub: "今日已完成", id: "study-plan" },
+        { label: "日日学", value: `${s.learn.done}/${s.learn.total}`, sub: "今天看完", id: "study-log" },
         {
           label: "待办",
           value: `${s.todo.done}/${s.todo.total}`,
           sub: `今天要做${s.todo.all > s.todo.total ? ` · 未完成共 ${s.todo.all}` : ""}`,
           id: "todo",
         },
+        { label: "时间轴", value: `${s.plan.done}/${s.plan.total}`, sub: "今日已完成", id: "study-plan" },
+        { label: "打卡", value: `${s.habit.done}/${s.habit.total}`, sub: "今日习惯", id: "todo" },
         {
           label: "卡路里",
           value: `${s.cal.eaten}`,
           sub: `目标 ${s.cal.target} · 晚餐${s.cal.dinner < 0 ? `超${-s.cal.dinner}` : `可吃 ${s.cal.dinner}`}`,
           id: "supplement",
         },
-        { label: "打卡", value: `${s.habit.done}/${s.habit.total}`, sub: "今日习惯", id: "todo" },
-        { label: "日日学", value: `${s.learn.done}/${s.learn.total}`, sub: "今天看完", id: "study-log" },
       ]
     : [];
 

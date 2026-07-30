@@ -29,7 +29,7 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
 - **一切功能皆模块**。每个模块 = `manifest`（id/名称/图标/卡片尺寸）+ `Card`（仪表盘摘要卡）+ `Page`（完整页面），接口在 `src/modules/types.ts`
 - 新模块在 `src/modules/<名字>/` 下自包含（index.tsx + data.ts），在 `src/modules/registry.ts` 注册一行即上架
 - ⚠️ **列表/卡片组件（尤其含 `<input>` 的）必须定义在模块顶层，不能嵌套在页面组件函数体内**——否则父组件每次 setState 重渲染都会给嵌套组件新的函数身份→React 卸载重挂载→输入框失焦（"只能打一个字"）。数据用 props 传入。踩过：study-plan 的 `ItemRow`/`ThreeRowCard` 曾嵌套在 Page 内，笔记输入框每敲一字就失焦，2026-07-20 提到顶层修复。
-- **不要**把功能硬编码进仪表盘壳子（`src/App.tsx`、`src/components/dashboard/`）。例外：`DashboardShell` 是**今日总览**（2026-07-21），会**汇总各模块今日数据**——全局经期开关 + 今日完成度(时间轴/待办/卡路里/打卡/日日学) + 本周时间轴完成柱 + 模块入口卡。它按只读方式 import 各模块 data（listItems/listCheckStatus/listTodos/getMeals/dayCalories/getCalTarget/listHabits/getCheckins/listAllEntries/entryDone）；这是"总览"的合理跨模块读取，不是把功能塞进壳子。**新增模块若想上今日总览，在这里加一块**。
+- **不要**把功能硬编码进仪表盘壳子（`src/App.tsx`、`src/components/dashboard/`）。例外：`DashboardShell` 是**今日总览**（2026-07-21），会**汇总各模块今日数据**——全局经期开关 + 今日完成度(**日日学/待办/时间轴/打卡/卡路里**，2026-07-30 按真实使用频率重排，见下「总览顶排」) + 本周时间轴完成柱 + 模块入口卡。它按只读方式 import 各模块 data（listItems/listCheckStatus/listTodos/getMeals/dayCalories/getCalTarget/listHabits/getCheckins/listAllEntries/entryDone）；这是"总览"的合理跨模块读取，不是把功能塞进壳子。**新增模块若想上今日总览，在这里加一块**。
 - 所有业务表带同步预留字段：`id`(UUID)、`created_at`、`updated_at`、`device_id`、`deleted_at`（软删除，查询过滤 `deleted_at IS NULL`）
 - 通用组件/工具：`src/components/EditableText.tsx`（点文字就地编辑）；`src/components/Collapse.tsx`（通用折叠区 title/count/hint/right/defaultOpen，待办的「历史已完成」「今天的学练计划」等复用，重复即抽组件）；`src/components/DoneToggle.tsx`（计划项**三态**开关两按钮【已完成】【未完成】，替代方框勾：pending 两键都不亮／点【已完成】=done绿／点【未完成】=skip琥珀「今天做不了」／再点亮着的键撤销回 pending；可选 canComplete 门控【已完成】。**按钮统一放在每行/卡片最前**（今日卡片、一周列表、待办页镜像、待办本体条目四处一致）。待办本体条目也用它（含已完成区），待办每条下方带**选填**「我具体做了什么」输入，存 `plan_notes`（item_id=todo.id，与今日「工作」卡片共用同一份笔记）；`src/components/QuickAdd.tsx`（通用「加一行」输入框＝输入框+按钮，自带 state、回车/点按钮提交清空，props: placeholder/cta/onAdd(text)/variant；时间轴工作域「加工作」、计划域「加计划外」都用它；日日学加书/加电影/记一笔也走它，别再内联重写）；`src/lib/openLink.ts`（Tauri 系统浏览器 / 网页新标签，全应用共用，别再各写一份）；日期用 `src/lib/dates.ts`、周几用 study-plan/data 的 `dayNumOf`（唯一实现，别在模块里重写）。
 - **页面宽度约定＝全宽 `p-6`，不加 max-w**（2026-07-28 定稿，Rosie 反馈：别老做很窄很居中、离边界太远）：模块 Page 根节点统一 `<div className="p-6">`，**跟待办、今日总览一致**——它俩一直是全宽，所以视觉基准是它俩。⚠️ **不要再加 `mx-auto max-w-6xl/7xl`**：那是 2026-07-20 为了治 max-w-3xl 过窄立的中间态规则，2026-07-28 Rosie 说时间轴/饮食/日日学/小表格「都窄窄的看起来很古怪」，已全部去掉（study-plan / study-log / mini-table 原为 max-w-6xl，supplement 原为 max-w-7xl）。内容要把宽度铺开、方框/卡片按合适大小放大，别缩成小块挤在中间。**改全宽后记得给网格加高一档断点**（如小表格磁贴 `sm:2 xl:3 2xl:4`），否则宽屏上卡片会被拉成大长条。
@@ -208,6 +208,15 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 - [x] **饮食页「本周复盘」按钮**：文字居中、删掉「全部自动填好…」那行（Rosie：内部文字布局不好看）
 - [x] **复习的四个真 bug**（都是 Rosie 实际用出来的，详见「语文古诗默写 + 复习板块」段）：①批改按位置对齐→写对的句子也要订正（改 `gradeSents` 顺序查找）②艾宾浩斯锚点从 `entry_date` 改成上次实际复习日（`REVIEW_GAPS`，拖延顺延不倒扣，单词 SRS 同步）③默到全对的条目从列表消失（原 `justPassed` 留着是错的）④成语【意思】和【出处】双双泄题（题面遮 `____`、出处不给）
 - [ ] 遗留：`2ed40c4e…` 这行 id 仍是老 key 算的（现在靠指纹认作原定计划，功能无碍）。要彻底归位得改 id，但 `plan_checks.item_id` 指着它、打卡历史会断——**不值得动**，除非哪天 resetToSeed 重来一遍
+
+**2026-07-30 本次会话：**
+- [x] **修总览「待办」数**（Rosie 截图发现显示 `11/11`）：原来只判 `due_date <= today`，**历史上**标过「今天」又做完的待办永久留在「今天要做」的分母里、还算作已完成，攒了十几条后每天一睁眼就像"全做完了"。照抄时间轴工作域早就在用的谓词（`!t.done || done_at 的日期 === today`），**待办页 / 时间轴工作域 / 总览三处口径现在一致**——总览是最后一个漏了 `done_at` 分流的地方
+- [x] **总览顶排按真实使用频率重排**：日日学 → 待办 → 时间轴 → 打卡 → 卡路里（见 PRODUCT.md「总览」段的理由；改顺序只动 `metrics` 数组）
+- [x] **文档修一处比代码旧**：「交作业后算完成」的覆盖范围（`gradedByHomework`）已从 `kind==='练笔'` 扩到 PM 的 PM概念/产品拆解/练习，CLAUDE.md 原来只写了练笔
+- [x] **PM 作业批改 ×3**（7/28 北极星指标 + Midjourney 我会怎么改、7/29 用户访谈自查），写进各题 `meta.homework`
+- ⚠️ **教训（值得记住，它同时是产品结论和工作方法）**：7/29 那份批改第一版**诊断错了**——我从「体重曲线用得少 + 她说做不到六点起」推出「今晨那格绑在她不在电脑前的时刻」，还给了一整套把录入挪到晚上的改法。真实情况是她**出门前称好、到公司记下**，两格设计本来就吃得下，她评价「很好用」。**拿数据配自己的假设去定因果、一句没问用户**——正是那节课讲的陷阱。已更正批改并在 PRODUCT.md 的体重那条写了"别再优化它"。**下次遇到「某功能用得少」，先问再推。**
+- [ ] 总览底部那片空白放什么（候选：四条线进度 + 12/27 倒计时 / 打卡月度热力图 / 「此刻」能直接勾的块）——⚠️ 若做四条线卡，**体重那条别做成天级缺口提醒**（她漏了就跳过、不回头补，天天红字只会变成噪音）
+- [ ] **番茄钟已砍**（2026-07-30 Rosie：「番茄钟不做，所有电脑现在都有这个功能」）；原路线图「打卡月度热力图 + 番茄钟」只剩热力图那半
 
 ## 工作习惯
 
