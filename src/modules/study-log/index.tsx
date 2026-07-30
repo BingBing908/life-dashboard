@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
-import { CARD } from "@/lib/ui";
+import { CARD, READ_BODY, READ_TITLE } from "@/lib/ui";
 import { addDays, formatDateCn, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
@@ -387,7 +387,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
             {entry.kind}
           </span>
         )}
-        {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
+        {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
           {/* 手动「标看完」只留给没有练习题、也不用默写的内容（成语/谚语/新闻/历史…）。
               带练习题的（练笔、PM 概念课/产品拆解）改成「批改后算完成」，见 gradedByHomework。 */}
@@ -422,7 +422,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
       </div>
       {entry.body && (
         <Blurred active={canDictate && dict}>
-          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+          <p className={cn("mt-2 whitespace-pre-wrap text-foreground/90", READ_BODY)}>
             <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
           </p>
         </Blurred>
@@ -430,7 +430,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
       {homework && (
         <div className="mt-3 rounded-lg border-l-4 p-3" style={{ borderColor: accent, background: accent + "0e" }}>
           <p className="mb-1.5 text-xs font-medium" style={{ color: accent }}>作业</p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+          <p className={cn("whitespace-pre-wrap text-foreground/90", READ_BODY)}>
             <RichText text={homework} accent={accent} term={term} setTerm={setTerm} />
           </p>
         </div>
@@ -439,7 +439,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
       {/* 复习曲线：只有会进复习队列的内容（古诗）才画，组件内部自己判断 */}
       <ReviewTrack entry={entry} accent={accent} />
       {term && glossary[term] && (
-        <div className="mt-2 rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "12", borderColor: accent + "44" }}>
+        <div className={cn("mt-2 rounded-md border p-2.5", READ_BODY)} style={{ background: accent + "12", borderColor: accent + "44" }}>
           <span className="font-medium" style={{ color: accent }}>{term}</span>
           <span className="text-foreground/85">：{glossary[term]}</span>
         </div>
@@ -918,7 +918,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
     <div className={cn("group", CARD, done && "opacity-70")}>
       <div className="mb-2 flex items-center gap-2">
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
-        {entry.title && <span className="text-sm font-medium">{entry.title}</span>}
+        {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
           <span
             className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
@@ -933,8 +933,8 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
         <div className="min-w-0">
           {/* 默写文章时把原文/学习点/背诵句都高糊，杜绝偷看 */}
           <Blurred active={mode === "article"}>
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{articleEn}</p>
-            {notes && <p className="mt-2 text-xs leading-relaxed text-muted-foreground">📝 {notes}</p>}
+            <p className={cn("whitespace-pre-wrap", READ_BODY)}>{articleEn}</p>
+            {notes && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">📝 {notes}</p>}
             {recite && <p className="mt-1.5 text-sm" style={{ color: accent }}>🔖 背这句：{recite}</p>}
           </Blurred>
           {mode === "article" && (
@@ -952,7 +952,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
           </div>
           {showCn && articleCn && (
             <Blurred active={mode === "article"}>
-              <p className="mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed text-muted-foreground" style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
+              <p className={cn("mt-2 whitespace-pre-wrap rounded-md border p-2.5 text-muted-foreground", READ_BODY)} style={{ background: accent + "10", borderColor: accent + "33" }}>{articleCn}</p>
             </Blurred>
           )}
         </div>

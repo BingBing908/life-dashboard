@@ -42,3 +42,20 @@ export const CARD_SUB = "text-sm text-muted-foreground";
  */
 export const TWO_COL =
   "grid gap-6 lg:grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)]";
+
+/**
+ * 阅读型正文（2026-07-30 加，Rosie：「日日学现在的文字都太小了，阅读起来对眼睛很不友好」）。
+ *
+ * ⚠️⚠️ **密度按用途分，别用同一套字号伺候两种页面**：
+ *   - **仪表型**（总览 / 饮食 / 小表格）＝目标是「一屏看完」，字小、行密才装得下；
+ *   - **阅读型**（日日学的内容、作业框、精读文章）＝目标是「连着看十分钟不累」，
+ *     字要大一档、行距要松。她的历史长传一条上千字，用 14px/1.625 读确实伤眼。
+ * 想同时满足两者是不可能的，所以刻意分成两套。**别把这两个常量"统一"回 text-sm。**
+ *
+ * 只用在**内容**上，不要用在界面元件（徽标、按钮、日期头、磁贴预览）——
+ * 那些是 chrome，跟着界面字号走；磁贴里的预览还是 line-clamp 的，放大反而看得更少。
+ */
+export const READ_BODY = "text-[15.5px] leading-[1.9]";
+
+/** 阅读型标题（条目标题。原来跟正文同为 text-sm，压不出层级） */
+export const READ_TITLE = "text-base font-semibold";

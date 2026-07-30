@@ -676,14 +676,24 @@ function Page() {
     // 一路传到三餐的 textarea 上，长高的是**能写字的地方**。
     // ⚠️ 别再平摊给每张餐卡的**外框**：那样长高的是留白、每张卡中间空一块（踩过）。
     //    这次能分是因为里面有个 flex-1 的 textarea 真的吃得下高度。
-    <div className="flex min-h-full flex-col gap-6 p-6">
+    // ⚠️⚠️ **这一页刻意「正好一屏」，不让整页纵向滚**（2026-07-30 Rosie：「用 90% 的大小去看
+    //    饮食这一页太大了，能不能搞成刚刚合适一页放下的大小」）。做法是 `h-full` + 一路
+    //    `min-h-0`，再把溢出交给**两栏各自**（overflow-y-auto），而不是交给整页：
+    //    ①页面不滚 ⇒ 顶部卡路里预算条永远在视野里（它是这页的主控件，滚走了就白搭）；
+    //    ②溢出留在栏内 ⇒ 谁装不下谁自己滚，另一栏不受影响。
+    //    ⚠️ 别改成 `overflow-hidden` 一刀切——那是**裁掉**内容（月历直接少半个月），
+    //       比滚动糟得多；这条跟「别用 max-height 做上限」是同一个道理。
+    //    ⚠️ 也别把 min-h-full 加回来：min-h-full 是「至少一屏、可以更高」，正是她嫌太长的原因。
+    //    纵向节奏比别页紧一档（gap-4 / py-4，别页是 gap-6 / p-6）：这页是**仪表型**，
+    //    目标是一屏看完；阅读型页面（日日学）反过来要更松，见 lib/ui.ts 的 READ_BODY。
+    <div className="flex h-full min-h-0 flex-col gap-4 px-6 py-4">
       {caloriePanel}
 
       {/* 窄屏（< lg，含浏览器放大到很大时）自动塞成一栏，别硬挤成两条竖线。
           用 Tailwind 断点类而不是内联 gridTemplateColumns——内联样式没有断点，缩放就崩。 */}
-      <div className={cn(TWO_COL, "flex-1 items-stretch")}>
+      <div className={cn(TWO_COL, "min-h-0 flex-1 items-stretch gap-4")}>
         {/* ───────── 左栏 ───────── */}
-        <div className="flex flex-col gap-6">
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           {/* 这张卡吸收本栏的剩余高度（flex-1），一路往下传给三餐的 textarea。
               ⚠️ 没用 max-height 做上限：到了上限它会**裁掉内容**（外卖那行窄屏会换行，
               一裁就看不见），所以是"能长多高长多高"而不是"限死"。 */}
@@ -821,7 +831,9 @@ function Page() {
         </div>
 
         {/* ───────── 右栏 ───────── */}
-        <div className="flex flex-col gap-6">
+        {/* 这一栏是溢出的主来源（体重 + 饮品 + 零食 + 月历，四块都是固定高度、不像三餐会缩），
+            所以它最需要 min-h-0 + 自己滚。 */}
+        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
           {/* 饮品打卡 */}
