@@ -5,11 +5,21 @@ import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import {
   dayNumOf,
   getPeriodOn,
+  latestDoneByItem,
+  latestNoteByItem,
   listCheckStatus,
   listItems,
   matchesDay,
   setPeriodOn,
 } from "@/modules/study-plan/data";
+import { ACCEPTANCE_DATE } from "@/modules/study-plan/seed";
+import {
+  buildPlanLines,
+  buildWeightLine,
+  daysToAcceptance,
+  type DaySnapshot,
+  type LineCell,
+} from "./fourLines";
 import { listTodos } from "@/modules/todo/data";
 import { dayCalories, getCalTarget, getMeals, getWeightLog, setWeightEntry, type DayWeight } from "@/modules/supplement/data";
 import { getCheckins, habitOnDay, listHabits } from "@/modules/habit-checkin/data";
@@ -28,6 +38,8 @@ interface Stats {
   habit: { done: number; total: number };
   learn: { done: number; total: number };
   bars: (Bar | null)[];
+  /** 四条线里的三条计划线（体重那格在渲染时算，见 fourLines.ts） */
+  planLines: LineCell[];
 }
 
 const DAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
@@ -59,16 +71,19 @@ export function DashboardShell({ onOpenModule }: Props) {
     (async () => {
       const today = todayStr();
       const tNum = dayNumOf(today);
-      const [items, todos, meals, calTarget, eaten, habits, checkins, entries] = await Promise.all([
-        listItems(),
-        listTodos(),
-        getMeals(today),
-        getCalTarget(),
-        dayCalories(today),
-        listHabits(),
-        getCheckins(8),
-        listAllEntries(),
-      ]);
+      const [items, todos, meals, calTarget, eaten, habits, checkins, entries, latestDone, latestNote] =
+        await Promise.all([
+          listItems(),
+          listTodos(),
+          getMeals(today),
+          getCalTarget(),
+          dayCalories(today),
+          listHabits(),
+          getCheckins(8),
+          listAllEntries(),
+          latestDoneByItem(),
+          latestNoteByItem(),
+        ]);
       const todayCheck = await listCheckStatus(today);
       const todayPlan = items.filter((i) => matchesDay(i, tNum));
       const planDone = todayPlan.filter((i) => todayCheck.get(i.id) === "done").length;
@@ -98,6 +113,8 @@ export function DashboardShell({ onOpenModule }: Props) {
 
       const weekMon = mondayOf(today);
       const bars: (Bar | null)[] = [];
+      // 「四条线」的本周推进天数复用这同一个循环的打卡快照，别为它再查一遍库
+      const week: DaySnapshot[] = [];
       for (let d = 0; d < 7; d++) {
         const date = addDays(weekMon, d);
         if (date > today) {
@@ -105,6 +122,7 @@ export function DashboardShell({ onOpenModule }: Props) {
           continue;
         }
         const cs = await listCheckStatus(date);
+        week.push({ date, dayNum: d + 1, status: cs });
         const dayItems = items.filter((i) => matchesDay(i, d + 1));
         const done = dayItems.filter((i) => cs.get(i.id) === "done").length;
         bars.push({ done, total: dayItems.length, isToday: date === today });
@@ -117,6 +135,7 @@ export function DashboardShell({ onOpenModule }: Props) {
         habit: { done: habitDone, total: todayHabits.length },
         learn: { done: learnDone, total: todayEntries.length },
         bars,
+        planLines: buildPlanLines(items, week, latestDone, latestNote, today),
       });
     })().catch(() => {});
   }, []);
@@ -153,6 +172,13 @@ export function DashboardShell({ onOpenModule }: Props) {
   const wPts = wDays
     .map((d, i) => ({ d, i, v: weightLog[d]?.am ?? null }))
     .filter((p): p is { d: string; i: number; v: number } => p.v != null);
+
+  // 「四条线」体重那格用的是**全历史最近一次**空腹体重，不是上面曲线的七天窗口——
+  // 曲线只画最近七天（她要的），但「离目标还差多少」不该因为她八天没记就变成空白。
+  const lastAm = (() => {
+    const ds = Object.keys(weightLog).filter((d) => weightLog[d]?.am != null).sort();
+    return ds.length ? (weightLog[ds[ds.length - 1]].am as number) : null;
+  })();
 
   const s = stats;
   // 柱状图按条数画：全周最忙那天的条数当满格，各天之间才可比
@@ -354,6 +380,58 @@ export function DashboardShell({ onOpenModule }: Props) {
             );
           })()
         )}
+      </div>
+
+      {/* ───────── 四条线（页面最下，2026-07-30 加） ─────────
+          整页由此读出一条缩放递进：顶排＝**今天**做了没有 → 本周柱＝**这周**漏了什么
+          → 这里＝**到验收日**能不能到。原来缺的正是最后这一层。
+          ⚠️ 为什么没有进度条/百分比、每一格的数据从哪来，全在 `fourLines.ts` 顶部注释里。 */}
+      <div className={cn("mb-6", CARD)}>
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="text-sm font-medium">四条线</h2>
+          <span className="text-xs text-muted-foreground">
+            距 {ACCEPTANCE_DATE.slice(5).replace("-", "/")} 还有{" "}
+            <b className="text-foreground">{daysToAcceptance(today, ACCEPTANCE_DATE)}</b> 天
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            第二行是自动算的；第一行是你自己写的进度笔记，原样显示
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {s
+            ? [...s.planLines, buildWeightLine(lastAm, WEIGHT_GOAL)].map((l) => (
+                <button
+                  key={l.key}
+                  onClick={() => onOpenModule(l.moduleId)}
+                  className={cn(CARD_BTN, "flex flex-col gap-1")}
+                >
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-sm font-medium">{l.name}</span>
+                    {l.warn && (
+                      <span className="text-xs text-amber-600" title="这条线断了">
+                        ⚠
+                      </span>
+                    )}
+                  </div>
+                  {/* 进度指针：她自己写的那句话，原样显示、不解析 */}
+                  <div
+                    className={cn("text-base", l.pointer ? "text-foreground" : "text-muted-foreground")}
+                    title={l.pointerFrom ?? undefined}
+                  >
+                    {l.pointer ?? "还没有进度记录"}
+                  </div>
+                  <div className={cn("text-xs", l.warn ? "text-amber-600" : "text-muted-foreground")}>
+                    {l.status}
+                  </div>
+                  <div className="mt-auto pt-1 text-xs text-muted-foreground">{l.target}</div>
+                </button>
+              ))
+            : Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className={cn(CARD, "text-sm text-muted-foreground")}>
+                  …
+                </div>
+              ))}
+        </div>
       </div>
 
       {/* 原来这儿有一排「模块入口摘要卡」（时间轴/待办/饮食/日日学/小表格），

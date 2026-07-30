@@ -235,6 +235,21 @@ export interface MonthPlan {
 export const SEMESTER_TARGET =
   "2026-12-27 验收总目标：体重 ≤58kg 达标 / ≤56.5kg 优秀（55kg 顺延至 2027 Q1，50kg 不设为目标）· 英语学完新概念一册、开二册，无字幕看《查莉》听懂 50-60%（A2 起步，务实目标）· 【主线】手握 2 个可写进简历的 AI 落地作品（NOC Sentinel 补 evals+数据、life-dashboard 加 AI 功能）+ 简历更新 · 【副线】华为认证按 HCIA→HCIP 稳步推进（周三晚+周六下午两次）";
 
+/**
+ * 上面那段总目标的**短标签版**，给总览「四条线」卡第三行用（一格只放得下几个字）。
+ * ⚠️ 刻意跟 `SEMESTER_TARGET` **挨着放**：它俩是同一件事的长短两版，
+ * 分家到两个文件早晚会漂移。改一个记得对一眼另一个。
+ * 验收日在 `ACCEPTANCE_DATE`，也别再写第二份。
+ */
+export const ACCEPTANCE_DATE = "2026-12-27";
+
+export const LINE_TARGETS: { key: "english" | "cert" | "ai" | "weight"; name: string; target: string }[] = [
+  { key: "english", name: "英语", target: "无字幕听懂 50–60%" },
+  { key: "cert", name: "华为认证", target: "HCIA → HCIP" },
+  { key: "ai", name: "AI", target: "两个项目进简历" },
+  { key: "weight", name: "体重", target: "≤58kg 达标" },
+];
+
 export const SEMESTER_PLAN: MonthPlan[] = [
   {
     title: "7月下 · 启动",

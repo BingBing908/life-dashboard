@@ -221,6 +221,43 @@ export async function listLatestNotes(): Promise<Record<string, string>> {
   return m;
 }
 
+/**
+ * 每个条目**最近一次「已完成」**的日期：item_id -> 'YYYY-MM-DD'。
+ * 用于总览「四条线」判断某条线最近哪天真的动过。
+ *
+ * ⚠️⚠️ **skip 不算推进**——`status='skip'`＝「今天做不了」，是一个决定、不是完成，
+ * 必须排除。踩过的实例：英语晨间那三条（复习/学新课/朗读）打过 6 次卡但**全是 skip**，
+ * 若按"打过卡"算，英语会显示成一条健康活跃的线，那是骗人的（2026-07-30 查真实数据发现）。
+ * `status IS NULL` 视作 done（v11 之前的老行没有 status 列值，见 listChecks 同样处理）。
+ *
+ * 用一条聚合查询拿全部，别按天循环 listCheckStatus——那样查 14 天要 14 次，
+ * 而且线闲置超过窗口就查不到「最近一次」了（华为认证从建库起一次没勾过）。
+ */
+export async function latestDoneByItem(): Promise<Record<string, string>> {
+  const db = await getDb();
+  const rows = await db.select<{ item_id: string; d: string }[]>(
+    `SELECT item_id, MAX(date) AS d FROM plan_checks
+     WHERE deleted_at IS NULL AND (status IS NULL OR status = 'done')
+     GROUP BY item_id`,
+  );
+  const m: Record<string, string> = {};
+  for (const r of rows) if (r.d) m[r.item_id] = r.d;
+  return m;
+}
+
+/** 每个条目最近一条**非空**进度笔记，连日期一起给：item_id -> {note, date}。
+ *  跟 `listLatestNotes` 的区别只是多带了 date（总览要显示「这条笔记是哪天写的」）。 */
+export async function latestNoteByItem(): Promise<Record<string, { note: string; date: string }>> {
+  const db = await getDb();
+  const rows = await db.select<{ item_id: string; note: string | null; date: string }[]>(
+    "SELECT item_id, note, date FROM plan_notes WHERE deleted_at IS NULL ORDER BY date ASC",
+  );
+  const m: Record<string, { note: string; date: string }> = {};
+  // 日期升序、后写覆盖 ＝ 每个条目留最新那条
+  for (const r of rows) if (r.note && r.note.trim()) m[r.item_id] = { note: r.note.trim(), date: r.date };
+  return m;
+}
+
 /** 某天各条目的进度笔记：item_id -> note */
 export async function listNotes(date: string): Promise<Map<string, string>> {
   const db = await getDb();
