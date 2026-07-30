@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { CARD } from "@/lib/ui";
+import { CARD, CARD_BTN, PAGE } from "@/lib/ui";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import {
   dayNumOf,
@@ -184,7 +184,7 @@ export function DashboardShell({ onOpenModule }: Props) {
     : [];
 
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <div className="mb-4 flex items-center gap-3">
         <h1 className="text-2xl font-semibold">总览</h1>
         <span className="text-sm text-muted-foreground">{todayStr()}</span>
@@ -207,7 +207,7 @@ export function DashboardShell({ onOpenModule }: Props) {
               <button
                 key={m.label}
                 onClick={() => onOpenModule(m.id)}
-                className={cn(CARD, "text-left transition-colors hover:bg-accent/40")}
+                className={CARD_BTN}
               >
                 <div className="text-sm text-muted-foreground">{m.label}</div>
                 <div className="mt-1 text-2xl font-medium">{m.value}</div>

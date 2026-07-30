@@ -3,7 +3,7 @@ import { Plus, Table2, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CARD } from "@/lib/ui";
+import { CARD_BTN, CARD_TITLE, PAGE } from "@/lib/ui";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
@@ -53,23 +53,22 @@ function TableTile({
   onDelete: () => void;
 }) {
   const bound = !!TABLE_SOURCES[table.id];
+  // hover 语言归 `CARD_BTN` 统一管（2026-07-30）：原来这里是「描边+阴影」、总览完成度卡是
+  // 「只有底色」、饮食页跳转块是「描边+底色」，三套可点卡片点起来手感不一样。布局类照旧往后加。
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => e.key === "Enter" && onOpen()}
-      className={cn(
-        CARD,
-        "group flex min-h-36 cursor-pointer flex-col gap-3 transition-all hover:border-primary/40 hover:shadow-md",
-      )}
+      className={cn(CARD_BTN, "group flex min-h-36 cursor-pointer flex-col gap-3")}
     >
       <div className="flex items-start gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Table2 className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-semibold">{table.name}</p>
+          <p className={cn("truncate", CARD_TITLE)}>{table.name}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {rows === undefined ? "…" : `${rows} 行`} · {table.columns.length} 列
           </p>
@@ -150,7 +149,7 @@ function Page() {
   }
 
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <div className="mb-1 flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold">小表格</h1>
         <span className="text-sm text-muted-foreground">周/月复盘中枢 · 点开即全屏</span>

@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
-import { CARD, READ_BODY, READ_TITLE } from "@/lib/ui";
+import { CARD, CARD_TITLE, PAGE, READ_BODY, READ_TITLE } from "@/lib/ui";
 import { addDays, formatDateCn, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
@@ -1158,7 +1158,7 @@ function BookNotebook({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold">{book.title}</h2>
+          <h2 className={CARD_TITLE}>{book.title}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             开始 {book.entry_date ?? "—"}
             {done && metaGet(book, "finish_date") && ` · 读完 ${metaGet(book, "finish_date")}`}
@@ -1694,7 +1694,7 @@ function Page() {
   const boardEntries = board ? all.filter((e) => e.board === board) : [];
 
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <div className="mb-4 flex items-center gap-2">
         {/* 返回顶层只调 setBoard(null)：nav([]) 一次把板块和书 id 一起清掉。
             别再补 setOpenBookId(null)，那会 nav(["book"]) 反而跳进书籍板块。 */}

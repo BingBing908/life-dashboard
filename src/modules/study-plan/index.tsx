@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CARD } from "@/lib/ui";
+import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
 import { seedUuid } from "@/lib/db";
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
@@ -773,7 +773,7 @@ function Page() {
   }
 
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <div className="mb-1 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">时间轴</h1>
         <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
@@ -1155,7 +1155,7 @@ function Page() {
           {SEMESTER_PLAN.map((m) => (
             <section key={m.title} className={CARD}>
               <div className="mb-2 flex flex-wrap items-baseline gap-2">
-                <h2 className="text-lg font-semibold">{m.title}</h2>
+                <h2 className={CARD_TITLE}>{m.title}</h2>
                 <span className="text-sm text-muted-foreground">{m.period}</span>
                 <span className="ml-auto rounded-full bg-red-50 px-3 py-0.5 text-sm text-red-700">
                   {m.weight}

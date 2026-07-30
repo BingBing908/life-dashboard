@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { EditableText } from "@/components/EditableText";
 import { cn } from "@/lib/utils";
+import { PAGE } from "@/lib/ui";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
@@ -430,7 +431,7 @@ export function HabitPanel({ compact = false, weekly = false }: { compact?: bool
 
 function Page() {
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <HabitPanel />
     </div>
   );

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CARD } from "@/lib/ui";
+import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
 import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
@@ -292,14 +292,14 @@ function Page() {
   ];
 
   return (
-    <div className="p-6">
+    <div className={PAGE}>
       <ReviewBanner />
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
         <section className={CARD}>
           <div className="mb-3 flex items-baseline gap-2">
-            <h2 className="text-lg font-semibold">待办</h2>
+            <h2 className={CARD_TITLE}>待办</h2>
             <span className="text-xs text-muted-foreground">点小框筛选，点「今天」标记当天要做</span>
             <WeeklyReviewDialog
               trigger={

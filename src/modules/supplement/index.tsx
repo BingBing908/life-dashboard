@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Trash2, Utensils } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CARD, TWO_COL } from "@/lib/ui";
+import { CARD, CARD_BTN, CARD_TITLE, SUBCARD, TWO_COL } from "@/lib/ui";
 import { addDays, toDateStr, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { dayNumOf, getPeriodOn } from "../study-plan/data";
@@ -117,7 +117,7 @@ function WeightPair({
   return (
     <div className={CARD}>
       <div className="mb-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold">体重</h2>
+        <h2 className={CARD_TITLE}>体重</h2>
         {delta !== null && (
           <span className="text-sm text-muted-foreground">
             一夜{delta <= 0 ? "掉了 " : "涨了 "}
@@ -207,7 +207,7 @@ function MealRow({
   return (
     // flex-1：这一栏多出来的高度分给三餐（2026-07-29 Rosie 要求），而且是分给
     // **填写框本身**（下面 textarea 也 flex-1），不是让框空一块——踩过那个坑
-    <div className="flex flex-1 flex-col rounded-lg bg-muted px-3 py-2.5">
+    <div className={cn("flex flex-1 flex-col", SUBCARD)}>
       <p className="font-medium">{meal.label}</p>
       <p className="mt-0.5 text-sm text-muted-foreground">
         <span className="mr-1">🍳 自己做</span>
@@ -621,7 +621,7 @@ function Page() {
   const caloriePanel = (
     <section className={cn(CARD, "shrink-0")}>
       <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
-        <h2 className="text-lg font-semibold">今日卡路里</h2>
+        <h2 className={CARD_TITLE}>今日卡路里</h2>
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           目标
           <input
@@ -702,7 +702,7 @@ function Page() {
               ⚠️ 没用 max-height 做上限：到了上限它会**裁掉内容**（外卖那行窄屏会换行，
               一裁就看不见），所以是"能长多高长多高"而不是"限死"。 */}
           <section className={cn(CARD, "flex min-h-0 flex-1 flex-col")}>
-            <h2 className="text-lg font-semibold">今天吃什么</h2>
+            <h2 className={CARD_TITLE}>今天吃什么</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               {today.slice(5).replace("-", "月")}日 {DAY_NAMES[todayNum]} · 补剂按早/午/晚跟着三餐走；
               三餐写下你实际吃了什么，把内容发我、我帮你算热量。
@@ -729,7 +729,7 @@ function Page() {
                   **每颗可点＝已服用**（2026-07-29 二次要求），所以它不再是只读参考、
                   而是当天的一份打卡；但仍留 bg-muted 小块的形态，跟下面三张餐卡区分。
                   shrink-0：不参与分剩余高度。 */}
-              <div className="shrink-0 rounded-lg bg-muted px-3 py-2.5">
+              <div className={cn("shrink-0", SUBCARD)}>
                 <div className="flex flex-wrap items-baseline gap-x-2">
                   <span className="font-medium">补剂</span>
                   {!periodOn && suppTotal > 0 && (
@@ -823,7 +823,10 @@ function Page() {
             onClick={() => {
               window.location.hash = "/mini-table/tbl-meals-week";
             }}
-            className="flex w-full shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 rounded-xl border bg-card px-5 py-3 text-center transition-colors hover:border-primary/40 hover:bg-accent/40"
+            className={cn(
+              CARD_BTN,
+              "flex w-full shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-0.5 px-5 py-3 text-center",
+            )}
           >
             <span className="flex items-center gap-2 font-semibold text-primary">
               本周复盘 <span aria-hidden="true">→</span>
@@ -843,10 +846,10 @@ function Page() {
           {/* 饮品打卡 */}
           <section className={CARD}>
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className="text-lg font-semibold">饮品打卡 🧋</h2>
+              <h2 className={CARD_TITLE}>饮品打卡 🧋</h2>
               <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
             </div>
-            <div className="mt-3 space-y-2 rounded-lg bg-muted px-3 py-2.5">
+            <div className={cn("mt-3 space-y-2", SUBCARD)}>
               <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
               <div className="flex flex-wrap gap-2">
                 {SUBTYPES.map((t) => (
@@ -904,7 +907,7 @@ function Page() {
           {/* 零食打卡 */}
           <section className={CARD}>
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className="text-lg font-semibold">零食打卡 🥜</h2>
+              <h2 className={CARD_TITLE}>零食打卡 🥜</h2>
               <span className="text-sm text-muted-foreground">
                 本月 {snackMonthCount} 次
                 {shownSnacks.length > 0 &&
@@ -914,7 +917,7 @@ function Page() {
             <p className="mt-0.5 text-sm text-muted-foreground">
               顶饿又不炸：一小把坚果 / 无糖酸奶 / 黑巧 2 块 / 一个水果。热量算进上面的「已吃」。
             </p>
-            <div className="mt-3 space-y-2 rounded-lg bg-muted px-3 py-2.5">
+            <div className={cn("mt-3 space-y-2", SUBCARD)}>
               <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
               <div className="flex flex-wrap gap-2">
                 {SNACK_SUBTYPES.map((t) => (
