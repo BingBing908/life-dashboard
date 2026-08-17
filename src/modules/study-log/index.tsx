@@ -508,22 +508,38 @@ interface WordItem { en: string; cn: string; a1: string; ok1: boolean; a2: strin
 interface WordAtt { e2c: { c: number; t: number }; c2e: { c: number; t: number }; items?: WordItem[] }
 interface ArtAtt { score: number; mode?: string; text?: string; ref?: string }
 
-/** 把参考原文渲染出来、红标出「答案里没写到」的字/词（中文按字、英文按词）。默写回顾复用。 */
+/**
+ * 把参考原文渲染出来、红标出「**没按顺序**对上的」字/词（中文按字、英文按词）。默写回顾复用。
+ *
+ * ⚠️ 判断哪些该标红，走 `alignSeq` 的 `refMatched`——**跟打分共用同一次对齐**。
+ * 原来这里自己 `new Set(answer 的 token)` 查有没有，是**无序**的：
+ * 她把整首诗写进「订正第 1 句」的框里时，第 1 句的字当然全在集合里 ⇒ 一个红字都标不出来，
+ * 界面于是同时说「还没对，再来一遍」和「（红＝漏写/写错的）」却什么都没红——
+ * 她的原话是「这个我错哪了，我看一样啊」。打分和标红必须出自同一次对齐，否则必然自相矛盾。
+ *
+ * ⚠️ 分词正则要跟 `tokensOf` **完全一致**（含数字），否则 token 计数错位、红标会整体串行。
+ */
 function renderMistakes(ref: string, answer: string) {
-  const hasCjk = /[一-鿿]/.test(ref);
-  const tokSet = new Set(
-    hasCjk ? (answer.match(/[一-鿿]/g) ?? []) : (answer.toLowerCase().match(/[a-z']+/g) ?? []),
-  );
-  const segs = hasCjk ? [...ref] : ref.split(/([a-zA-Z']+)/);
-  return segs.map((seg, i) => {
-    const isTok = hasCjk ? /[一-鿿]/.test(seg) : /[a-zA-Z']/.test(seg);
-    const miss = isTok && !tokSet.has(hasCjk ? seg : seg.toLowerCase());
-    return miss ? (
-      <mark key={i} className="rounded bg-red-100 px-0.5 font-medium text-red-700">{seg}</mark>
-    ) : (
-      <span key={i}>{seg}</span>
+  const { refMatched } = alignSeq(answer, ref);
+  const re = /[一-鿿]|[a-z0-9']+/gi;
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let k = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(ref)) !== null) {
+    if (m.index > last) out.push(<span key={`g${last}`}>{ref.slice(last, m.index)}</span>);
+    const ok = refMatched[k++];
+    out.push(
+      ok ? (
+        <span key={`w${m.index}`}>{m[0]}</span>
+      ) : (
+        <mark key={`w${m.index}`} className="rounded bg-red-100 px-0.5 font-medium text-red-700">{m[0]}</mark>
+      ),
     );
-  });
+    last = m.index + m[0].length;
+  }
+  if (last < ref.length) out.push(<span key="tail">{ref.slice(last)}</span>);
+  return out;
 }
 
 /** 默写回顾：显示「你写的」+ 参考原文（红＝漏/错）。古诗/英语文章默写复用。 */
@@ -583,6 +599,61 @@ function sentEq(ans: string, ref: string): boolean {
   const b = tokensOf(ref);
   return b.length > 0 && a.length === b.length && a.every((w, i) => w === b[i]);
 }
+/**
+ * 把「她写的」和「原文」按**顺序**对齐，返回命中率 + 原文每个 token 有没有被按序对上。
+ *
+ * ⚠️⚠️ **2026-08-17 修的真 bug**（Rosie：「where there is a will there is a way，
+ * 我写成 there where is a will there is a way 也给我判定正确了」）。
+ * 原来 `ArticleDictation` / `ReadingDictation` / `renderMistakes` 三处都是
+ * `new Set(tok(...))` 求交集算命中率——**集合无序，而且会把重复词合并成一个**，于是：
+ *   ① 词序/字序整个打乱，命中率照样 100%（她那句就是把 there 挪到了句首）；
+ *   ② 原文里出现两次的词（那句里的 there、is、a）只算一次，写漏一个也不扣分。
+ * 这直接违反早就写明的原则——**判对要「宽容格式、严格内容」：换行/空格/标点随便敲，
+ * 但字序、词序、拼写必须对**。复习板块的 `gradeSents` 一直是顺序查找、不受影响，
+ * 所以这个坑只在「当天第一次学」的默写里，藏了很久。
+ *
+ * 算法＝token 序列的**最长公共子序列**（LCS）。选它而不是 `findSeq` 那种整段贪心，
+ * 是因为默写要的是「按顺序对上了多少」而不是「有没有完整命中」：中间错一个词，
+ * 后面的词仍应该算对。回溯出的 `refMatched` 同时供 `renderMistakes` 标红用——
+ * ⚠️ **两处必须共用同一次对齐**，否则会出现「打分说错了、红标却什么都没标」的鬼状况
+ * （她截图里那个「还没对，再来一遍」下面一个红字都没有，就是这么来的）。
+ */
+function alignSeq(answer: string, ref: string): { hit: number; total: number; score: number; refMatched: boolean[] } {
+  const a = tokensOf(answer);
+  const b = tokensOf(ref);
+  const n = a.length;
+  const m = b.length;
+  const refMatched = new Array<boolean>(m).fill(false);
+  if (m === 0) return { hit: 0, total: 0, score: 0, refMatched };
+  // 保护：正常内容 ≤ 200 token（80 词精读 / 50 字古诗），走不到这里；
+  // 万一贴进来一大段，退化成贪心顺序匹配，别让 DP 把页面卡死。
+  if (n === 0 || n * m > 1_000_000) {
+    let cursor = 0;
+    let hit = 0;
+    for (let j = 0; j < m; j++) {
+      const at = a.indexOf(b[j], cursor);
+      if (at >= 0) { refMatched[j] = true; hit++; cursor = at + 1; }
+    }
+    return { hit, total: m, score: Math.round((hit / m) * 100), refMatched };
+  }
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  // 回溯：只关心原文那一侧哪些位置被对上了
+  let i = n;
+  let j = m;
+  while (j > 0) {
+    if (i > 0 && a[i - 1] === b[j - 1]) { refMatched[j - 1] = true; i--; j--; }
+    else if (i > 0 && dp[i - 1][j] >= dp[i][j - 1]) i--;
+    else j--;
+  }
+  const hit = dp[n][m];
+  return { hit, total: m, score: Math.round((hit / m) * 100), refMatched };
+}
+
 /** 在 hay 的 from 位置起找 needle 这串 token，返回起点下标，找不到返回 -1 */
 function findSeq(hay: string[], needle: string[], from: number): number {
   if (needle.length === 0) return -1;
@@ -812,15 +883,10 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
   const [graded, setGraded] = useState(false);
   const [view, setView] = useState<number | null>(null);
 
-  // 中文按「字」判、英文按「词」判：有汉字就按汉字命中率，否则按英文单词
-  const tok = (s: string) => {
-    const cjk = s.match(/[一-鿿]/g);
-    return cjk && cjk.length ? cjk : (s.toLowerCase().match(/[a-z']+/g) ?? []);
-  };
-  const expSet = new Set(tok(article));
-  const gotSet = new Set(tok(text));
-  const missing = [...expSet].filter((w) => !gotSet.has(w));
-  const score = expSet.size ? Math.round(((expSet.size - missing.length) / expSet.size) * 100) : 0;
+  // ⚠️ 按**顺序**判（中文按字序、英文按词序），别再用集合求交集——
+  // 集合无序且吞掉重复词，词序打乱照样 100%（2026-08-17 修，详见 alignSeq 注释）。
+  const { hit, total, score } = alignSeq(text, article);
+  const missCount = total - hit;
   function finish() {
     onSave({ score, text, ref: article });
     setText(""); setGraded(false); setView(null);
@@ -856,8 +922,10 @@ function ArticleDictation({ article, attempts, onSave, accent }: { article: stri
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="在这里默写整篇……" className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p className="mb-1">命中 <b>{score}%</b>（{expSet.size - missing.length}/{expSet.size} 个）{missing.length === 0 && "，全对，太棒了！"}</p>
-          {missing.length > 0 && <DictReview answer={text} refText={article} />}
+          <p className="mb-1">
+            命中 <b>{score}%</b>（{hit}/{total} 个，按顺序算）{missCount === 0 && "，全对，太棒了！"}
+          </p>
+          {missCount > 0 && <DictReview answer={text} refText={article} />}
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
@@ -877,20 +945,24 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
   const mode: "en2cn" | "cn2en" | "blind" = !hasCn ? "blind" : pass === 0 ? "en2cn" : pass === 1 ? "cn2en" : "blind";
   const ref = mode === "en2cn" ? articleCn : articleEn; // 回顾时对照的原文
 
-  const enTok = (s: string) => (s.toLowerCase().match(/[a-z']+/g) ?? []);
+  // ⚠️⚠️ 两遍的判法**刻意不同**，别一起「统一」掉：
+  // ①「看英写中」＝翻译，判的是**意思到没到**，所以保持**集合覆盖率**的宽松档
+  //   （2026-07-21 Rosie 选的 B 方案：App 里没有模型、判不了语义，只能按关键字覆盖）。
+  //   翻译本来就允许换语序，这一遍要求字序反而是错的。
+  // ②「看中写英」和「纯默写」＝默原文，**字序/词序必须对**，走 alignSeq 按顺序判
+  //   （2026-08-17 修：原来这里也是集合，词序打乱照样满分）。
   const cnTok = (s: string) => (s.match(/[一-鿿]/g) ?? []);
   let score = 0;
-  let missing: string[] = [];
+  let missCount = 0;
   if (mode === "en2cn") {
     const exp = new Set(cnTok(articleCn));
     const got = new Set(cnTok(text));
     const hit = [...exp].filter((c) => got.has(c)).length;
     score = exp.size ? Math.round((hit / exp.size) * 100) : 0;
   } else {
-    const exp = new Set(enTok(articleEn));
-    const got = new Set(enTok(text));
-    missing = [...exp].filter((w) => !got.has(w));
-    score = exp.size ? Math.round(((exp.size - missing.length) / exp.size) * 100) : 0;
+    const r = alignSeq(text, articleEn);
+    score = r.score;
+    missCount = r.total - r.hit;
   }
 
   function finish() {
@@ -933,7 +1005,16 @@ function ReadingDictation({ articleEn, articleCn, attempts, onSave, accent }: { 
       <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={mode === "en2cn" ? "写中文翻译……" : "写英文……"} className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40" />
       {graded && (
         <div className="mt-2 text-sm">
-          <p className="mb-1">命中 <b>{score}%</b>{mode === "en2cn" && <span className="text-muted-foreground">（中文按关键词覆盖，意思到了就算过）</span>}</p>
+          <p className="mb-1">
+            命中 <b>{score}%</b>
+            {mode === "en2cn" ? (
+              <span className="text-muted-foreground">（中文按关键词覆盖，意思到了就算过）</span>
+            ) : (
+              <span className="text-muted-foreground">
+                （按词序算{missCount === 0 ? "，全对，太棒了！" : `，还差 ${missCount} 个`}）
+              </span>
+            )}
+          </p>
           <DictReview answer={text} refText={ref} refLabel={mode === "en2cn" ? "中文原意" : "英文原文"} />
         </div>
       )}
@@ -1432,7 +1513,14 @@ function ReviewDictation({
     const idx = wrong[fixIdx];
     return (
       <div className="mt-2 rounded-lg border p-3" style={{ borderColor: accent + "55" }}>
-        <p className="mb-1 text-sm font-medium">订正第 {fixIdx + 1}/{wrong.length} 句（默到词序全对才进下一句）</p>
+        {/* ⚠️ 「只写这一句」必须说在明处（2026-08-17 加）：她在这个框里默了整首诗，
+            于是跟单句一比不相等、判错，而当时的红标又是无序集合、一个字都标不出来，
+            界面等于说了「错了」却指不出错在哪（原话「这个我错哪了，我看一样啊」）。 */}
+        <p className="mb-1 text-sm font-medium">
+          订正第 {fixIdx + 1}/{wrong.length} 句
+          <span className="text-red-600">（只写这一句）</span>
+          <span className="font-normal text-muted-foreground">，默到字序/词序全对才进下一句</span>
+        </p>
         <p className="mb-2 whitespace-pre-wrap rounded-md border p-2.5 text-sm leading-relaxed" style={{ background: accent + "10", borderColor: accent + "33" }}>
           {sents[idx]}
         </p>
@@ -1442,12 +1530,27 @@ function ReviewDictation({
           placeholder="照着上面这句，默写一遍……"
           className="min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
         />
-        {fixWrong && (
-          <div className="mt-1.5 text-sm">
-            <span className="text-red-600">还没对，再来一遍。</span>
-            <DictReview answer={fixText} refText={sents[idx]} refLabel="正确" />
-          </div>
-        )}
+        {fixWrong && (() => {
+          // 「你写对了这一句，但把别的也写进来了」要单独说——这是她最容易踩的一种，
+          // 只回一句「还没对」等于没说。判据：这一句能在她写的内容里按顺序整段找到，
+          // 但她写的 token 明显更多。
+          const mine = tokensOf(fixText);
+          const need = tokensOf(sents[idx]);
+          const extra = findSeq(mine, need, 0) >= 0 && mine.length > need.length;
+          return (
+            <div className="mt-1.5 text-sm">
+              {extra ? (
+                <span className="text-red-600">
+                  这一句你写对了，但<b>这一步只要写这一句</b> —— 你还多写了 {mine.length - need.length} 个字/词
+                  （看着像把整段都默进来了）。把多余的删掉再交。
+                </span>
+              ) : (
+                <span className="text-red-600">还没对，再来一遍。</span>
+              )}
+              <DictReview answer={fixText} refText={sents[idx]} refLabel="正确" />
+            </div>
+          );
+        })()}
         <div className="mt-2 flex justify-end">
           <Button size="sm" onClick={submitFix}>订正这句</Button>
         </div>
