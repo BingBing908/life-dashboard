@@ -98,7 +98,16 @@ export function ListTable({
                             <span className="w-6 shrink-0 text-xs tabular-nums text-muted-foreground">
                               {r + 1}
                             </span>
-                            <span className="min-w-0 flex-1 break-words text-sm">{cell.text}</span>
+                            <span className="min-w-0 flex-1 break-words text-sm">
+                              {cell.text}
+                              {/* 流派这类小标签直接显示在格子里——Rosie 要它是为了
+                                  「一眼看出偏了哪派」，藏进弹窗就得点开七次才数得出来 */}
+                              {cell.tag && (
+                                <span className="ml-1.5 whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                  {cell.tag}
+                                </span>
+                              )}
+                            </span>
                             {cell.badge && (
                               <span
                                 className={cn(
@@ -146,6 +155,7 @@ export function ListTable({
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">
                   {open.col}
+                  {open.cell.tag && ` · ${open.cell.tag}`}
                   {open.cell.date && ` · 学于 ${open.cell.date}`}
                   {open.cell.badge && ` · 复习 ${open.cell.badge === "✓" ? "已毕业" : open.cell.badge}`}
                 </p>

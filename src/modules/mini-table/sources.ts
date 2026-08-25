@@ -149,7 +149,7 @@ export function currentWeekDates(): string[] {
  * 好处：**零落库、零同步、自动增长**——每天注入新内容后，打开就多几行。
  */
 
-/** 清单型表格的一个格子：正面显示 text（+ 可选 badge），点开显示 detail */
+/** 清单型表格的一个格子：正面显示 text（+ 可选 badge/tag），点开显示 detail */
 export interface ListCell {
   text: string;
   detail: string;
@@ -157,6 +157,12 @@ export interface ListCell {
   badge?: string;
   /** 学的那天，显示在弹窗里 */
   date?: string;
+  /**
+   * 分类小标签，显示在格子里（不只弹窗）。古诗用它标流派。
+   * ⚠️ 刻意也显示在**格子**上而不是只在弹窗里：Rosie 要它的目的是
+   * 「一眼看出偏了哪派」，藏进弹窗就得点开七次才数得出来。
+   */
+  tag?: string;
 }
 
 export interface ListSource {
@@ -179,13 +185,38 @@ function afterDot(title: string): string {
   return i >= 0 ? title.slice(i + 1).trim() : title.trim();
 }
 
+/**
+ * 古诗标题末尾那对全角括号里的流派（「…《武陵春·风住尘香花已尽》（婉约）」→「婉约」）。
+ * ⚠️ 注入古诗时标题**一定要带这个后缀**，流派轮换规则（别连着同一派）就靠它能被看见。
+ * 复合的（「田园·山水」「豪放·哲理」「边塞·经典」）只取第一段＝主流派，
+ * 否则同一派会因为后缀不同被当成两派、数不出偏斜。
+ */
+function poemGenre(title: string): string | undefined {
+  const m = title.match(/（([^（）]+)）\s*$/);
+  if (!m) return undefined;
+  return m[1].split(/[·・]/)[0].trim() || undefined;
+}
+
+/** 「背诗 Day 6 · 李清照《武陵春·风住尘香花已尽》（婉约）」→「李清照《武陵春…》」 */
+function poemName(title: string): string {
+  return afterDot(title).replace(/（[^（）]+）\s*$/, "").trim();
+}
+
+/**
+ * 单词表的表 id。它**不在 `LIST_SOURCES` 里**——形态不是「几列并排的清单」，
+ * 而是一片散铺的词（单击看释义、双击标熟），由 `WordTable.tsx` 单独渲染。
+ * 放在这里只是为了让 `index.tsx` 和磁贴都能认出它、不用各写一个字符串。
+ */
+export const WORD_TABLE_ID = "tbl-words";
+
 export const LIST_SOURCES: Record<string, ListSource> = {
   "tbl-learned": {
-    note: "点任意一格看释义。内容实时来自日日学，每天更新后自动多出几行，不用手填。徽标＝复习进度（✓＝五次全过已毕业）。",
+    note: "点任意一格看释义。内容实时来自日日学，每天更新后自动多出几行，不用手填。徽标＝复习进度（✓＝五次全过已毕业）；古诗后面的小标签＝流派，用来看有没有偏在某一派。",
     columns: [
       { id: "proverb_en", name: "英语谚语", hint: "点开看中文释义" },
       { id: "idiom", name: "语文成语", hint: "点开看意思/出处/例句" },
-      { id: "poem", name: "古诗", hint: "点开看原诗和白话" },
+      { id: "poem", name: "古诗", hint: "点开看原诗和白话 · 标签＝流派" },
+      { id: "term", name: "AI 术语卡", hint: "点开看解释" },
     ],
     async compute() {
       const all = await listAllEntries();
@@ -209,7 +240,12 @@ export const LIST_SOURCES: Record<string, ListSource> = {
           cell(e, (e.body ?? "").split("\n")[0].trim() || afterDot(e.title ?? "")),
         ),
         idiom: pick("chinese", "成语").map((e) => cell(e, afterDot(e.title ?? ""))),
-        poem: pick("chinese", "古诗").map((e) => cell(e, afterDot(e.title ?? ""))),
+        poem: pick("chinese", "古诗").map((e) => ({
+          ...cell(e, poemName(e.title ?? "")),
+          tag: poemGenre(e.title ?? ""),
+        })),
+        // AI 术语卡：标题形如「术语卡 · MCP（模型上下文协议）＝ AI 的 USB 接口」
+        term: pick("ai", "术语卡").map((e) => cell(e, afterDot(e.title ?? ""))),
       };
     },
   },

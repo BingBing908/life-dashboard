@@ -120,3 +120,57 @@ export async function countByBoard(): Promise<Record<string, number>> {
   for (const r of rows) out[r.board] = Number(r.n);
   return out;
 }
+
+/**
+ * 单词「标熟」（2026-08-21 Rosie 要单词表：「双击标熟（但不消失只是颜色变浅一点）」）。
+ *
+ * ⚠️ **复用 `app_settings`、零改库**——跟体重库（`weight:<date>:am|pm`）和补剂打卡
+ * （`supp:<date>:<slot>:<名字>`）完全同一套做法，她不用去 Supabase 跑 SQL，
+ * 也自动跟着现有同步走。key ＝ `wordknown:<小写单词>`，值 `"1"`＝已标熟、`""`＝没标。
+ *
+ * ⚠️ **一个单词一个 key，别把整张表塞成一条 JSON**：同步是"最后写入胜出"，
+ * 整片一条的话两台设备各标几个、后同步的那台会把另一台的标记**整片盖掉**。
+ * 体重当初就是为这个拆的 am/pm，补剂拆的是单颗药。
+ *
+ * ⚠️ **取消标熟写 `""` 不是 DELETE**：删了会被别的设备的旧行"复活"（同步没有墓碑）。
+ *
+ * ⚠️ **按「单词」存，不按「哪篇精读里的那个词」存**：同一个词可能出现在多篇里，
+ * 认识了就是认识了，不该在另一篇里又变成生词。这跟单词级 SRS（`meta.wordSrs`）
+ * 的调度单位一致——那边也是按词不按篇。
+ *
+ * ⚠️ 跟 `meta.wordSrs` 是**两件事**，别混：wordSrs 是复习进度（答对了几次、什么时候再考），
+ * 这里是她主观说的「这个我会了」。她可以标熟一个还没复习过的词。
+ */
+const KNOWN_PREFIX = "wordknown:";
+
+/** 已标熟的单词集合（小写） */
+export async function getKnownWords(): Promise<Set<string>> {
+  const db = await getDb();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    `SELECT key, value FROM app_settings WHERE key LIKE '${KNOWN_PREFIX}%'`,
+  );
+  const s = new Set<string>();
+  for (const r of rows) {
+    if (r.value === "1") s.add(r.key.slice(KNOWN_PREFIX.length));
+  }
+  return s;
+}
+
+/** 标熟 / 取消标熟一个单词 */
+export async function setWordKnown(en: string, known: boolean): Promise<void> {
+  const db = await getDb();
+  const key = KNOWN_PREFIX + en.trim().toLowerCase();
+  // 单调递增时间戳：防别的设备/注入的未来时间戳把这条盖回（同体重库）
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM app_settings WHERE key = $1",
+    [key],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
+    [key, known ? "1" : "", ts],
+  );
+}
