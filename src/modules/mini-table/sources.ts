@@ -190,31 +190,26 @@ export const LIST_SOURCES: Record<string, ListSource> = {
     async compute() {
       const all = await listAllEntries();
       // 都按 entry_date 升序＝学习顺序，新学的排在最下面（跟「每次更新新增进表格」一致）
-      const byDate = (a: { entry_date: string }, b: { entry_date: string }) =>
-        a.entry_date < b.entry_date ? -1 : a.entry_date > b.entry_date ? 1 : 0;
-      const pick = (board: string, kind: string) =>
-        all.filter((e) => e.board === board && e.kind === kind).sort(byDate);
+      // ⚠️ Entry 的 entry_date / title / body 都是 `string | null`，一律兜住空值
+      const dateKey = (e: Entry) => e.entry_date ?? "";
+      const pick = (board: string, kind: string): Entry[] =>
+        all
+          .filter((e) => e.board === board && e.kind === kind)
+          .sort((a, b) => (dateKey(a) < dateKey(b) ? -1 : dateKey(a) > dateKey(b) ? 1 : 0));
+      const cell = (e: Entry, text: string): ListCell => ({
+        text,
+        detail: e.body ?? "",
+        badge: revBadge(e),
+        date: e.entry_date ?? undefined,
+      });
 
       return {
         // 英语谚语：正面给英文那句（body 第一行），弹窗给全文（含中文释义）
-        proverb_en: pick("english", "谚语").map((e) => ({
-          text: (e.body ?? "").split("\n")[0].trim() || afterDot(e.title),
-          detail: e.body ?? "",
-          badge: revBadge(e),
-          date: e.entry_date,
-        })),
-        idiom: pick("chinese", "成语").map((e) => ({
-          text: afterDot(e.title),
-          detail: e.body ?? "",
-          badge: revBadge(e),
-          date: e.entry_date,
-        })),
-        poem: pick("chinese", "古诗").map((e) => ({
-          text: afterDot(e.title),
-          detail: e.body ?? "",
-          badge: revBadge(e),
-          date: e.entry_date,
-        })),
+        proverb_en: pick("english", "谚语").map((e) =>
+          cell(e, (e.body ?? "").split("\n")[0].trim() || afterDot(e.title ?? "")),
+        ),
+        idiom: pick("chinese", "成语").map((e) => cell(e, afterDot(e.title ?? ""))),
+        poem: pick("chinese", "古诗").map((e) => cell(e, afterDot(e.title ?? ""))),
       };
     },
   },
