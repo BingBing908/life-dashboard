@@ -1451,13 +1451,38 @@ function ReviewDictation({
   const [fixText, setFixText] = useState("");
   const [fixWrong, setFixWrong] = useState(false);
   const [done, setDone] = useState(passed);
+  /**
+   * 复验范围＝**本轮订正过的那几句**的下标（全局下标，对应 sents）。
+   *
+   * ⚠️⚠️ 2026-08-21 改（Rosie：「有的错漏其实比较小，写错了没什么影响，但是订正后
+   * 还要写全篇，耗时太久」）。原来订正完一律回到**默全文**且必须零错——于是
+   * **复验成本跟文章长度成正比，跟她错了多少无关**：8 句的精读里错 6 个冠词/介词/三单，
+   * 也要把 8 句重默一遍，而其中大半是她本来就写对的。
+   *
+   * ⚠️ 但**判定标准一个字都没放松**：她错的 for a walk / she walks / after the walk
+   * 全是冠词、介词、三单，正好是 A2 阶段最该练的，判宽了等于放过她最需要的部分。
+   * 所以改的是**范围**不是**尺度**——跟「精读第 3 轮起只默背诵句」(`isShortRound`)
+   * 是同一个思路：**保持严格、压缩范围**。
+   *
+   * 空数组＝默全文（第 1 轮永远是全文，只有订正后的复验才缩范围）。
+   */
+  const [verifySents, setVerifySents] = useState<number[]>([]);
+  /** 她主动选择「这一轮还是默全文」（想加深印象时用）。默认关＝只默订正过的那几句 */
+  const [scopeAll, setScopeAll] = useState(false);
   // 第一遍整篇默写错了几句——存进复习记录当「难度」，用来回答
   // 「是真记牢了还是每次都在重新背」（只有日期答不了这个）
   const [firstWrong, setFirstWrong] = useState<number | null>(null);
 
+  /** 这一轮实际要默的句子（全局下标）。第 1 轮＝全文；订正后的复验＝只默订正过的那几句 */
+  const activeIdx =
+    verifySents.length > 0 && !scopeAll ? verifySents : sents.map((_, i) => i);
+  const partial = activeIdx.length < sents.length;
+
   function gradeTotal() {
     // 顺序查找对齐，不按位置——她敲的换行不该让写对的句子背锅。见 gradeSents 注释
-    const bad = gradeSents(text, sents);
+    // ⚠️ 只拿 activeIdx 里那几句去比；返回的下标是 activeIdx 内部的位置，
+    //    要映射回**全局**下标再存进 wrong，否则逐句订正会拎错句子。
+    const bad = gradeSents(text, activeIdx.map((i) => sents[i])).map((k) => activeIdx[k]);
     setGraded(true);
     setWrong(bad);
     // 只记第一遍的错句数（后面几轮是订正后的复验，不代表记忆强度）
@@ -1475,7 +1500,9 @@ function ReviewDictation({
       return;
     }
     if (fixIdx + 1 >= wrong.length) {
-      // 全部订正完 → 回到总体默写再验一遍
+      // 全部订正完 → 回去复验。⚠️ 只复验**刚订正过的这几句**，不再默全文（见 verifySents 注释）
+      setVerifySents(wrong);
+      setScopeAll(false);
       setPhase("total");
       setText("");
       setGraded(false);
@@ -1498,6 +1525,8 @@ function ReviewDictation({
     setFixText("");
     setFixWrong(false);
     setFirstWrong(null);
+    setVerifySents([]); // 重来一遍就是从全文开始
+    setScopeAll(false);
   }
 
   if (done) {
@@ -1563,6 +1592,31 @@ function ReviewDictation({
       <p className="mb-2 text-sm font-medium">
         凭记忆默写{round > 1 ? `（第 ${round} 轮 · 订正后复验）` : ""}
       </p>
+      {/* 复验范围提示 + 让她能主动改成默全文（2026-08-21）。
+          默认只复验刚订正过的那几句——原来一律默全文，成本跟文章长度成正比、
+          跟她错多少无关，8 句里错 6 个小词也要重默 8 句。 */}
+      {verifySents.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-muted px-2.5 py-2 text-xs">
+          {partial ? (
+            <span>
+              这一轮<b className="text-foreground">只默你刚订正过的 {verifySents.length} 句</b>
+              （原文第 {verifySents.map((i) => i + 1).join("、")} 句），按顺序连着写就行
+            </span>
+          ) : (
+            <span>这一轮默<b className="text-foreground">整篇</b></span>
+          )}
+          <button
+            onClick={() => {
+              setScopeAll((v) => !v);
+              setText("");
+              setGraded(false);
+            }}
+            className="ml-auto rounded-md border bg-card px-2 py-0.5 hover:bg-accent"
+          >
+            {scopeAll ? `→ 只默那 ${verifySents.length} 句` : "→ 改成默整篇"}
+          </button>
+        </div>
+      )}
       {/* 提示：告诉她默哪一条，但不给答案。古诗给标题作者、谚语给中文、精读给中文对照 */}
       {hint && (
         <div
@@ -1583,8 +1637,13 @@ function ReviewDictation({
       />
       {graded && wrong.length > 0 && (
         <div className="mt-2 text-sm">
-          <p className="mb-1 text-red-600">有 {wrong.length} 句没对，逐句订正一下。</p>
-          <DictReview answer={text} refText={target} />
+          <p className="mb-1 text-red-600">
+            有 {wrong.length} 句没对，逐句订正一下。
+            {partial && <span className="text-muted-foreground">（这一轮只算那 {activeIdx.length} 句）</span>}
+          </p>
+          {/* ⚠️ 部分复验时参考原文只能给**这一轮要默的那几句**——给整篇的话，
+              没被要求默的句子会全被标红（红＝漏写），看着像错了一片。 */}
+          <DictReview answer={text} refText={activeIdx.map((i) => sents[i]).join(" ")} />
         </div>
       )}
       <div className="mt-2 flex justify-end gap-2">
