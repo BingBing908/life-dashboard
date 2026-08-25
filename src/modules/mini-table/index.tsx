@@ -14,8 +14,9 @@ import {
   type MiniColumn,
   type MiniTable,
 } from "./data";
-import { TABLE_SOURCES } from "./sources";
+import { LIST_SOURCES, TABLE_SOURCES } from "./sources";
 import { TableDetail } from "./TableDetail";
+import { ListTable } from "./ListTable";
 
 function Card() {
   const [tables, setTables] = useState<MiniTable[] | null>(null);
@@ -52,7 +53,10 @@ function TableTile({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const bound = !!TABLE_SOURCES[table.id];
+  // 清单型表（LIST_SOURCES）没有落库的行，`rows` 查出来永远是 0——
+  // 直接显示「0 行」会误导，所以这类表改显示列名概要（2026-08-21）。
+  const listSrc = LIST_SOURCES[table.id];
+  const bound = !!TABLE_SOURCES[table.id] || !!listSrc;
   // hover 语言归 `CARD_BTN` 统一管（2026-07-30）：原来这里是「描边+阴影」、总览完成度卡是
   // 「只有底色」、饮食页跳转块是「描边+底色」，三套可点卡片点起来手感不一样。布局类照旧往后加。
   return (
@@ -70,7 +74,9 @@ function TableTile({
         <div className="min-w-0 flex-1">
           <p className={cn("truncate", CARD_TITLE)}>{table.name}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {rows === undefined ? "…" : `${rows} 行`} · {table.columns.length} 列
+            {listSrc
+              ? listSrc.columns.map((c) => c.name).join(" · ")
+              : `${rows === undefined ? "…" : `${rows} 行`} · ${table.columns.length} 列`}
           </p>
         </div>
         <button
@@ -91,7 +97,7 @@ function TableTile({
           </span>
         )}
         <span className="ml-auto text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-          点开全屏编辑 →
+          {listSrc ? "点开浏览 →" : "点开全屏编辑 →"}
         </span>
       </div>
     </div>
@@ -135,6 +141,12 @@ function Page() {
 
   const active = tables.find((t) => t.id === activeId);
   if (active) {
+    // 清单型表（只读、实时算、点格看详情）走 ListTable；其余走可编辑的 TableDetail。
+    // 判据就是 LIST_SOURCES 里有没有这张表，见 sources.ts 顶部注释。
+    const listSrc = LIST_SOURCES[active.id];
+    if (listSrc) {
+      return <ListTable table={active} source={listSrc} onBack={() => nav([])} />;
+    }
     return (
       <TableDetail
         table={active}

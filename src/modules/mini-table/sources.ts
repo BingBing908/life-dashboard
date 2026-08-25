@@ -2,8 +2,9 @@ import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayCalories, getMeals, getWeightLog, listDrinks, listSnacks } from "../supplement/data";
 import { listCheckStatus, listItems } from "../study-plan/data";
 import { listTodos } from "../todo/data";
-import { listAllEntries } from "../study-log/data";
+import { listAllEntries, type Entry } from "../study-log/data";
 import { entryDone } from "../study-log";
+import { isGraduated, isReviewable, reviewStage } from "../study-log/review";
 
 /** 日日学里按天统计的学习板块（书籍/电影不是每日内容，不计） */
 const LOG_BOARDS: [string, string][] = [
@@ -128,3 +129,93 @@ export function currentWeekDates(): string[] {
   const mon = mondayOf(todayStr());
   return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
 }
+
+/* ══════════════════════════ 清单型表格（2026-08-21 加） ══════════════════════════
+ *
+ * Rosie 要一张「学习表格」：三列＝英语谚语 / 语文成语 / 古诗，点格子弹出释义，
+ * 目的是「一眼看出来都学了什么」，且**每次更新自动新增**。
+ *
+ * ⚠️⚠️ **为什么必须另开一套机制，不能加一条 `TABLE_SOURCES`**：
+ *   ① `TableDetail` 只渲染 `mini_table_rows` 里**真实存在的行**，`TABLE_SOURCES` 只是
+ *      **覆盖已有行的格子值**。要「自动新增行」就得定期往库里写行 ⇒ 引入同步和重复风险
+ *      （种子重复那个坑的同一类问题）。这里的数据源已经在 `study_entries` 里了，
+ *      **再复制一份进 mini_table_rows 违反「不复制数据」**。
+ *   ② 现有单元格只有四种编辑器，**没有「点开看详情」这种形态**。
+ *
+ * ⚠️ **而且它本质不是「表格」，是三个并排的清单**：第 3 条谚语和第 3 首古诗之间
+ *   没有任何关系，而表格的「行」隐含「这一行的格子相关」。三列长度也不同
+ *   （古诗 7 / 成语 6 / 谚语 5）。所以清单型表：**只读、行数＝最长那列、格子各自独立**。
+ *
+ * 好处：**零落库、零同步、自动增长**——每天注入新内容后，打开就多几行。
+ */
+
+/** 清单型表格的一个格子：正面显示 text（+ 可选 badge），点开显示 detail */
+export interface ListCell {
+  text: string;
+  detail: string;
+  /** 右上角小徽标，这里用来放复习进度（如 `3/5`、`✓`） */
+  badge?: string;
+  /** 学的那天，显示在弹窗里 */
+  date?: string;
+}
+
+export interface ListSource {
+  columns: { id: string; name: string; hint?: string }[];
+  /** 说明行（表头下面那句话） */
+  note?: string;
+  compute: () => Promise<Record<string, ListCell[]>>;
+}
+
+/** 复习进度徽标：毕业＝✓，否则 `已过/5`；不进复习队列的内容不给徽标 */
+function revBadge(e: Entry): string | undefined {
+  if (!isReviewable(e)) return undefined;
+  if (isGraduated(e)) return "✓";
+  return `${reviewStage(e)}/5`;
+}
+
+/** 标题里 `·` 之后那截（「成语 · 青出于蓝」→「青出于蓝」）；没有 `·` 就用整个标题 */
+function afterDot(title: string): string {
+  const i = title.indexOf("·");
+  return i >= 0 ? title.slice(i + 1).trim() : title.trim();
+}
+
+export const LIST_SOURCES: Record<string, ListSource> = {
+  "tbl-learned": {
+    note: "点任意一格看释义。内容实时来自日日学，每天更新后自动多出几行，不用手填。徽标＝复习进度（✓＝五次全过已毕业）。",
+    columns: [
+      { id: "proverb_en", name: "英语谚语", hint: "点开看中文释义" },
+      { id: "idiom", name: "语文成语", hint: "点开看意思/出处/例句" },
+      { id: "poem", name: "古诗", hint: "点开看原诗和白话" },
+    ],
+    async compute() {
+      const all = await listAllEntries();
+      // 都按 entry_date 升序＝学习顺序，新学的排在最下面（跟「每次更新新增进表格」一致）
+      const byDate = (a: { entry_date: string }, b: { entry_date: string }) =>
+        a.entry_date < b.entry_date ? -1 : a.entry_date > b.entry_date ? 1 : 0;
+      const pick = (board: string, kind: string) =>
+        all.filter((e) => e.board === board && e.kind === kind).sort(byDate);
+
+      return {
+        // 英语谚语：正面给英文那句（body 第一行），弹窗给全文（含中文释义）
+        proverb_en: pick("english", "谚语").map((e) => ({
+          text: (e.body ?? "").split("\n")[0].trim() || afterDot(e.title),
+          detail: e.body ?? "",
+          badge: revBadge(e),
+          date: e.entry_date,
+        })),
+        idiom: pick("chinese", "成语").map((e) => ({
+          text: afterDot(e.title),
+          detail: e.body ?? "",
+          badge: revBadge(e),
+          date: e.entry_date,
+        })),
+        poem: pick("chinese", "古诗").map((e) => ({
+          text: afterDot(e.title),
+          detail: e.body ?? "",
+          badge: revBadge(e),
+          date: e.entry_date,
+        })),
+      };
+    },
+  },
+};
