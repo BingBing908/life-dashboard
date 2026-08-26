@@ -25,6 +25,8 @@ export function WordTable({ table, onBack }: { table: MiniTable; onBack: () => v
   const [words, setWords] = useState<{ en: string; cn: string; from: string[] }[] | null>(null);
   const [known, setKnown] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null); // 展开释义的那个词（小写）
+  /** 只看还没标熟的。标熟的词刻意不消失（她要求的），但攒多了会占视野，给个开关 */
+  const [onlyUnknown, setOnlyUnknown] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -74,6 +76,34 @@ export function WordTable({ table, onBack }: { table: MiniTable; onBack: () => v
   const knownCount = words ? words.filter((w) => known.has(w.en.toLowerCase())).length : 0;
   const cur = words?.find((w) => w.en.toLowerCase() === open);
 
+  /**
+   * 分成「单词」和「短语」两组，组内按字母序。
+   *
+   * ⚠️ 为什么这么分（2026-08-21 Rosie 说「眼花缭乱」）：她的生词里**大部分其实是短语**
+   * （go for a walk / be full of / in front of），单词只有十几个。混在一起时长短悬殊、
+   * 毫无结构；分开之后每组内部长度接近，网格立刻齐整。
+   * 而且这个分法有教学意义：**短语要整块记，单词可以单记**——这也正是喂养规则里
+   * 「生词要含短语、别只给单词」的原因，分组后她能直接看到短语占了多大比重。
+   *
+   * ⚠️ 组内排字母序而不是学习顺序：52 个往上涨之后，「找某个词」比「按学的顺序看」常用。
+   * 学的顺序在弹窗里有（出自 Day X），不丢。
+   */
+  const visible = (words ?? []).filter((w) => !onlyUnknown || !known.has(w.en.toLowerCase()));
+  const byAlpha = (a: { en: string }, b: { en: string }) =>
+    a.en.toLowerCase().localeCompare(b.en.toLowerCase());
+  const groups = [
+    {
+      name: "单词",
+      hint: "可以单个记",
+      items: visible.filter((w) => !w.en.trim().includes(" ")).sort(byAlpha),
+    },
+    {
+      name: "短语",
+      hint: "整块记，别拆开背",
+      items: visible.filter((w) => w.en.trim().includes(" ")).sort(byAlpha),
+    },
+  ];
+
   return (
     <div className="flex h-full flex-col p-6">
       <div className="mb-3 flex shrink-0 items-center gap-3">
@@ -88,41 +118,69 @@ export function WordTable({ table, onBack }: { table: MiniTable; onBack: () => v
           </p>
         </div>
       </div>
-      <p className="mb-3 shrink-0 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-        <b>单击</b>看中文释义，<b>双击</b>标熟／取消标熟。标熟的词<b>不会消失</b>，只是颜色变浅——
-        它还留在表里，方便你回头确认。词来自各篇精读的生词本，全局去重、实时更新。
-      </p>
+      <div className="mb-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+        <span>
+          <b>单击</b>看中文释义，<b>双击</b>标熟／取消标熟。标熟的词<b>不会消失</b>，只是颜色变浅。
+          按单词／短语分组，组内字母序。
+        </span>
+        <button
+          onClick={() => setOnlyUnknown((v) => !v)}
+          className={cn(
+            "ml-auto shrink-0 rounded-md border px-2 py-1",
+            onlyUnknown ? "border-primary bg-card text-primary" : "bg-card hover:bg-accent",
+          )}
+        >
+          {onlyUnknown ? "✓ 只看未标熟" : "只看未标熟"}
+        </button>
+      </div>
 
-      <div className="min-h-0 flex-1 overflow-auto rounded-xl border p-3">
+      <div className="min-h-0 flex-1 overflow-auto rounded-xl border p-4">
         {words === null && <p className="py-10 text-center text-sm text-muted-foreground">读取中…</p>}
         {words !== null && words.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
             还没有生词。日日学的英语精读更新后这里会自动出现。
           </p>
         )}
-        <div className="flex flex-wrap gap-2">
-          {(words ?? []).map((w) => {
-            const isKnown = known.has(w.en.toLowerCase());
-            const isOpen = open === w.en.toLowerCase();
-            return (
-              <button
-                key={w.en}
-                onClick={() => setOpen(isOpen ? null : w.en.toLowerCase())}
-                onDoubleClick={() => toggleKnown(w.en)}
-                title={isKnown ? "已标熟（双击取消）" : "单击看释义 · 双击标熟"}
-                className={cn(
-                  "select-none rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                  isKnown
-                    ? "border-dashed bg-transparent text-muted-foreground/50"
-                    : "bg-card hover:bg-accent/50",
-                  isOpen && "border-primary ring-1 ring-primary/40",
-                )}
-              >
-                {w.en}
-              </button>
-            );
-          })}
-        </div>
+        {groups.map((g) =>
+          g.items.length === 0 ? null : (
+            <div key={g.name} className="mb-5 last:mb-0">
+              <p className="mb-2 flex items-baseline gap-2 border-b pb-1.5 text-sm font-semibold">
+                {g.name}
+                <span className="font-normal text-muted-foreground">{g.items.length}</span>
+                <span className="text-xs font-normal text-muted-foreground">{g.hint}</span>
+              </p>
+              {/* ⚠️ **等宽网格，不是 wrap flex**（2026-08-21 Rosie：「能不能规整一点，
+                  看起来眼花缭乱的」）。原来是 flex-wrap + 各自宽度的 chip，而这些词长短
+                  差得极大（get up ↔ find something to do），铺出来右边界是波浪形、
+                  列也对不齐，眼睛没有落点。网格把列钉死，短语再长也只影响自己那一格。
+                  ⚠️ 也**不再截断**：原来长的会变成「the trip takes …」，信息直接丢了。
+                  现在允许换行、整行等高（items-stretch + text-left）。 */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {g.items.map((w) => {
+                  const isKnown = known.has(w.en.toLowerCase());
+                  const isOpen = open === w.en.toLowerCase();
+                  return (
+                    <button
+                      key={w.en}
+                      onClick={() => setOpen(isOpen ? null : w.en.toLowerCase())}
+                      onDoubleClick={() => toggleKnown(w.en)}
+                      title={isKnown ? "已标熟（双击取消）" : "单击看释义 · 双击标熟"}
+                      className={cn(
+                        "select-none break-words rounded-lg border px-3 py-2 text-left text-sm transition-colors",
+                        isKnown
+                          ? "border-dashed bg-transparent text-muted-foreground/45"
+                          : "bg-card hover:bg-accent/50",
+                        isOpen && "border-primary ring-1 ring-primary/40",
+                      )}
+                    >
+                      {w.en}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ),
+        )}
       </div>
 
       {/* 释义弹窗。用弹窗而不是就地展开，是为了不让网格里的词一展开就整片位移 */}
