@@ -114,11 +114,16 @@ const DOMAINS: Domain[] = [
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
   { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false, weekdaysOnly: true },
+  // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min（19:00–20:35，中间 19:45 起身 5 分钟），
+  // 运动槽从 50min 压到 25min（跟练本来就只有 20min），阅读/睡前整体后移 10 分钟。
+  // 时间全部来自「运动槽虚胖 30min + 20:40–21:00 的空档 20min」，没动早起也没砍阅读。
+  // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），她想恢复时
+  // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
   { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
-  { key: "sport", name: "运动", start: 1180, time: "19:40", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
-  { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
+  { key: "sport", name: "运动", start: 1235, time: "20:35", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
+  { key: "reading", name: "阅读", start: 1270, time: "21:10", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
   // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
-  { key: "bedtime", name: "睡前", start: 1300, time: "21:40", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
+  { key: "bedtime", name: "睡前", start: 1310, time: "21:50", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
 ];
 
 function nowMinutes(): number {

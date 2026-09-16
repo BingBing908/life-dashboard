@@ -1,7 +1,7 @@
 import type { Track } from "./data";
 
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 21;
+export const SEED_VERSION = 22;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -100,32 +100,33 @@ export const SEED_ITEMS: {
     url: "https://www.bilibili.com/video/BV1yC4y127uj/",
   },
   {
-    track: "cert",
+    track: "ai",
     days: "6",
     time_slot: "14:00–16:00",
-    title: "华为认证·HCIE 实验（eNSP 大块）",
-    detail: "冲 HCIE，但从 HCIA→HCIP 基础往上推进；周六下午整块时间正好做 eNSP 拓扑实验",
+    title: "AI 刷课·周末大块（原华为认证时段）",
+    detail: "周六下午整块两小时，用来啃需要连贯注意力的内容：一整章课程、或一篇 RAG/Agent 的技术文。跟晚间的碎片刷课分工——晚上看短段落，这里啃硬的。（2026-09-01 从「华为认证·eNSP 实验」换过来）",
+    url: "https://www.bilibili.com/video/BV1yC4y127uj/",
   },
-  // ---------- 晚间学习 ----------
+  // ---------- 晚间学习（2026-09-01 从 40 分钟扩到 90 分钟，见文件头说明）----------
   {
     track: "ai",
-    days: "1,2,4,5",
-    time_slot: "19:00–19:40",
-    title: "AI 刷课（晚间碎片）",
-    detail: "沿路线看课：吴恩达 AI for Everyone→李宏毅生成式AI导论→Prompt→RAG/Agent；40分钟一小段，边看边记「AI 名词手册」",
+    days: "1,2,3,4,5",
+    time_slot: "19:00–19:45",
+    title: "AI 学习① 看课（45 分钟）",
+    detail: "沿路线看课：吴恩达 AI for Everyone→李宏毅生成式AI导论→Prompt→RAG/Agent。边看边记「AI 名词手册」。⚠️ 这一段结束后起身 5 分钟再坐下（护腰，跟晨间英语块同一条规矩），别连着坐满 90 分钟",
     url: "https://www.bilibili.com/video/BV1yC4y127uj/",
   },
   {
-    track: "cert",
-    days: "3",
-    time_slot: "19:00–19:40",
-    title: "华为认证·HCIE 目标（理论/看课）",
-    detail: "认证降为每周两次副线（周三晚看课+周六下午实验）；内容从 HCIA→HCIP 基础起步，逐步冲 HCIE",
+    track: "ai",
+    days: "1,2,3,4,5",
+    time_slot: "19:50–20:35",
+    title: "AI 学习② 动手（45 分钟）",
+    detail: "跟①分工：①是输入（看课），②是输出——把刚学的东西动手试一遍，或推进 NOC Sentinel / life-dashboard 里的一小块。⚠️ 学 AI 最容易的失败方式是只看不做；这一段就是为了让每天都有一点产出",
   },
   {
     track: "english",
     days: "6",
-    time_slot: "19:00–19:40",
+    time_slot: "19:00–19:45",
     title: "英语·本周复盘",
   },
   // ---------- 晚间运动 ----------
@@ -135,7 +136,7 @@ export const SEED_ITEMS: {
     // 不要别的」）。它本来的角色是视频跟练前的「开场」，而散步日没有视频跟练、出门 1 小时本身就是全部内容，
     // 再垫 10 分钟腰椎稳定只会让人出不了门。周日虽是恢复日但仍在家做，保留。
     days: "1,2,3,5,7",
-    time_slot: "19:40–19:50",
+    time_slot: "20:35–20:45",
     title: "腰椎稳定 10 分钟（每晚开场）",
     detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停。（视频待换成 Rosie 收藏的腰椎稳定跟练）",
     // url 待定：原 BV11f421Q7ZU 非 Rosie 收藏，已移除；Rosie 提供她收藏的链接后再填
@@ -146,7 +147,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "1",
-    time_slot: "19:50–20:40",
+    time_slot: "20:45–21:10",
     title: "C戈·瘦斜方肌 20 分钟（针对斜方肌肥大）",
     detail: "正对你的斜方肌肥大；圆肩另配 C戈肩带综合矫正 BV15T411j7bs",
     url: "https://www.bilibili.com/video/BV1Qv411u7aF/",
@@ -154,7 +155,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "2",
-    time_slot: "19:50–20:40",
+    time_slot: "20:45–21:10",
     title: "欧阳春晓·芭杆练手臂 x 薄背 20 分钟（全程站立）",
     url: "https://www.bilibili.com/video/BV11Autz4EoV/",
     period_action: "swap",
@@ -163,7 +164,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "3",
-    time_slot: "19:50–20:40",
+    time_slot: "20:45–21:10",
     title: "24 式太极·邱慧芳教学（分段学）",
     detail: "跟你收藏的邱慧芳教学版，一次学一两式",
     url: "https://www.bilibili.com/video/BV1iE411c7Ni/",
@@ -179,7 +180,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "5",
-    time_slot: "19:50–20:40",
+    time_slot: "20:45–21:10",
     title: "欧阳春晓·大腿内侧 x 盆底肌 x 骨盆稳定 20 分钟",
     detail: "针对骨盆前倾；膝超伸另配 C戈膝超伸矫正 BV1K7411b7yo",
     url: "https://www.bilibili.com/video/BV1PhHrzfEqN/",
@@ -195,7 +196,7 @@ export const SEED_ITEMS: {
   {
     track: "sport",
     days: "7",
-    time_slot: "19:50–20:40",
+    time_slot: "20:45–21:10",
     title: "恢复日·泡沫轴放松（周日下午搓澡+休闲，晚间放松即可）",
     detail: "泡沫轴放松，重点滚斜方肌和小腿；周日安排搓澡+休闲，不再出门运动",
     url: "https://www.bilibili.com/video/BV1pp4y1X7og/",
@@ -204,21 +205,21 @@ export const SEED_ITEMS: {
   {
     track: "wellness",
     days: "1,5,6,7",
-    time_slot: "21:00–21:40",
+    time_slot: "21:10–21:50",
     title: "泡脚",
     detail: "和阅读同时段，边泡边看书；水别太烫、15-20分钟即可；其他晚上想泡随时加",
   },
   {
     track: "reading",
     days: "*",
-    time_slot: "21:00–21:40",
+    time_slot: "21:10–21:50",
     title: "阅读（泡脚时段）",
     detail: "当前：《她对此感到厌烦》；之后：长安的荔枝→秋园→显微镜下的大明→82年生的金智英→万历十五年→始于极限→叫魂→翦商；历史类只收史实可靠的；50 页弃权规则，只记进度不设 KPI",
   },
   {
     track: "wellness",
     days: "*",
-    time_slot: "21:40–22:00",
+    time_slot: "21:50–22:10",
     title: "睡前拉伸",
     detail: "跟练 10-15 分钟；顺便吃当日补剂（小红镁/钙镁锌）",
     url: "https://www.bilibili.com/video/BV1UovWBNENi/",
@@ -236,7 +237,7 @@ export interface MonthPlan {
 }
 
 export const SEMESTER_TARGET =
-  "2026-12-27 验收总目标：体重 ≤58kg 达标 / ≤56.5kg 优秀（55kg 顺延至 2027 Q1，50kg 不设为目标）· 英语学完新概念一册、开二册，无字幕看《查莉》听懂 50-60%（A2 起步，务实目标）· 【主线】手握 2 个可写进简历的 AI 落地作品（NOC Sentinel 补 evals+数据、life-dashboard 加 AI 功能）+ 简历更新 · 【副线】华为认证按 HCIA→HCIP 稳步推进（周三晚+周六下午两次）";
+  "2026-12-27 验收总目标：体重 ≤58kg 达标 / ≤56.5kg 优秀（55kg 顺延至 2027 Q1，50kg 不设为目标）· 英语学完新概念一册、开二册，无字幕看《查莉》听懂 50-60%（A2 起步，务实目标）· 【主线】手握 2 个可写进简历的 AI 落地作品（NOC Sentinel 补 evals+数据、life-dashboard 加 AI 功能）+ 简历更新 · ⏸ 华为认证已于 2026-09-01 暂停（Rosie：「浪费时间」），原周三晚 + 周六下午两个时段全部并给 AI；网络背景仍可作简历差异化，想恢复时把 seed.ts 里那两条加回来即可";
 
 /**
  * 上面那段总目标的**短标签版**，给总览「四条线」卡第三行用（一格只放得下几个字）。
@@ -246,9 +247,16 @@ export const SEMESTER_TARGET =
  */
 export const ACCEPTANCE_DATE = "2026-12-27";
 
-export const LINE_TARGETS: { key: "english" | "cert" | "ai" | "weight"; name: string; target: string }[] = [
+export const LINE_TARGETS: {
+  key: "english" | "cert" | "ai" | "weight";
+  name: string;
+  target: string;
+  /** 这条线已暂停：卡片上灰掉、不报「断了」的警，但**保留那一格**——
+   *  她说的是「暂时停止」，悄悄删掉会让她忘了自己停过什么（2026-09-01）。 */
+  paused?: boolean;
+}[] = [
   { key: "english", name: "英语", target: "无字幕听懂 50–60%" },
-  { key: "cert", name: "华为认证", target: "HCIA → HCIP" },
+  { key: "cert", name: "华为认证", target: "已暂停 · 时间并给 AI", paused: true },
   { key: "ai", name: "AI", target: "两个项目进简历" },
   { key: "weight", name: "体重", target: "≤58kg 达标" },
 ];
@@ -261,7 +269,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "周期① 适应周 ×2：把每天的动作学会，跟练只做 2/3 量",
       english: "摸底完成（A2：地基扎实、缺语法）；新概念一册开学，前段可加速",
-      cert: "副线启动（周三晚+周六下午）：从 HCIA 复习起步",
+      cert: "⏸ 已于 2026-09-01 暂停（时间并给 AI）",
       ai: "主线启动：晚间刷《AI for Everyone》、开「AI 名词手册」；周末先摸清两个项目现状",
     },
     weeks: [
@@ -276,7 +284,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "周期① 完成 → 周期② 开始，心肺日开始足量",
       english: "新概念一册 L17–L60；基础 2000 词起步；查莉中字磨耳朵",
-      cert: "HCIA 复习推进（每周两次的节奏，不赶）",
+      cert: "⏸ 已暂停",
       ai: "看完 AI for Everyone + 3B1B 神经网络；周末给 NOC Sentinel 补使用数据统计",
     },
     weeks: [
@@ -293,7 +301,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "周期②→③，心肺日 +10 分钟",
       english: "新概念一册收尾 L61–L72 → 二册开篇；影子跟读加量",
-      cert: "HCIA 收尾 → HCIP 起步；周六下午 eNSP 入门实验",
+      cert: "⏸ 已暂停",
       ai: "李宏毅生成式AI导论 + 提示工程；给 life-dashboard 加第一个 AI 小功能",
     },
     weeks: [
@@ -309,7 +317,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "引入走跑交替（先置办高支撑运动内衣 + 学跑姿视频），周期③→④",
       english: "新概念二册推进；启用新东方四级词汇；查莉切双字幕精听",
-      cert: "HCIP 科目一",
+      cert: "⏸ 已暂停",
       ai: "RAG/Agent 概念；life-dashboard AI 功能做完（作品②）+ 写第一版项目文档",
     },
     weeks: [
@@ -325,7 +333,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "走跑交替进阶（跑段逐周加长），体态复评",
       english: "新概念二册；查莉英文字幕挑战；每周 2 次和 Claude 英文对话",
-      cert: "HCIP 科目一收尾 / 科目二",
+      cert: "⏸ 已暂停",
       ai: "评测(Evals)实战：给 NOC Sentinel 建评测集+抽检表（作品①升级）",
     },
     weeks: [
@@ -341,7 +349,7 @@ export const SEMESTER_PLAN: MonthPlan[] = [
     goals: {
       sport: "维持强度；聚餐日先吃蛋白质、饮食记录不断",
       english: "里程碑：无字幕看一集查莉，目标听懂 ≥50-60%（A2 起步的务实线）",
-      cert: "HCIP 继续；年底看进度评估要不要提速冲 HCIE",
+      cert: "⏸ 已暂停；年底若想恢复，把 seed.ts 里那两条加回来",
       ai: "NOC Sentinel 复盘文档 + AI PM 简历/作品集成稿（两个作品都能讲清影响+evals+迭代）",
     },
     weeks: [

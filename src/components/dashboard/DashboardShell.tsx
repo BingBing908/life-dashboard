@@ -403,7 +403,8 @@ export function DashboardShell({ onOpenModule }: Props) {
                 <button
                   key={l.key}
                   onClick={() => onOpenModule(l.moduleId)}
-                  className={cn(CARD_BTN, "flex flex-col gap-1")}
+                  // 暂停的线整格压暗：既不消失（她说的是"暂时"停），也不抢注意力
+                  className={cn(CARD_BTN, "flex flex-col gap-1", l.paused && "opacity-55")}
                 >
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-sm font-medium">{l.name}</span>

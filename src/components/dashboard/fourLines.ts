@@ -50,6 +50,8 @@ export interface LineCell {
   target: string;
   /** 点这一格跳哪个模块 */
   moduleId: string;
+  /** 这条线已暂停：整格灰掉、不报警（见 planLine 里的说明） */
+  paused?: boolean;
 }
 
 const PLAN_LINES: { key: "english" | "cert" | "ai"; track: Track }[] = [
@@ -89,6 +91,24 @@ function planLine(
   today: string,
 ): LineCell {
   const cfg = LINE_TARGETS.find((l) => l.key === key)!;
+
+  // ⏸ 这条线被暂停了（2026-09-01 华为认证）：**保留格子但不报警**。
+  // ⚠️ 为什么不直接删掉这一格：她说的是「暂时停止」，悄悄删掉会让她忘了自己停过什么；
+  // 而继续显示「还没推进过 ⚠」又会变成每天都在的噪音——所以给一个明确的「已暂停」态。
+  if (cfg.paused) {
+    return {
+      key,
+      name: cfg.name,
+      pointer: "已暂停",
+      pointerFrom: "2026-09-01 起暂停，原时段并给 AI",
+      status: "不计入进度",
+      warn: false,
+      target: cfg.target,
+      moduleId: "study-plan",
+      paused: true,
+    };
+  }
+
   const mine = items.filter((i) => i.track === track);
 
   // ── ① 指针：该线所有条目里，笔记日期最新的那条
