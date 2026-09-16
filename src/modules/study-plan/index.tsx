@@ -114,13 +114,17 @@ const DOMAINS: Domain[] = [
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
   { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false, weekdaysOnly: true },
-  // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min（19:00–20:35，中间 19:45 起身 5 分钟），
-  // 运动槽从 50min 压到 25min（跟练本来就只有 20min），阅读/睡前整体后移 10 分钟。
-  // 时间全部来自「运动槽虚胖 30min + 20:40–21:00 的空档 20min」，没动早起也没砍阅读。
-  // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），她想恢复时
+  // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min，拆成 19:00–19:45 和 20:25–21:10 两段，
+  // **中间夹着腰椎稳定(19:45)+运动(19:55–20:20)**。时间全部来自「运动槽虚胖 30min +
+  // 20:40–21:00 的空档 20min」，没动早起、没砍阅读。
+  // ⚠️⚠️ **运动必须排在两段学习中间，不能放到最后**（当天返工修的）：
+  //   ① 放最后会让运动在 20:45–21:10 结束，离睡觉不到一个半小时、紧接着泡脚上床，影响入睡；
+  //   ② 而且本来就要在两段学习之间安排一次起身护腰——**运动就是那次起身**，
+  //      排到最后等于既要另找时间起身、又把运动挤到了睡前。一举两失。
+  // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），想恢复时
   // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
   { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
-  { key: "sport", name: "运动", start: 1235, time: "20:35", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
+  { key: "sport", name: "运动", start: 1185, time: "19:45", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
   { key: "reading", name: "阅读", start: 1270, time: "21:10", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
   // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
   { key: "bedtime", name: "睡前", start: 1310, time: "21:50", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
@@ -251,8 +255,34 @@ function CompactRow({
 }
 
 /** 当前时间落在哪个领域（最后一个 start<=now；早于第一个则第一个） */
-function autoDomainKey(domains: Domain[]): string {
+/** 从 time_slot 解析**结束**分钟数（"19:55–20:20" → 1220）；解析不出返回 -1 */
+function slotEndMin(item: PlanItem): number {
+  const m = (item.time_slot ?? "").match(/[–—-]\s*(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
+}
+
+/**
+ * 「当前」视图该停在哪个领域。
+ *
+ * ⚠️⚠️ **2026-09-01 改成两级判断**，原来只有下面的 ② 那一条（取最后一个 `start ≤ now`）。
+ * 单锚点隐含一个前提：**一个领域一天只出现一次、且各领域时段互不交错**。
+ * 这个前提在晚间重排后不成立了——学习被拆成 19:00–19:45 和 20:25–21:10 两段、
+ * 中间夹着运动(19:55–20:20)。只按 start 排的话，20:25 之后 `now` 仍然大于运动的
+ * start，于是**整个学习②时段都会错误地停在「运动」上**（50 分钟）。
+ *
+ * ① 先看**今天的条目时段**有没有正好套住此刻——这才是真实的「我现在该干什么」；
+ * ② 套不住（两段之间的空隙、或工作域压根没有 time_slot）再退回原来的锚点规则。
+ */
+function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): string {
   const now = nowMinutes();
+  for (const d of domains) {
+    for (const it of domainItems(d, items)) {
+      if (!matchesDay(it, dayNum)) continue;
+      const s = slotStartMin(it);
+      const e = slotEndMin(it);
+      if (e > s && now >= s && now < e) return d.key;
+    }
+  }
   let key = domains[0].key;
   for (const d of domains) if (d.start <= now) key = d.key;
   return key;
@@ -624,7 +654,7 @@ function Page() {
   // 周末（周六/日）不上班，隐藏「工作」域，时间轴只走周末该有的
   const isWeekend = todayNum === 6 || todayNum === 7;
   const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend));
-  const autoKey = autoDomainKey(domains);
+  const autoKey = autoDomainKey(domains, items, todayNum);
   const activeKey = selected ?? autoKey;
   const active = domains.find((d) => d.key === activeKey) ?? domains.find((d) => d.key === autoKey)!;
   /**
