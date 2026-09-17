@@ -1,27 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
+// Film / Library / Star / Trash2 已随书影搬去 modules/bookshelf，这里不再需要
 import {
   ArrowLeft,
   BookOpen,
   ChevronDown,
   ChevronRight,
-  Film,
   Landmark,
   Layers,
-  Library,
   LineChart,
   PenLine,
   Plus,
   RotateCcw,
   Sparkles,
-  Star,
-  Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
-import { CARD, CARD_TITLE, PAGE, READ_BODY, READ_TITLE } from "@/lib/ui";
+import { CARD, PAGE, READ_BODY, READ_TITLE } from "@/lib/ui";
 import { addDays, formatDateCn, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
@@ -74,18 +71,26 @@ const BOARDS: BoardCfg[] = [
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "每日 2 条深读 + 3 条速览 + 术语卡 + 趋势", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
   { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "时间线框架 + 每日一卡", c: { bg: "#FAEEDA", text: "#633806", sub: "#854F0B", accent: "#BA7517" } },
   { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "看懂日线 · 基金入门（教知识、不荐买卖）", c: { bg: "#EAF3DE", text: "#27500A", sub: "#3B6D11", accent: "#639922" } },
-  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "练习"], hint: "PM 概念 · AI 产品拆解 · 用自己的项目练表达", c: { bg: "#F1EFE8", text: "#2C2C2A", sub: "#5F5E5A", accent: "#888780" } },
-  { key: "book", name: "书籍", icon: Library, hint: "在读/读过的书 + 读后感", c: { bg: "#E1F5EE", text: "#085041", sub: "#0F6E56", accent: "#1D9E75" } },
-  { key: "movie", name: "电影", icon: Film, hint: "看过的电影 + 观后感", c: { bg: "#FBEAF0", text: "#72243E", sub: "#993556", accent: "#D4537E" } },
+  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "PM 概念 · 用你自己的项目练表达（冲 3 月面试的主线）", c: { bg: "#F1EFE8", text: "#2C2C2A", sub: "#5F5E5A", accent: "#888780" } },
 ];
 
-function metaGet(e: Entry, key: string): string {
-  try {
-    return e.meta ? (JSON.parse(e.meta)[key] ?? "") : "";
-  } catch {
-    return "";
-  }
-}
+/**
+ * 首页分两行（2026-09-01 Rosie 指定）：**第一行 AI + 产品经理（大框）、第二行 英语/语文/历史/金融（小框）**。
+ *
+ * ⚠️ 这不是纯排版，是**优先级的物化**：9/01 重定向之后 AI 和 PM 是冲 3 月面试的两条主线、每天更新；
+ * 英语按她报的新概念课号出题、语文/历史等她点名才更新、金融已暂停——**更新频率差了一个量级，
+ * 框就不该一样大**。改优先级就改这两个数组，别去动网格。
+ *
+ * ⚠️ 书籍/电影**已于同日拆去独立模块 `bookshelf`**（Rosie：「本来就不贴题」，我同意）：
+ * 它们是**长期收藏**（自己录入、不进复习、不出作业、没有每日节奏），跟日日学的**每日喂养**
+ * 生命周期完全不同。**数据没搬**（仍在 `study_entries`，board='book'/'movie'，
+ * 新模块复用 `study-log/data.ts`），拆的只是入口和 UI ⇒ 零迁移。
+ */
+const MAIN_BOARDS = BOARDS.filter((b) => b.key === "ai" || b.key === "pm");
+const SUB_BOARDS = BOARDS.filter((b) =>
+  ["english", "chinese", "history", "finance"].includes(b.key),
+);
+
 function withMeta(e: Entry, patch: Record<string, unknown>): string {
   let m: Record<string, unknown> = {};
   try {
@@ -168,7 +173,85 @@ export function entryDone(e: Entry): boolean {
 
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
-/** 主界面：六个彩色方框，右侧露出内容预览 */
+/** 一个板块方框。`big` ＝第一行的主线板块（大框、带内容预览）；否则是第二行的小框 */
+function BoardTile({
+  b,
+  entries,
+  today,
+  big,
+  onOpen,
+}: {
+  b: BoardCfg;
+  entries: Entry[];
+  today: string;
+  big: boolean;
+  onOpen: (b: Board) => void;
+}) {
+  const mine = entries.filter((e) => e.board === b.key);
+  const real = mine.filter((e) => e.kind !== "note");
+  const latest = real[0];
+  const todays = real.filter((e) => e.entry_date === today);
+  const doneToday = todays.filter(entryDone).length;
+  return (
+    <button
+      onClick={() => onOpen(b.key)}
+      className={cn(
+        "flex rounded-2xl text-left transition-transform hover:scale-[1.01]",
+        big ? "min-h-36 gap-5 p-6" : "min-h-24 flex-col gap-2 p-4",
+      )}
+      style={{ background: b.c.bg }}
+    >
+      {big ? (
+        <>
+          <div className="w-24 shrink-0">
+            <b.icon className="size-9" style={{ color: b.c.accent }} />
+            <div className="mt-3 text-2xl font-medium" style={{ color: b.c.text }}>{b.name}</div>
+            <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>{real.length} 条</div>
+            {todays.length > 0 && (
+              <div className="mt-0.5 text-xs" style={{ color: b.c.sub }}>
+                今日 {doneToday}/{todays.length} 看完
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
+            {latest ? (
+              <>
+                <p className="text-sm font-medium" style={{ color: b.c.text }}>
+                  {latest.kind}
+                  {latest.title ? ` · ${latest.title}` : ""}
+                </p>
+                <p className="mt-1.5 line-clamp-4 text-sm leading-relaxed" style={{ color: b.c.sub }}>
+                  {(latest.body || b.hint).replace(/\[\[([^\]]+)\]\]/g, "$1")}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
+            )}
+          </div>
+        </>
+      ) : (
+        // 小框：只给图标+名字+条数+今日进度。⚠️ 刻意不放内容预览——这几个板块
+        // 不是每天更新的（英语按课号、语文/历史等她点名、金融暂停），预览会显示成
+        // 好几天前的旧内容，看着像今天有更新，反而误导。
+        <>
+          <div className="flex items-center gap-2">
+            <b.icon className="size-5 shrink-0" style={{ color: b.c.accent }} />
+            <span className="text-lg font-medium" style={{ color: b.c.text }}>{b.name}</span>
+            <span className="ml-auto text-xs" style={{ color: b.c.sub }}>{real.length} 条</span>
+          </div>
+          <div className="mt-auto text-xs" style={{ color: b.c.sub }}>
+            {todays.length > 0 ? `今日 ${doneToday}/${todays.length} 看完` : b.hint}
+          </div>
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * 主界面：**第一行 AI + 产品经理（大框）、第二行 英语/语文/历史/金融（小框）**。
+ * 分行的理由见 MAIN_BOARDS / SUB_BOARDS 上面那段注释——框的大小对应的是更新频率。
+ */
 function Landing({
   entries,
   onOpen,
@@ -177,71 +260,18 @@ function Landing({
   onOpen: (b: Board) => void;
 }) {
   const today = todayStr();
-  const isDone = entryDone;
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {BOARDS.map((b) => {
-        const mine = entries.filter((e) => e.board === b.key);
-        const covers = mine
-          .filter((e) => e.kind !== "note" && metaGet(e, "cover"))
-          .slice(0, 3);
-        const latest = mine.find((e) => e.kind !== "note");
-        return (
-          <button
-            key={b.key}
-            onClick={() => onOpen(b.key)}
-            className="flex min-h-36 gap-5 rounded-2xl p-6 text-left transition-transform hover:scale-[1.01]"
-            style={{ background: b.c.bg }}
-          >
-            <div className="w-24 shrink-0">
-              <b.icon className="size-9" style={{ color: b.c.accent }} />
-              <div className="mt-3 text-2xl font-medium" style={{ color: b.c.text }}>
-                {b.name}
-              </div>
-              <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>
-                {mine.filter((e) => e.kind !== "note").length} 条
-              </div>
-              {b.kinds && (() => {
-                const todays = mine.filter((e) => e.entry_date === today && e.kind !== "note");
-                return todays.length > 0 ? (
-                  <div className="mt-0.5 text-xs" style={{ color: b.c.sub }}>
-                    今日 {todays.filter(isDone).length}/{todays.length} 看完
-                  </div>
-                ) : null;
-              })()}
-            </div>
-            <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
-              {b.key === "book" || b.key === "movie" ? (
-                covers.length > 0 ? (
-                  <div className="flex gap-2">
-                    {covers.map((e) => (
-                      <div key={e.id} className="h-24 w-16 shrink-0 overflow-hidden rounded-md" style={{ background: b.c.accent + "33" }}>
-                        {metaGet(e, "cover") && (
-                          <img src={metaGet(e, "cover")} alt="" className="h-full w-full object-cover" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
-                )
-              ) : latest ? (
-                <>
-                  <p className="text-sm font-medium" style={{ color: b.c.text }}>
-                    {latest.kind}
-                    {latest.title ? ` · ${latest.title}` : ""}
-                  </p>
-                  <p className="mt-1.5 line-clamp-4 text-sm leading-relaxed" style={{ color: b.c.sub }}>
-                    {(latest.body || b.hint).replace(/\[\[([^\]]+)\]\]/g, "$1")}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
-              )}
-            </div>
-          </button>
-        );
-      })}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {MAIN_BOARDS.map((b) => (
+          <BoardTile key={b.key} b={b} entries={entries} today={today} big onOpen={onOpen} />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {SUB_BOARDS.map((b) => (
+          <BoardTile key={b.key} b={b} entries={entries} today={today} big={false} onOpen={onOpen} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -1164,250 +1194,6 @@ function AddEntryForm({ kinds, onAdd }: { kinds: string[]; onAdd: (k: string, t:
     </div>
   );
 }
-
-/** 5 星评分 */
-function Stars({ value, onChange, accent }: { value: number; onChange: (v: number) => void; accent: string }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button key={n} onClick={() => onChange(n === value ? 0 : n)} title={`${n} 星`}>
-          <Star className="size-5" style={{ color: accent, fill: n <= value ? accent : "transparent" }} />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AddTitleForm({ placeholder, cta, onAdd }: { placeholder: string; cta: string; onAdd: (t: string) => void }) {
-  return (
-    <div className="mb-5 max-w-md">
-      <QuickAdd placeholder={placeholder} cta={cta} onAdd={onAdd} />
-    </div>
-  );
-}
-
-/** 书籍板块：书架 + 点进本子 */
-function BookBoard({
-  cfg,
-  books,
-  notesByBook,
-  openId,
-  onOpenBook,
-  onAdd,
-  onPatch,
-  onDelete,
-  onAddNote,
-  onDeleteNote,
-}: {
-  cfg: BoardCfg;
-  books: Entry[];
-  notesByBook: Map<string, Entry[]>;
-  openId: string | null;
-  onOpenBook: (id: string | null) => void;
-  onAdd: (t: string) => void;
-  onPatch: (id: string, patch: Record<string, unknown>) => void;
-  onDelete: (id: string) => void;
-  onAddNote: (bookId: string, body: string) => void;
-  onDeleteNote: (id: string) => void;
-}) {
-  const book = openId ? books.find((b) => b.id === openId) : null;
-  if (book) {
-    return (
-      <BookNotebook
-        cfg={cfg}
-        book={book}
-        notes={notesByBook.get(book.id) ?? []}
-        onBack={() => onOpenBook(null)}
-        onPatch={onPatch}
-        onDelete={(id) => { onDelete(id); onOpenBook(null); }}
-        onAddNote={onAddNote}
-        onDeleteNote={onDeleteNote}
-      />
-    );
-  }
-  return (
-    <div>
-      <AddTitleForm placeholder="书名（开始读就加进来，我给它找封面）" cta="开始读" onAdd={onAdd} />
-      {books.length === 0 ? (
-        <p className="py-10 text-sm text-muted-foreground">还没有书。上面加一本开始，我帮你找封面。</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {books.map((b) => {
-            const cover = metaGet(b, "cover");
-            const rating = Number(metaGet(b, "rating") || 0);
-            const done = b.status === "done";
-            return (
-              <button key={b.id} onClick={() => onOpenBook(b.id)} className="overflow-hidden rounded-xl border bg-card text-left">
-                <div className="flex aspect-[3/4] items-center justify-center" style={{ background: cfg.c.bg }}>
-                  {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : <Library className="size-8" style={{ color: cfg.c.accent }} />}
-                </div>
-                <div className="p-2">
-                  <p className="truncate text-sm font-medium">{b.title}</p>
-                  <p className="text-xs" style={{ color: cfg.c.sub }}>
-                    {done ? `读完 · ${"★".repeat(rating)}` : "在读"}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 一本书的本子：封面 + 状态 + 评分 + 每日进度/随笔 + 读后感 */
-function BookNotebook({
-  cfg,
-  book,
-  notes,
-  onBack,
-  onPatch,
-  onDelete,
-  onAddNote,
-  onDeleteNote,
-}: {
-  cfg: BoardCfg;
-  book: Entry;
-  notes: Entry[];
-  onBack: () => void;
-  onPatch: (id: string, patch: Record<string, unknown>) => void;
-  onDelete: (id: string) => void;
-  onAddNote: (bookId: string, body: string) => void;
-  onDeleteNote: (id: string) => void;
-}) {
-  const cover = metaGet(book, "cover");
-  const rating = Number(metaGet(book, "rating") || 0);
-  const done = book.status === "done";
-  return (
-    <div>
-      <button onClick={onBack} className="mb-3 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" /> 书架
-      </button>
-      <div className="flex gap-4">
-        <div className="h-40 w-28 shrink-0 overflow-hidden rounded-lg" style={{ background: cfg.c.bg }}>
-          {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : (
-            <div className="flex h-full items-center justify-center"><Library className="size-8" style={{ color: cfg.c.accent }} /></div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className={CARD_TITLE}>{book.title}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            开始 {book.entry_date ?? "—"}
-            {done && metaGet(book, "finish_date") && ` · 读完 ${metaGet(book, "finish_date")}`}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              onClick={() => onPatch(book.id, done ? { status: "reading", finish_date: "" } : { status: "done", finish_date: todayStr() })}
-              className="rounded-md border px-2.5 py-1 text-xs text-primary hover:bg-accent"
-            >
-              {done ? "在读" : "标记读完"}
-            </button>
-            {done && <Stars value={rating} onChange={(v) => onPatch(book.id, { rating: v })} accent={cfg.c.accent} />}
-          </div>
-          {cover ? null : (
-            <p className="mt-2 text-xs text-muted-foreground">封面待补：告诉我书名，我联网找了填进来。</p>
-          )}
-        </div>
-      </div>
-
-      {/* 每日进度 / 随笔 */}
-      <div className="mt-5">
-        <p className="mb-2 text-sm font-medium">阅读进度 · 随笔</p>
-        <div className="mb-2">
-          <QuickAdd placeholder="今天看到哪了 / 随手写点想法" cta="记一笔" onAdd={(v) => onAddNote(book.id, v)} />
-        </div>
-        <div className="space-y-1.5">
-          {notes.map((n) => (
-            <div key={n.id} className="group flex items-start gap-2 rounded-lg border bg-background px-3 py-2">
-              <span className="shrink-0 text-xs text-muted-foreground">{n.entry_date}</span>
-              <span className="min-w-0 flex-1 whitespace-pre-wrap text-sm">{n.body}</span>
-              <button className="invisible text-muted-foreground hover:text-destructive group-hover:visible" onClick={() => onDeleteNote(n.id)}>
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 读后感 */}
-      <div className="mt-5">
-        <p className="mb-2 text-sm font-medium">读后感{done ? "（读完必写）" : ""}</p>
-        <textarea
-          defaultValue={book.body ?? ""}
-          onBlur={(e) => onPatch(book.id, { __body: e.target.value })}
-          placeholder="读完写一篇；读的过程中也能随时写"
-          className="min-h-28 w-full resize-y rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
-        />
-      </div>
-
-      <div className="mt-4">
-        <button onClick={() => onDelete(book.id)} className="text-xs text-muted-foreground hover:text-destructive">删除这本书</button>
-      </div>
-    </div>
-  );
-}
-
-/** 电影板块：海报墙 */
-function MovieBoard({
-  cfg,
-  movies,
-  onAdd,
-  onPatch,
-  onDelete,
-}: {
-  cfg: BoardCfg;
-  movies: Entry[];
-  onAdd: (t: string) => void;
-  onPatch: (id: string, patch: Record<string, unknown>) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <div>
-      <AddTitleForm placeholder="片名（看完记一部，我给它找海报）" cta="记一部" onAdd={onAdd} />
-      {movies.length === 0 ? (
-        <p className="py-10 text-sm text-muted-foreground">还没有电影。看完一部就记进来。</p>
-      ) : (
-        <div className="space-y-3">
-          {movies.map((m) => (
-            <MovieCard key={m.id} cfg={cfg} movie={m} onPatch={onPatch} onDelete={onDelete} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MovieCard({ cfg, movie, onPatch, onDelete }: { cfg: BoardCfg; movie: Entry; onPatch: (id: string, patch: Record<string, unknown>) => void; onDelete: (id: string) => void }) {
-  const cover = metaGet(movie, "cover");
-  const rating = Number(metaGet(movie, "rating") || 0);
-  return (
-    <div className={cn(CARD, "group flex gap-3")}>
-      <div className="h-28 w-20 shrink-0 overflow-hidden rounded-lg" style={{ background: cfg.c.bg }}>
-        {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : (
-          <div className="flex h-full items-center justify-center"><Film className="size-7" style={{ color: cfg.c.accent }} /></div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[15px] font-medium">{movie.title}</span>
-          <span className="text-xs text-muted-foreground">{movie.entry_date}</span>
-          <button className="invisible ml-auto text-muted-foreground hover:text-destructive group-hover:visible" onClick={() => onDelete(movie.id)}>
-            <Trash2 className="size-4" />
-          </button>
-        </div>
-        <div className="mt-1"><Stars value={rating} onChange={(v) => onPatch(movie.id, { rating: v })} accent={cfg.c.accent} /></div>
-        <textarea
-          defaultValue={movie.body ?? ""}
-          onBlur={(e) => onPatch(movie.id, { __body: e.target.value })}
-          placeholder="观后感"
-          className="mt-1.5 min-h-16 w-full resize-y rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
-        />
-      </div>
-    </div>
-  );
-}
-
 function Card() {
   const [n, setN] = useState<number | null>(null);
   useEffect(() => {
@@ -1844,14 +1630,9 @@ function Page() {
   // ——板块和「翻开的那本书」刷新都不丢（她原话：老是一刷新就回外面了）
   const [sub, nav] = useSubPath("study-log");
   const board = BOARD_KEYS.includes(sub[0]) ? (sub[0] as Board) : null;
-  const openBookId = board === "book" ? (sub[1] ?? null) : null;
 
   const setBoard = useCallback(
     (b: Board | null) => nav(b ? [b] : []),
-    [nav],
-  );
-  const setOpenBookId = useCallback(
-    (id: string | null) => nav(id ? ["book", id] : ["book"]),
     [nav],
   );
 
@@ -1873,18 +1654,8 @@ function Page() {
     const e = await createEntry({ board: board!, kind, entry_date: todayStr(), title, body });
     setAll((a) => [e, ...a]);
   }
-  async function addBook(title: string) {
-    const e = await createEntry({ board: "book", kind: "book", title, entry_date: todayStr(), status: "reading" });
-    setAll((a) => [e, ...a]);
-  }
-  async function addMovie(title: string) {
-    const e = await createEntry({ board: "movie", kind: "movie", title, entry_date: todayStr(), status: "done" });
-    setAll((a) => [e, ...a]);
-  }
-  async function addNote(bookId: string, body: string) {
-    const e = await createEntry({ board: "book", kind: "note", entry_date: todayStr(), body, meta: JSON.stringify({ book_id: bookId }) });
-    setAll((a) => [e, ...a]);
-  }
+  /* addBook / addMovie / addNote 已随书影一起搬去 `modules/bookshelf`（2026-09-01）。
+     数据还在同一张 study_entries 表里，只是入口独立了。 */
   /** patch: 特殊键 __body 写 body 列；其余并进 meta（status/finish_date 特判） */
   async function patchEntry(id: string, patch: Record<string, unknown>) {
     const cur = all.find((e) => e.id === id);
@@ -1967,29 +1738,9 @@ function Page() {
         <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onPatch={patchEntry} />
       )}
 
-      {board === "book" && cfg && (
-        <BookBoard
-          cfg={cfg}
-          books={boardEntries.filter((e) => e.kind !== "note")}
-          notesByBook={boardEntries.filter((e) => e.kind === "note").reduce((m, n) => {
-            const bid = metaGet(n, "book_id");
-            if (!m.has(bid)) m.set(bid, []);
-            m.get(bid)!.push(n);
-            return m;
-          }, new Map<string, Entry[]>())}
-          openId={openBookId}
-          onOpenBook={setOpenBookId}
-          onAdd={addBook}
-          onPatch={patchEntry}
-          onDelete={del}
-          onAddNote={addNote}
-          onDeleteNote={del}
-        />
-      )}
-
-      {board === "movie" && cfg && (
-        <MovieBoard cfg={cfg} movies={boardEntries.filter((e) => e.kind !== "note")} onAdd={addMovie} onPatch={patchEntry} onDelete={del} />
-      )}
+      {/* 书籍/电影的渲染分支已搬去 `modules/bookshelf`（2026-09-01）。
+          ⚠️ 如果哪天要把它们搬回来，记得 BOARD_KEYS 也要加回 book/movie——
+          现在带 `#/study-log/book` 进来会因为 BOARD_KEYS 不含它而落回首页，这是对的。 */}
     </div>
   );
 }
