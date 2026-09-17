@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
 import { CARD, PAGE, READ_BODY, READ_TITLE } from "@/lib/ui";
 import { addDays, formatDateCn, todayStr } from "@/lib/dates";
@@ -24,7 +23,6 @@ import { useSubPath } from "@/lib/hashRoute";
 import type { AppModule } from "../types";
 import {
   createEntry,
-  deleteEntry,
   listAllEntries,
   updateEntry,
   type Board,
@@ -1671,10 +1669,8 @@ function Page() {
     setAll((a) => a.map((e) => (e.id === id ? { ...e, ...("body" in dbPatch ? { body: dbPatch.body as string } : {}), ...("status" in dbPatch ? { status: dbPatch.status as string } : {}), ...("meta" in dbPatch ? { meta: dbPatch.meta as string } : {}) } : e)));
     await updateEntry(id, dbPatch);
   }
-  async function del(id: string) {
-    setAll((a) => a.filter((e) => e.id !== id));
-    await deleteEntry(id);
-  }
+  /* del() 也随书影搬去了 bookshelf——日日学这边的条目是我推进来的、只读不删
+     （EntryDoc 刻意「只展示不可删，防误删」），所以这里不再需要删除函数。 */
 
   const boardEntries = board ? all.filter((e) => e.board === board) : [];
 

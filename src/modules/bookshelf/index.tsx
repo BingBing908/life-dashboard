@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Film, Library, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Film, Library, Star, Trash2 } from "lucide-react";
 import { QuickAdd } from "@/components/QuickAdd";
 import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
