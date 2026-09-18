@@ -76,7 +76,7 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
   if (work) work.parts.push(...todosForDay.map((t) => ({ label: t.title, todoDone: t.done === 1 })));
 
   plans.sort((a, b) => a.from - b.from || a.to - b.to);
-  /** ⚠️ 挨着的（间隔≤10min，含同时段重叠的泡脚+阅读）「其他计划」合并成一个块、名字用 · 连写。
+  /** ⚠️ 挨着的（间隔≤10min，含同时段重叠的泡脚+阅读）「其他计划」合并成一个块、块内一项一行。
    *  不合并的话晨间养生全是 10–20 分钟的矮条，字放不下——就是 09-19 Rosie 问
    *  「五脏逼毒八段锦咋没了」的原因：块在，字被藏了。学习/英语块时长够，不参与合并。 */
   for (const b of plans) {
@@ -254,7 +254,7 @@ export function Timetable({
 
       <p className="pt-3 text-xs text-muted-foreground">
         中浅蓝＝学习（AI/英语）· 浅蓝＝运动养生 · 最浅蓝＝作息骨架（不打卡）。
-        块高＝时长；挨着的短条目合并成一块、名字用 · 连写；今天的「工作」块里带今天的待办（✓＝已完成）。
+        块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办（✓＝已完成）。
         <b>点任意块可直接编辑</b>（改名/改时间/删除），待办去待办模块改。
       </p>
     </div>
