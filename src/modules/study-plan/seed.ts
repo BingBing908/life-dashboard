@@ -59,7 +59,7 @@ export const SEED_ITEMS: {
     track: "wellness",
     days: "2,4,6",
     time_slot: "06:50–07:05",
-    title: "八段锦（国家体育总局版）",
+    title: "八段锦（国体版）",
     detail: "与武当版隔天交替；练完接足弓训练",
     url: "https://www.bilibili.com/video/BV1jG411c7yo/",
   },

@@ -48,9 +48,10 @@ interface Block {
   parts: Part[];
 }
 
-/** 列太窄放不下长标题：砍掉括号里的说明（「英语（新概念整块：…）」→「英语」），悬停看全称 */
+/** 列太窄放不下长标题：砍掉括号里的说明（「英语（新概念整块：…）」→「英语」），悬停看全称。
+ *  短标题不砍——「八段锦（武当版）」的版本信息她要看（09-19 的示意图里写着两版并列）。 */
 function shortTitle(t: string): string {
-  return t.replace(/[（(].*$/, "");
+  return t.length <= 10 ? t : t.replace(/[（(].*$/, "");
 }
 
 function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blocks: Block[]; noTime: PlanItem[] } {
@@ -95,7 +96,8 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
 const BLOCK_STYLE: Record<Block["kind"], string> = {
   study: "bg-[#85B7EB] text-[#042C53]",
   plan: "bg-[#B5D4F4] text-[#0C447C]",
-  frame: "bg-[#E6F1FB] text-[#6E96C4]",
+  // 骨架＝最浅蓝。⚠️ 它铺在白色列上，不描边就快看不见了——border 别删
+  frame: "bg-[#E6F1FB] text-[#5D8AB8] border border-[#C9DEF3]",
 };
 
 export function Timetable({
@@ -199,23 +201,24 @@ export function Timetable({
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
+                  {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；放不下的行被
+                      overflow 裁掉，悬停 tooltip 里有全部 */}
                   {h >= 14 &&
                     b.parts.map((p, j) => {
                       const st = stOf(p);
                       const done = st === "done" || p.todoDone;
                       return (
-                        <span key={j}>
-                          {j > 0 && " · "}
-                          <span
-                            className={cn(
-                              done && "opacity-70",
-                              st === "skip" && "line-through opacity-60",
-                            )}
-                          >
-                            {done && "✓"}
-                            {p.label}
-                          </span>
-                        </span>
+                        <div
+                          key={j}
+                          className={cn(
+                            "truncate",
+                            done && "opacity-70",
+                            st === "skip" && "line-through opacity-60",
+                          )}
+                        >
+                          {done && "✓"}
+                          {p.label}
+                        </div>
                       );
                     })}
                 </div>
