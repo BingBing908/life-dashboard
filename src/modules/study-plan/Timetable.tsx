@@ -71,14 +71,13 @@ const DAY_FRAME: FrameSlot[] = [
   { days: WEEKDAYS, from: "17:30", to: "17:50", label: "晚餐", kind: "meal" },
   { days: WEEKDAYS, from: "17:50", to: "18:10", label: "通勤回家", kind: "commute" },
   { days: WEEKDAYS, from: "18:10", to: "19:00", label: "空档", kind: "gap" },
-  // ——周六：不上班，白天整块给 AI——
-  { days: "6", from: "09:40", to: "12:00", label: "AI 学习（周末大块）", kind: "study", note: "省下通勤，9:40 就能开始" },
-  { days: "6", from: "12:00", to: "13:00", label: "午餐", kind: "meal" },
-  { days: "6", from: "16:00", to: "17:30", label: "AI 学习（续）", kind: "study" },
-  { days: "6", from: "17:30", to: "18:10", label: "晚餐", kind: "meal" },
-  // ——周日：家务日——
-  { days: "7", from: "09:40", to: "12:00", label: "AI 学习（周末大块）", kind: "study" },
-  { days: "7", from: "12:00", to: "13:00", label: "午餐", kind: "meal" },
+  // ——周末——
+  // ⚠️ 周末的 AI 学习段（六日 09:40–12:00、周六下午 13:00–18:00）**刻意不在这里**：
+  // 它们从 2026-09-01 起是 seed.ts 里要打卡的真条目，骨架再写一遍会在日程表里重复两行。
+  // 骨架只放吃饭和周日下午的家务/打理。
+  { days: "6,7", from: "12:00", to: "13:00", label: "午餐", kind: "meal" },
+  { days: "6", from: "18:00", to: "18:40", label: "晚餐", kind: "meal" },
+  // ——周日下午：恢复日——
   { days: "7", from: "13:00", to: "15:00", label: "打扫卫生", kind: "habit", note: "在打卡页勾" },
   { days: "7", from: "15:00", to: "17:00", label: "搓澡洗头沐浴", kind: "care" },
   { days: "7", from: "17:00", to: "18:00", label: "全身护肤护发", kind: "care" },

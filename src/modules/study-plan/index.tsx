@@ -114,8 +114,10 @@ interface Domain {
 const DOMAINS: Domain[] = [
   // 养生只收上午的（泡脚/睡前拉伸这类晚间养生归到最后的「睡前」节点）
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
-  { key: "english", name: "英语", start: 450, time: "7:30", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 560, time: "9:20", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false, weekdaysOnly: true },
+  // 2026-09-01 新作息：07:30 先吃早餐、英语 07:50 才开始（四条合并成一条整块）；
+  // 通勤 09:45–10:15，工作 10:15 起（原锚点 09:20 是旧作息的）
+  { key: "english", name: "英语", start: 470, time: "7:50", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
+  { key: "work", name: "工作", start: 615, time: "10:15", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false, weekdaysOnly: true },
   // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min，拆成 19:00–19:45 和 20:25–21:10 两段，
   // **中间夹着腰椎稳定(19:45)+运动(19:55–20:20)**。时间全部来自「运动槽虚胖 30min +
   // 20:40–21:00 的空档 20min」，没动早起、没砍阅读。
