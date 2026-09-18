@@ -299,6 +299,8 @@ const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
   cert:     { bg: "bg-violet-50",  text: "text-violet-800",  dot: "bg-violet-500" },
   ai:       { bg: "bg-amber-50",   text: "text-amber-800",   dot: "bg-amber-500" },
   reading:  { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
+  // frame＝作息骨架：listItems 已滤掉、时间轴根本渲染不到它，这行只为满足 Record<Track,…> 的类型
+  frame:    { bg: "bg-gray-50",    text: "text-gray-500",    dot: "bg-gray-400" },
 };
 
 const DAY_NAMES = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"];
