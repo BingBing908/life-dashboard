@@ -61,15 +61,22 @@ type BoardCfg = {
 // 复习不进 BOARDS（不占大磁贴），单独一个小按钮进入
 const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "每默过一次，下次隔 1/2/4/8/15 天再来；默到全对才算过、这条就从列表里消失", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
 
+/**
+ * 板块配色（2026-09-18 全部收进「只此青绿」家族，Rosie 定的整站方向）：
+ * 不再一板块一个彩虹色——主线（AI/PM）用深松石绿、其余用两阶浅青绿轮流，
+ * 层次靠深浅不靠色相。金融暂停中，配色同其他次线（用 opacity 区分状态，不用颜色）。
+ */
+const TEAL_MAIN = { bg: "#E1F5EE", text: "#04342C", sub: "#0F6E56", accent: "#1D9E75" };
+const TEAL_SOFT = { bg: "#EAF3DE", text: "#173404", sub: "#3B6D11", accent: "#639922" };
+
 const BOARDS: BoardCfg[] = [
-  { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语"], hint: "每日精读 + 背诵 + 谚语", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
-  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔"], hint: "每日成语+谚语 · 古诗背诵 · 练笔输出", c: { bg: "#FAECE7", text: "#712B13", sub: "#993C1D", accent: "#D85A30" } },
+  { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语", "新概念练习"], hint: "报课号出题 · 谚语", c: { ...TEAL_SOFT } },
+  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔", "认字测试"], hint: "二四练笔 · 成语古诗按需", c: { ...TEAL_SOFT } },
   // kinds 只喂「加一条」表单的下拉框（渲染不看它，LearningBoard 只筛 kind !== 'note'）。
-  // 2026-07-30：补上一直漏的「趋势汇总」，并加入减负改版后的「速览」（3 则合一，见 CLAUDE.md 喂养段）
-  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "每日 2 条深读 + 3 条速览 + 术语卡 + 趋势", c: { bg: "#EEEDFE", text: "#3C3489", sub: "#534AB7", accent: "#7F77DD" } },
-  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "时间线框架 + 每日一卡", c: { bg: "#FAEEDA", text: "#633806", sub: "#854F0B", accent: "#BA7517" } },
-  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "看懂日线 · 基金入门（教知识、不荐买卖）", c: { bg: "#EAF3DE", text: "#27500A", sub: "#3B6D11", accent: "#639922" } },
-  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "PM 概念 · 用你自己的项目练表达（冲 3 月面试的主线）", c: { bg: "#F1EFE8", text: "#2C2C2A", sub: "#5F5E5A", accent: "#888780" } },
+  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "2 深读 + 速览 + 术语卡 + 趋势", c: { ...TEAL_MAIN } },
+  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "周末更新 · 当故事看", c: { ...TEAL_SOFT } },
+  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "暂停中（第 7 课起恢复）", c: { ...TEAL_SOFT } },
+  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "概念 + 用自己的项目练表达", c: { ...TEAL_MAIN } },
 ];
 
 /**
@@ -171,84 +178,81 @@ export function entryDone(e: Entry): boolean {
 
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
-/** 一个板块方框。`big` ＝第一行的主线板块（大框、带内容预览）；否则是第二行的小框 */
+/** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。 */
+function ProgressRing({ done, total, accent }: { done: number; total: number; accent: string }) {
+  const R = 30;
+  const C = 2 * Math.PI * R;
+  const p = total > 0 ? done / total : 0;
+  return (
+    <svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label={`完成 ${done}/${total}`}>
+      <circle cx="38" cy="38" r={R} fill="none" stroke="#D6E8DF" strokeWidth="8" />
+      {p > 0 && (
+        <circle
+          cx="38" cy="38" r={R} fill="none" stroke={accent} strokeWidth="8"
+          strokeDasharray={`${C * p} ${C}`} strokeLinecap="round" transform="rotate(-90 38 38)"
+        />
+      )}
+      <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="500" fill="#04342C">
+        {total > 0 ? `${done}/${total}` : "—"}
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * 一个板块的正方形格（2026-09-18 换成 C4 圆环进度格，Rosie 挑的方案，
+ * 并要求**正方形**——「扁扁的占主界面很小」）。
+ * · 今天有内容的板块 ⇒ 中间画进度圆环（今日看完 N/M）；
+ * · 今天没内容的 ⇒ 大圆图标 + 一句 hint。⚠️ 这条是 C4 的已知坑：语文/历史不是
+ *   每天更新，画空环会看起来像「没做」，所以**没内容就不画环**，换图标。
+ */
 function BoardTile({
   b,
   entries,
   today,
-  big,
   onOpen,
 }: {
   b: BoardCfg;
   entries: Entry[];
   today: string;
-  big: boolean;
   onOpen: (b: Board) => void;
 }) {
-  const mine = entries.filter((e) => e.board === b.key);
-  const real = mine.filter((e) => e.kind !== "note");
-  const latest = real[0];
+  const real = entries.filter((e) => e.board === b.key && e.kind !== "note");
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
+  const paused = b.key === "finance";
   return (
     <button
       onClick={() => onOpen(b.key)}
       className={cn(
-        "flex rounded-2xl text-left transition-transform hover:scale-[1.01]",
-        big ? "min-h-36 gap-5 p-6" : "min-h-24 flex-col gap-2 p-4",
+        "flex aspect-square flex-col items-center justify-center gap-2 rounded-3xl bg-card p-4 text-center transition-transform hover:scale-[1.02]",
+        paused && "opacity-55",
       )}
-      style={{ background: b.c.bg }}
     >
-      {big ? (
-        <>
-          <div className="w-24 shrink-0">
-            <b.icon className="size-9" style={{ color: b.c.accent }} />
-            <div className="mt-3 text-2xl font-medium" style={{ color: b.c.text }}>{b.name}</div>
-            <div className="mt-0.5 text-sm" style={{ color: b.c.sub }}>{real.length} 条</div>
-            {todays.length > 0 && (
-              <div className="mt-0.5 text-xs" style={{ color: b.c.sub }}>
-                今日 {doneToday}/{todays.length} 看完
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1 border-l pl-5" style={{ borderColor: b.c.accent + "55" }}>
-            {latest ? (
-              <>
-                <p className="text-sm font-medium" style={{ color: b.c.text }}>
-                  {latest.kind}
-                  {latest.title ? ` · ${latest.title}` : ""}
-                </p>
-                <p className="mt-1.5 line-clamp-4 text-sm leading-relaxed" style={{ color: b.c.sub }}>
-                  {(latest.body || b.hint).replace(/\[\[([^\]]+)\]\]/g, "$1")}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm" style={{ color: b.c.sub }}>{b.hint}</p>
-            )}
-          </div>
-        </>
+      {todays.length > 0 ? (
+        <ProgressRing done={doneToday} total={todays.length} accent={b.c.accent} />
       ) : (
-        // 小框：只给图标+名字+条数+今日进度。⚠️ 刻意不放内容预览——这几个板块
-        // 不是每天更新的（英语按课号、语文/历史等她点名、金融暂停），预览会显示成
-        // 好几天前的旧内容，看着像今天有更新，反而误导。
-        <>
-          <div className="flex items-center gap-2">
-            <b.icon className="size-5 shrink-0" style={{ color: b.c.accent }} />
-            <span className="text-lg font-medium" style={{ color: b.c.text }}>{b.name}</span>
-            <span className="ml-auto text-xs" style={{ color: b.c.sub }}>{real.length} 条</span>
-          </div>
-          <div className="mt-auto text-xs" style={{ color: b.c.sub }}>
-            {todays.length > 0 ? `今日 ${doneToday}/${todays.length} 看完` : b.hint}
-          </div>
-        </>
+        <span
+          className="flex size-[76px] items-center justify-center rounded-full"
+          style={{ background: b.c.bg, color: b.c.sub }}
+        >
+          <b.icon className="size-8" />
+        </span>
       )}
+      <div className="text-lg font-medium" style={{ color: b.c.text }}>
+        {b.name}
+      </div>
+      <div className="text-xs leading-snug" style={{ color: b.c.sub }}>
+        {todays.length > 0 ? `今日看完 ${doneToday}/${todays.length} · 共 ${real.length} 条` : `${b.hint} · ${real.length} 条`}
+      </div>
     </button>
   );
 }
 
 /**
- * 主界面：**第一行 AI + 产品经理（大框）、第二行 英语/语文/历史/金融（小框）**。
- * 分行的理由见 MAIN_BOARDS / SUB_BOARDS 上面那段注释——框的大小对应的是更新频率。
+ * 主界面（C4 圆环进度格）：六个**正方形**格，3 列 × 2 行。
+ * 顺序＝主线在前（AI、产品经理），再英语/语文/历史/金融。
+ * 正方形靠 `aspect-square`，格子随宽度自适应放大——她点名要它们占满主界面。
  */
 function Landing({
   entries,
@@ -258,18 +262,12 @@ function Landing({
   onOpen: (b: Board) => void;
 }) {
   const today = todayStr();
+  const ordered = [...MAIN_BOARDS, ...SUB_BOARDS];
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {MAIN_BOARDS.map((b) => (
-          <BoardTile key={b.key} b={b} entries={entries} today={today} big onOpen={onOpen} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {SUB_BOARDS.map((b) => (
-          <BoardTile key={b.key} b={b} entries={entries} today={today} big={false} onOpen={onOpen} />
-        ))}
-      </div>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      {ordered.map((b) => (
+        <BoardTile key={b.key} b={b} entries={entries} today={today} onOpen={onOpen} />
+      ))}
     </div>
   );
 }

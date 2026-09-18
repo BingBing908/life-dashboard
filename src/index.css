@@ -50,39 +50,42 @@
 }
 
 :root {
-    /* 参考 NOC 工具风格：浅灰蓝页面底 + 白色面板 + 蓝色主色 */
-    --background: oklch(0.975 0.005 247);
-    --foreground: oklch(0.28 0.02 260);
+    /* 「只此青绿」主题（2026-09-18 Rosie 指定，同 Zenith 那套方向）：
+       浅青绿页面底 + 白色面板 + 松石绿主色。oklch 色相统一在 ~168（青绿），
+       原来的蓝色系（色相 250-260）全部换掉。
+       ⚠️ --radius 从 0.625rem 加到 0.8rem——她要「圆钝钝」，这一个变量管全部 shadcn 组件的圆角。 */
+    --background: oklch(0.972 0.014 170);
+    --foreground: oklch(0.29 0.035 175);
     --card: oklch(1 0 0);
-    --card-foreground: oklch(0.28 0.02 260);
+    --card-foreground: oklch(0.29 0.035 175);
     --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.28 0.02 260);
-    --primary: oklch(0.6 0.2 259.8);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.96 0.008 250);
-    --secondary-foreground: oklch(0.35 0.03 260);
-    --muted: oklch(0.96 0.008 250);
-    --muted-foreground: oklch(0.55 0.02 260);
-    --accent: oklch(0.94 0.03 255);
-    --accent-foreground: oklch(0.48 0.18 260);
+    --popover-foreground: oklch(0.29 0.035 175);
+    --primary: oklch(0.60 0.115 168);
+    --primary-foreground: oklch(0.985 0.005 170);
+    --secondary: oklch(0.955 0.017 168);
+    --secondary-foreground: oklch(0.36 0.05 172);
+    --muted: oklch(0.955 0.017 168);
+    --muted-foreground: oklch(0.52 0.05 172);
+    --accent: oklch(0.93 0.04 168);
+    --accent-foreground: oklch(0.42 0.09 170);
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.92 0.008 250);
-    --input: oklch(0.92 0.008 250);
-    --ring: oklch(0.6 0.2 259.8);
-    --chart-1: oklch(0.6 0.2 259.8);
-    --chart-2: oklch(0.7 0.14 250);
-    --chart-3: oklch(0.55 0.17 270);
-    --chart-4: oklch(0.8 0.09 240);
-    --chart-5: oklch(0.45 0.18 265);
-    --radius: 0.625rem;
-    --sidebar: oklch(1 0 0);
-    --sidebar-foreground: oklch(0.35 0.02 260);
-    --sidebar-primary: oklch(0.6 0.2 259.8);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.94 0.03 255);
-    --sidebar-accent-foreground: oklch(0.5 0.19 260);
-    --sidebar-border: oklch(0.92 0.008 250);
-    --sidebar-ring: oklch(0.6 0.2 259.8);
+    --border: oklch(0.908 0.024 168);
+    --input: oklch(0.908 0.024 168);
+    --ring: oklch(0.60 0.115 168);
+    --chart-1: oklch(0.60 0.115 168);
+    --chart-2: oklch(0.72 0.10 160);
+    --chart-3: oklch(0.50 0.09 185);
+    --chart-4: oklch(0.82 0.07 155);
+    --chart-5: oklch(0.42 0.08 175);
+    --radius: 0.8rem;
+    --sidebar: oklch(0.985 0.010 170);
+    --sidebar-foreground: oklch(0.35 0.04 173);
+    --sidebar-primary: oklch(0.60 0.115 168);
+    --sidebar-primary-foreground: oklch(0.985 0.005 170);
+    --sidebar-accent: oklch(0.93 0.04 168);
+    --sidebar-accent-foreground: oklch(0.40 0.09 170);
+    --sidebar-border: oklch(0.908 0.024 168);
+    --sidebar-ring: oklch(0.60 0.115 168);
 }
 
 .dark {
