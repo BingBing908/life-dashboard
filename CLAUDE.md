@@ -16,7 +16,7 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
   - 组件在 `src/components/ui/`
   - ⚠️ trigger 用 `render` prop，不是 `asChild`
   - ⚠️ `<SelectValue>` 不会自动显示选中项文字，要传 render 函数：`<SelectValue>{(v) => 名字映射}</SelectValue>`，否则显示原始 value
-  - 主题变量在 `src/index.css`：蓝白管理后台配色（参考 NOC 工具）；字体幼圆（`YouYuan`，非 Windows 设备回退）
+  - 主题变量在 `src/index.css`：⚠️ **2026-09-18 起是「只此青绿」主题**（Rosie 指定，同 Zenith 方向）——oklch 色相统一 ~168（青绿），页面底浅青绿、主色松石绿、`--radius` 0.8rem（她要「圆钝钝」，这一个变量管全部组件圆角）。原来的蓝白 NOC 配色（色相 250-260）已全部换掉，**别再往回改蓝**。字体幼圆（`YouYuan`，非 Windows 设备回退）。⚠️ 日日学的 `BOARDS` 配色也已收进青绿家族（主线 `TEAL_MAIN` 深松石 / 次线 `TEAL_SOFT` 浅绿，层次靠深浅不靠色相）——新增板块别再配彩虹色。时间轴 `DOMAINS`/`TRACK_STYLE` 的旧彩色**还没统一**，下次动那页时顺手收进青绿。
   - ⚠️ **粗体保持幼圆、不要黑体**（2026-07-27 Rosie 要求）：`index.css` 里 `strong,b,.font-semibold,.font-bold` 的 `font-family` 用 `var(--font-sans)`（幼圆优先，浏览器合成加粗），**不能**再回退到 Geist/微软雅黑那种黑体（之前那样做过，Rosie 说"不要黑体"）
 - **数据**：SQLite，运行环境自动检测（`src/lib/db.ts`）：
   - Tauri 内 → tauri-plugin-sql，本地文件 `portwritingtool.db`，迁移在 `src-tauri/src/lib.rs`（`migrations()`，目前到 **v12**）
@@ -345,6 +345,13 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 - [ ] ⚠️ **自检教训（2026-07-30，同一天犯了两次同类错）**：`noUnusedLocals` **不只管 import，也管局部变量**。本机没 Node 时我手写脚本只扫了 import，漏了 `const ids` ⇒ 构建失败。正确的手工自检要**两样都扫**（局部变量用 `grep -oP '^\s*(?:const|let)\s+\K\w+'` 再数出现次数）。CI 的 `annotations_url` 确实能不带 token 读到确切行号，这条路子有效——但它是**事后**发现，别拿它当自检
 **2026-09-01 第二批（重定向落地）：**
 - [x] **日日学首页两行布局**（AI/PM 大框 + 英语/语文/历史/金融小框，`MAIN_BOARDS`/`SUB_BOARDS`）；**书影拆去独立模块 `bookshelf`**（数据没搬，仍在 study_entries；路由 `#/bookshelf/<id>`）
+
+**2026-09-18 本次会话：**
+- [x] **修「一键同步全清空」事故**：resetToSeed 软删后 seedIfEmpty 裸 INSERT 撞同 id 主键 ⇒ 播种中止 ⇒ 时间轴 0 条（7 月起潜伏，她第一次点同步就爆）。修法＝upsert（ON CONFLICT(id) DO UPDATE 复活+更新）。⚠️ 顺带查出 7/21 那次去重用了 **2027-01-01 未来时间戳**删旧行（plan_items 50 / habits 25 等）——期望状态就是删除所以不去动，但取证能力已被毁，铁律 1 添案例。习惯虚惊：10 条活着
+- [x] **UI 三连改（两轮 5+5 视觉稿选定）**：①整站「只此青绿」主题（见上「主题变量」段）②日日学首页＝C4 正方圆环格（`ProgressRing`，今天有内容画环、没内容画图标——空环像"没做"）③日程＝D5 圆条泳道（每天一行、块宽=时长、连续骨架合并成白带、点行展开明细、**单日明细表已删**——与时间轴「今天」重合，Rosie 指出的）
+- [x] **日程拆独立模块 `modules/schedule`**（她要一周全览单开界面）；时间轴的 schedule tab 移除
+- [x] **书架封面缩 1/4**（列数翻倍 + 宽屏断点）
+- [x] 出视觉稿的流程验证有效：show_widget 出 5 方案 → 她点按钮选 → 再落地。**下次大改版式先出稿再写码**
 - [x] **作息全套换新**（SEED_VERSION 24）：早餐 07:30 → 英语 07:50–09:40 一整块（四条并一条）→ 通勤 09:45 → 工作 10:15；晚间 19:00 学习① → 腰椎 → 运动 → 20:25 学习②；周六下午 13:00–18:00 AI 大块；周日下午恢复日。**DOMAINS 锚点同步改**（english 470 / work 615 / sport 1185）
 - [x] **时间轴加「日程」tab**（`Timetable.tsx`）：一日全揽＝plan_items（要打卡）+ `DAY_FRAME` 作息骨架（吃饭/通勤/工作/空档，**不入库不进统计**；站立办公等已在打卡模块，只标注不重复）。⚠️ **拒绝了"22 周预排静态表"方案**，理由在组件顶部注释（日历式排课 vs 进度指针）
 - [x] **四条线的「华为认证」格换成「AI PM」**（`buildPmLine`）：数据源是日日学 pm 板块（exercise 条目交了作业才算动），不在时间轴。cert 移出 LINE_TARGETS，暂停记录留在 SEMESTER_TARGET
