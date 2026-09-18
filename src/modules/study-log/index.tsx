@@ -62,21 +62,21 @@ type BoardCfg = {
 const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, hint: "每默过一次，下次隔 1/2/4/8/15 天再来；默到全对才算过、这条就从列表里消失", c: { bg: "#FCEBEB", text: "#791F1F", sub: "#A32D2D", accent: "#E24B4A" } };
 
 /**
- * 板块配色（2026-09-18 全部收进「只此青绿」家族，Rosie 定的整站方向）：
- * 不再一板块一个彩虹色——主线（AI/PM）用深松石绿、其余用两阶浅青绿轮流，
+ * 板块配色（2026-09-19 整站定稿**白底＋深浅蓝**，Rosie 看过青绿版后改的方向）：
+ * 不再一板块一个彩虹色——主线（AI/PM）用深一阶的蓝、其余用浅一阶，
  * 层次靠深浅不靠色相。金融暂停中，配色同其他次线（用 opacity 区分状态，不用颜色）。
  */
-const TEAL_MAIN = { bg: "#E1F5EE", text: "#04342C", sub: "#0F6E56", accent: "#1D9E75" };
-const TEAL_SOFT = { bg: "#EAF3DE", text: "#173404", sub: "#3B6D11", accent: "#639922" };
+const BLUE_MAIN = { bg: "#E6F1FB", text: "#042C53", sub: "#185FA5", accent: "#378ADD" };
+const BLUE_SOFT = { bg: "#F0F6FD", text: "#0C447C", sub: "#4A80B0", accent: "#85B7EB" };
 
 const BOARDS: BoardCfg[] = [
-  { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语", "新概念练习"], hint: "报课号出题 · 谚语", c: { ...TEAL_SOFT } },
-  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔", "认字测试"], hint: "二四练笔 · 成语古诗按需", c: { ...TEAL_SOFT } },
+  { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语", "新概念练习"], hint: "报课号出题 · 谚语", c: { ...BLUE_SOFT } },
+  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔", "认字测试"], hint: "二四练笔 · 成语古诗按需", c: { ...BLUE_SOFT } },
   // kinds 只喂「加一条」表单的下拉框（渲染不看它，LearningBoard 只筛 kind !== 'note'）。
-  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "2 深读 + 速览 + 术语卡 + 趋势", c: { ...TEAL_MAIN } },
-  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "周末更新 · 当故事看", c: { ...TEAL_SOFT } },
-  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "暂停中（第 7 课起恢复）", c: { ...TEAL_SOFT } },
-  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "概念 + 用自己的项目练表达", c: { ...TEAL_MAIN } },
+  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "2 深读 + 速览 + 术语卡 + 趋势", c: { ...BLUE_MAIN } },
+  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "周末更新 · 当故事看", c: { ...BLUE_SOFT } },
+  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "暂停中（第 7 课起恢复）", c: { ...BLUE_SOFT } },
+  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "概念 + 用自己的项目练表达", c: { ...BLUE_MAIN } },
 ];
 
 /**
@@ -185,14 +185,14 @@ function ProgressRing({ done, total, accent }: { done: number; total: number; ac
   const p = total > 0 ? done / total : 0;
   return (
     <svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label={`完成 ${done}/${total}`}>
-      <circle cx="38" cy="38" r={R} fill="none" stroke="#D6E8DF" strokeWidth="8" />
+      <circle cx="38" cy="38" r={R} fill="none" stroke="#DFEAF6" strokeWidth="8" />
       {p > 0 && (
         <circle
           cx="38" cy="38" r={R} fill="none" stroke={accent} strokeWidth="8"
           strokeDasharray={`${C * p} ${C}`} strokeLinecap="round" transform="rotate(-90 38 38)"
         />
       )}
-      <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="500" fill="#04342C">
+      <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="500" fill="#042C53">
         {total > 0 ? `${done}/${total}` : "—"}
       </text>
     </svg>

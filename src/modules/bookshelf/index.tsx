@@ -38,7 +38,7 @@ interface ShelfCfg {
   c: { bg: string; text: string; sub: string; accent: string };
 }
 const SHELVES: ShelfCfg[] = [
-  { key: "book", name: "书籍", icon: Library, hint: "在读/读过的书 + 读后感", c: { bg: "#E1F5EE", text: "#085041", sub: "#0F6E56", accent: "#1D9E75" } },
+  { key: "book", name: "书籍", icon: Library, hint: "在读/读过的书 + 读后感", c: { bg: "#E6F1FB", text: "#0C447C", sub: "#185FA5", accent: "#378ADD" } },
   { key: "movie", name: "电影", icon: Film, hint: "看过的电影 + 观后感", c: { bg: "#FBEAF0", text: "#72243E", sub: "#993556", accent: "#D4537E" } },
 ];
 /** 搬过来的组件原来用的是 study-log 的 BoardCfg，这里用结构相同的 ShelfCfg 顶上 */
