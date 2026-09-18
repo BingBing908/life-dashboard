@@ -1,7 +1,9 @@
 import type { Track } from "./data";
 
-/** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅 */
-export const SEED_VERSION = 24;
+/** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅。
+ *  ⚠️ v25 起**纯新增**的版本会被 ensureSeedAdditions 静默补齐（不动她改过的条目、不弹横幅）；
+ *  **修改了已有条目**的版本升级仍要靠横幅+一键同步（会重置她的改动，别轻易做）。 */
+export const SEED_VERSION = 25;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -210,6 +212,29 @@ export const SEED_ITEMS: {
     detail: "跟练 10-15 分钟；顺便吃当日补剂（小红镁/钙镁锌）",
     url: "https://www.bilibili.com/video/BV1UovWBNENi/",
   },
+
+  // ---------- 作息骨架（v25 新增；2026-09-19 Rosie：骨架也要和计划一样可编辑、走同步） ----------
+  // track="frame"：不打卡、不进时间轴/总览统计（listItems 直接滤掉），只有日程页画它。
+  // ⚠️ 周六周日晚餐必须合成一条 days:"6,7"——拆成两条的话 track|title|time_slot 完全相同，
+  // 确定性 id 撞车，后播的会把先播的覆盖掉。
+  { track: "frame", days: "*", time_slot: "06:40–06:50", title: "如厕" },
+  { track: "frame", days: "*", time_slot: "07:25–07:30", title: "缓冲" },
+  { track: "frame", days: "*", time_slot: "07:30–07:50", title: "早餐" },
+  { track: "frame", days: "*", time_slot: "09:40–09:45", title: "缓冲" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "09:45–10:15", title: "通勤上班" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "10:15–12:00", title: "工作" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "12:00–12:30", title: "午餐" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "12:30–13:00", title: "空档" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "13:00–14:00", title: "日日学" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "14:00–17:30", title: "工作" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "17:30–17:50", title: "晚餐" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "17:50–18:10", title: "通勤回家" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "18:10–19:00", title: "空档" },
+  { track: "frame", days: "6,7", time_slot: "12:00–13:00", title: "午餐" },
+  { track: "frame", days: "7", time_slot: "13:00–15:00", title: "打扫卫生" },
+  { track: "frame", days: "7", time_slot: "15:00–17:00", title: "搓澡洗头沐浴" },
+  { track: "frame", days: "7", time_slot: "17:00–18:00", title: "全身护肤护发" },
+  { track: "frame", days: "6,7", time_slot: "18:00–18:40", title: "晚餐" },
 ];
 
 // ---------- 半年路线（2026-07-20 → 12-27，共 23 周） ----------

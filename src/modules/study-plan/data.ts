@@ -2,8 +2,11 @@ import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { mondayOf, todayStr } from "@/lib/dates";
 import { SEED_ITEMS, SEED_VERSION } from "./seed";
 
-/** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读 */
-export type Track = "wellness" | "sport" | "english" | "cert" | "ai" | "reading";
+/** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读；
+ *  frame＝作息骨架（吃饭/通勤/工作，2026-09-19 从日程页的硬编码常量搬进数据库——
+ *  Rosie 要求骨架和计划一样可编辑、走同步）。**不打卡、不进任何统计**，
+ *  所以 frame 不在 TRACKS 里、listItems 直接滤掉，只有日程页用 listAllItems 拿到它。 */
+export type Track = "wellness" | "sport" | "english" | "cert" | "ai" | "reading" | "frame";
 
 export const TRACKS: { key: Track; name: string }[] = [
   { key: "wellness", name: "养生" },
@@ -42,6 +45,17 @@ export function matchesDay(item: PlanItem, dayNum: number): boolean {
 }
 
 export async function listItems(): Promise<PlanItem[]> {
+  const db = await getDb();
+  // ⚠️ 骨架（track='frame'）在这里就滤掉：时间轴/总览/小表格的所有统计天然不含它，
+  // 各消费方零改动。要骨架的只有日程页 ⇒ 用 listAllItems。
+  return db.select<PlanItem[]>(
+    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order
+     FROM plan_items WHERE deleted_at IS NULL AND track != 'frame' ORDER BY time_slot, sort_order`,
+  );
+}
+
+/** 含作息骨架的全量条目（目前只有日程页用） */
+export async function listAllItems(): Promise<PlanItem[]> {
   const db = await getDb();
   return db.select<PlanItem[]>(
     `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order
@@ -112,6 +126,29 @@ async function setSeedVersion(v: number): Promise<void> {
 /** 当前代码里的模板版本（供 UI 比对） */
 export function latestSeedVersion(): number {
   return SEED_VERSION;
+}
+
+/**
+ * 增量补种：把模板里**新加的**条目补进库（ON CONFLICT DO NOTHING——
+ * 已存在的行一个字段都不碰，她的编辑不会被模板覆盖），然后把版本号提上来。
+ * ⚠️ 只对「纯新增」的模板升级正确（如 v25 加作息骨架）；改了已有条目的升级
+ * 这里不会生效，得走横幅+resetToSeed。日程页每次加载都调它，幂等。
+ */
+export async function ensureSeedAdditions(): Promise<void> {
+  if ((await getSeedVersion()) >= SEED_VERSION) return;
+  const db = await getDb();
+  let order = 1;
+  for (const s of SEED_ITEMS) {
+    const f = newRecordFields();
+    const id = seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`);
+    await db.execute(
+      `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, created_at, updated_at, device_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT(id) DO NOTHING`,
+      [id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, s.period_action ?? null, s.period_title ?? null, s.period_detail ?? null, order++, f.created_at, f.updated_at, f.device_id],
+    );
+  }
+  await setSeedVersion(SEED_VERSION);
 }
 
 /** 清空现有条目并重新播种（用于同步最新计划模板；已打的勾会失效） */
@@ -193,6 +230,17 @@ export async function updateItemTitle(id: string, title: string): Promise<void> 
   const db = await getDb();
   await db.execute("UPDATE plan_items SET title = $1, updated_at = $2 WHERE id = $3", [
     title,
+    nowIso(),
+    id,
+  ]);
+}
+
+/** 改时间段和星期（日程页编辑用）。days：'*' 或 '1,3,5'；timeSlot 空串存 null（当天无固定钟点） */
+export async function updateItemSlot(id: string, timeSlot: string, days: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE plan_items SET time_slot = $1, days = $2, updated_at = $3 WHERE id = $4", [
+    timeSlot.trim() || null,
+    days.trim() || "*",
     nowIso(),
     id,
   ]);

@@ -1,62 +1,27 @@
 import { cn } from "@/lib/utils";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayNumOf, matchesDay, type CheckStatus, type PlanItem } from "../study-plan/data";
+import type { Todo } from "../todo/data";
 
 /**
- * 「日程」＝一周全览，F1 竖排周历（2026-09-19 Rosie 选定，替换只用了一天的 D5 泳道）：
- * 七列＝七天、纵向＝时间（06:00–22:30），块的位置＝几点、块的高度＝多长，
- * 名字直接写在块里——D5 被否的原因就是块里看不清字、还得点开才知道是什么。
+ * 「日程」＝一周全览，F1 竖排周历（2026-09-19 Rosie 选定）：
+ * 七列＝七天、纵向＝时间（06:00–22:30），块的位置＝几点、块的高度＝多长，名字直接写在块里。
  *
- * ⚠️ 没有单日明细视图——她 09-18 指出跟时间轴的「今天」功能重合。这页只做周视角。
+ * ⚠️ 2026-09-19 起**没有硬编码的作息骨架了**：骨架＝ plan_items 里 track='frame' 的条目
+ * （种子 v25 播入，和其他计划一样可编辑、走同步——Rosie 的要求「都调用同一种模块」）。
+ * 改作息直接在这页点块编辑，不用改代码。
  *
- * 颜色（白底＋深浅蓝，她点名主色要比设计稿的 #185FA5 浅，所以最深一档用 #378ADD）：
- * · #378ADD ＝ AI 学习（主线最深）· #85B7EB ＝ 英语 · #B5D4F4 ＝ 其他计划
- * · 灰白 ＝ 作息骨架（吃饭/通勤/工作），退到背景，不打卡。
+ * 今天的「工作」块里同步显示今天的待办（一个时间段＝一段，段里装多个条目——她点名要的，
+ * 同时间轴表格版一个思路）。待办在这里只读，增删改去待办模块。
  *
- * ⚠️ 数据来源不变：plan_items + DAY_FRAME。改作息去时间轴/seed.ts，这里自动跟着变。
+ * 颜色（白底＋深浅蓝）：#378ADD＝AI 学习 · #85B7EB＝英语 · #B5D4F4＝其他计划 · 灰白＝骨架。
  */
-
-interface FrameSlot {
-  days: string;
-  from: string;
-  to: string;
-  label: string;
-}
-
-const WEEKDAYS = "1,2,3,4,5";
-
-/** 作息骨架（不打卡、不进统计）。改骨架就改这里。 */
-const DAY_FRAME: FrameSlot[] = [
-  { days: "*", from: "06:40", to: "06:50", label: "如厕" },
-  { days: "*", from: "07:25", to: "07:30", label: "缓冲" },
-  { days: "*", from: "07:30", to: "07:50", label: "早餐" },
-  { days: "*", from: "09:40", to: "09:45", label: "缓冲" },
-  { days: WEEKDAYS, from: "09:45", to: "10:15", label: "通勤" },
-  { days: WEEKDAYS, from: "10:15", to: "12:00", label: "工作" },
-  { days: WEEKDAYS, from: "12:00", to: "12:30", label: "午餐" },
-  { days: WEEKDAYS, from: "12:30", to: "13:00", label: "空档" },
-  { days: WEEKDAYS, from: "13:00", to: "14:00", label: "日日学" },
-  { days: WEEKDAYS, from: "14:00", to: "17:30", label: "工作" },
-  { days: WEEKDAYS, from: "17:30", to: "17:50", label: "晚餐" },
-  { days: WEEKDAYS, from: "17:50", to: "18:10", label: "通勤" },
-  { days: WEEKDAYS, from: "18:10", to: "19:00", label: "空档" },
-  { days: "6,7", from: "12:00", to: "13:00", label: "午餐" },
-  { days: "6", from: "18:00", to: "18:40", label: "晚餐" },
-  { days: "7", from: "13:00", to: "15:00", label: "打扫卫生" },
-  { days: "7", from: "15:00", to: "17:00", label: "搓澡洗头沐浴" },
-  { days: "7", from: "17:00", to: "18:00", label: "全身护肤护发" },
-  { days: "7", from: "18:00", to: "18:40", label: "晚餐" },
-];
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const AXIS_START = 360; // 06:00
 const AXIS_END = 1350; // 22:30
 const PX_PER_MIN = 0.8; // 一分钟几像素：0.8 ⇒ 全天约 792px；晨间养生合并块（30–35min）能放下两行名字
 
-function toMin(hhmm: string): number {
-  const m = hhmm.match(/(\d{1,2}):(\d{2})/);
-  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
-}
 function parseSlot(s: string | null): { from: number; to: number } | null {
   const m = (s ?? "").match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/);
   if (!m) return null;
@@ -71,6 +36,8 @@ const AXIS_H = y(AXIS_END);
 interface Part {
   label: string;
   item?: PlanItem;
+  /** 待办条目专用：完成态直接来自 todos 表，不走 plan_checks */
+  todoDone?: boolean;
 }
 interface Block {
   from: number;
@@ -84,24 +51,27 @@ function shortTitle(t: string): string {
   return t.replace(/[（(].*$/, "");
 }
 
-function buildDay(dayNum: number, items: PlanItem[]): { blocks: Block[]; noTime: PlanItem[] } {
+function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blocks: Block[]; noTime: PlanItem[] } {
   const blocks: Block[] = [];
-  for (const f of DAY_FRAME) {
-    if (f.days !== "*" && !f.days.split(",").includes(String(dayNum))) continue;
-    blocks.push({ from: toMin(f.from), to: toMin(f.to), kind: "frame", parts: [{ label: f.label }] });
-  }
   const noTime: PlanItem[] = [];
   const plans: Block[] = [];
   for (const it of items) {
     if (!matchesDay(it, dayNum)) continue;
     const p = parseSlot(it.time_slot);
     if (!p) {
-      noTime.push(it);
+      if (it.track !== "frame") noTime.push(it);
       continue;
     }
-    const kind = it.track === "ai" || it.track === "cert" ? "study" : it.track === "english" ? "english" : "plan";
-    plans.push({ ...p, kind, parts: [{ label: shortTitle(it.title), item: it }] });
+    const kind =
+      it.track === "frame" ? "frame" : it.track === "ai" || it.track === "cert" ? "study" : it.track === "english" ? "english" : "plan";
+    const block: Block = { ...p, kind, parts: [{ label: shortTitle(it.title), item: it }] };
+    if (kind === "frame") blocks.push(block);
+    else plans.push(block);
   }
+  // 今天的待办装进第一个「工作」块——一个时间段＝一段，段里装多个条目（Rosie 要的联动）
+  const work = blocks.find((b) => b.parts[0]?.label === "工作");
+  if (work) work.parts.push(...todosForDay.map((t) => ({ label: t.title, todoDone: t.done === 1 })));
+
   plans.sort((a, b) => a.from - b.from || a.to - b.to);
   /** ⚠️ 挨着的（间隔≤10min，含同时段重叠的泡脚+阅读）「其他计划」合并成一个块、名字用 · 连写。
    *  不合并的话晨间养生全是 10–20 分钟的矮条，字放不下——就是 09-19 Rosie 问
@@ -130,9 +100,14 @@ const BLOCK_STYLE: Record<Block["kind"], string> = {
 export function Timetable({
   items,
   weekChecks,
+  todayTodos,
+  onSelect,
 }: {
   items: PlanItem[];
   weekChecks: Record<string, Map<string, CheckStatus>>;
+  todayTodos: Todo[];
+  /** 点一个块 ⇒ 把块里的计划条目交给日程页的编辑区（待办条目不在内，去待办模块改） */
+  onSelect: (items: PlanItem[]) => void;
 }) {
   const today = todayStr();
   const mon = mondayOf(today);
@@ -142,7 +117,13 @@ export function Timetable({
   const days = DAY_NAMES.map((name, i) => {
     const dayNum = i + 1;
     const date = addDays(mon, i);
-    return { name, dayNum, date, ...buildDay(dayNum, items), checks: weekChecks[date] };
+    return {
+      name,
+      dayNum,
+      date,
+      ...buildDay(dayNum, items, dayNum === todayNum ? todayTodos : []),
+      checks: weekChecks[date],
+    };
   });
 
   return (
@@ -196,31 +177,41 @@ export function Timetable({
             {d.blocks.map((b, k) => {
               const h = Math.max(8, y(b.to) - y(b.from));
               const stOf = (p: Part) => (p.item ? d.checks?.get(p.item.id) : undefined);
-              const allDone = b.parts.every((p) => !p.item || stOf(p) === "done");
+              const allDone =
+                b.parts.some((p) => p.item) && b.parts.every((p) => !p.item || stOf(p) === "done");
               const tip =
                 `${fmt(b.from)}–${fmt(b.to)} ` +
                 b.parts
                   .map((p) => (p.item?.title ?? p.label) + (stOf(p) === "skip" ? "（今天做不了）" : ""))
-                  .join(" / ");
+                  .join(" / ") +
+                " · 点击编辑";
+              const editable = b.parts.filter((p) => p.item).map((p) => p.item!);
               return (
                 <div
                   key={k}
                   title={tip}
+                  onClick={() => editable.length > 0 && onSelect(editable)}
                   className={cn(
-                    "absolute inset-x-0.5 overflow-hidden rounded-lg px-1.5 py-[1px] text-[11.5px] leading-[1.25]",
+                    "absolute inset-x-0.5 cursor-pointer overflow-hidden rounded-lg px-1.5 py-[1px] text-[11.5px] leading-[1.25]",
                     BLOCK_STYLE[b.kind],
-                    b.parts.some((p) => p.item) && allDone && "opacity-60",
+                    allDone && "opacity-60",
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
                   {h >= 14 &&
                     b.parts.map((p, j) => {
                       const st = stOf(p);
+                      const done = st === "done" || p.todoDone;
                       return (
                         <span key={j}>
                           {j > 0 && " · "}
-                          <span className={cn(st === "done" && "opacity-70", st === "skip" && "line-through opacity-60")}>
-                            {st === "done" && "✓"}
+                          <span
+                            className={cn(
+                              done && "opacity-70",
+                              st === "skip" && "line-through opacity-60",
+                            )}
+                          >
+                            {done && "✓"}
                             {p.label}
                           </span>
                         </span>
@@ -242,11 +233,12 @@ export function Timetable({
               {d.noTime.map((it) => (
                 <div
                   key={it.id}
+                  onClick={() => onSelect([it])}
                   className={cn(
-                    "truncate rounded-lg border border-dashed border-[#B5D4F4] px-1.5 py-0.5 text-[11px] text-[#185FA5]",
+                    "cursor-pointer truncate rounded-lg border border-dashed border-[#B5D4F4] px-1.5 py-0.5 text-[11px] text-[#185FA5]",
                     d.checks?.get(it.id) === "done" && "line-through opacity-55",
                   )}
-                  title={it.title}
+                  title={`${it.title} · 点击编辑`}
                 >
                   {shortTitle(it.title)}
                 </div>
@@ -258,8 +250,8 @@ export function Timetable({
 
       <p className="pt-3 text-xs text-muted-foreground">
         深蓝＝AI 学习 · 中蓝＝英语 · 浅蓝＝其他计划 · 灰白＝作息骨架（不打卡）。
-        块高＝时长；挨着的短条目（晨间养生、腰椎+运动）合并成一块、名字用 · 连写，悬停看全称和各自时间。
-        这张表实时来自时间轴的计划——改作息去时间轴改。
+        块高＝时长；挨着的短条目合并成一块、名字用 · 连写；今天的「工作」块里带今天的待办（✓＝已完成）。
+        <b>点任意块可直接编辑</b>（改名/改时间/删除），待办去待办模块改。
       </p>
     </div>
   );
