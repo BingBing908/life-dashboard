@@ -37,7 +37,7 @@ export interface DaySnapshot {
 }
 
 export interface LineCell {
-  key: "english" | "cert" | "ai" | "weight";
+  key: "english" | "pm" | "ai" | "weight";
   name: string;
   /** 进度指针：她自己写的最近一条笔记原文；体重是「69.1 → 58」；没有则 null */
   pointer: string | null;
@@ -54,9 +54,8 @@ export interface LineCell {
   paused?: boolean;
 }
 
-const PLAN_LINES: { key: "english" | "cert" | "ai"; track: Track }[] = [
+const PLAN_LINES: { key: "english" | "ai"; track: Track }[] = [
   { key: "english", track: "english" },
-  { key: "cert", track: "cert" },
   { key: "ai", track: "ai" },
 ];
 
@@ -82,7 +81,7 @@ function relDay(date: string, today: string): string {
  * 按天数就都是 0–7，而且「连续性」本来就是按天定义的。
  */
 function planLine(
-  key: "english" | "cert" | "ai",
+  key: "english" | "ai",
   track: Track,
   items: PlanItem[],
   week: DaySnapshot[],
@@ -182,6 +181,66 @@ export function buildWeightLine(latestAm: number | null, goal: number): LineCell
     warn: latestAm == null,
     target: cfg.target,
     moduleId: "supplement",
+  };
+}
+
+/**
+ * AI PM 那一格（2026-09-01 由「华为认证·已暂停」换过来，Rosie 拍板）。
+ *
+ * ⚠️ **数据源跟其他线不同：不在时间轴里，在日日学的 pm 板块。**
+ * 这条线量的是「有没有在练把项目讲成 PM 的故事」——具体信号＝带 `exercise: true`
+ * 的 pm 条目**交了作业**（批改写进 `meta.homework` 才算，跟 gradedByHomework 同一判据）。
+ * 只看「出了题」不算：题天天有，交才是她的动作。
+ *
+ * ⚠️ 用 entry_date 当完成日期是个近似（作业挂在出题那天，她可能隔天才交）——
+ * 但方向正确且零改库；真要精确就得在批改时另存提交日，不值得。
+ */
+export function buildPmLine(
+  entries: { board: string; entry_date: string | null; title: string | null; meta: string | null }[],
+  week: DaySnapshot[],
+  today: string,
+): LineCell {
+  const cfg = LINE_TARGETS.find((l) => l.key === "pm")!;
+  const parse = (meta: string | null): Record<string, unknown> => {
+    try {
+      return meta ? JSON.parse(meta) : {};
+    } catch {
+      return {};
+    }
+  };
+  const pm = entries.filter((e) => e.board === "pm");
+  const exercises = pm.filter((e) => parse(e.meta).exercise === true);
+  const graded = exercises.filter((e) => {
+    const h = parse(e.meta).homework;
+    return typeof h === "string" && h.trim().length > 0;
+  });
+
+  // 最近一次交作业（按 entry_date 近似）+ 最近那道的题目当指针
+  let lastDone = "";
+  let pointer: string | null = null;
+  for (const e of graded) {
+    const d = e.entry_date ?? "";
+    if (d > lastDone) {
+      lastDone = d;
+      pointer = e.title;
+    }
+  }
+
+  // 本周：出了几道 / 交了几道（只算本周已过去的日期）
+  const weekDates = new Set(week.map((d) => d.date));
+  const dueW = exercises.filter((e) => e.entry_date && weekDates.has(e.entry_date)).length;
+  const doneW = graded.filter((e) => e.entry_date && weekDates.has(e.entry_date)).length;
+  const weekPart = dueW > 0 ? `本周作业 ${doneW}/${dueW}` : "本周还没出题";
+
+  return {
+    key: "pm",
+    name: cfg.name,
+    pointer,
+    pointerFrom: pointer ? `最近交的一道 · ${lastDone}` : null,
+    status: lastDone ? `最近 ${relDay(lastDone, today)} 交过 · ${weekPart}` : `还没交过作业 · ${weekPart}`,
+    warn: (dueW > 0 && doneW === 0) || !lastDone,
+    target: cfg.target,
+    moduleId: "study-log",
   };
 }
 

@@ -234,15 +234,18 @@ export const SEMESTER_TARGET =
 export const ACCEPTANCE_DATE = "2026-12-27";
 
 export const LINE_TARGETS: {
-  key: "english" | "cert" | "ai" | "weight";
+  key: "english" | "pm" | "ai" | "weight";
   name: string;
   target: string;
-  /** 这条线已暂停：卡片上灰掉、不报「断了」的警，但**保留那一格**——
-   *  她说的是「暂时停止」，悄悄删掉会让她忘了自己停过什么（2026-09-01）。 */
+  /** 这条线已暂停：卡片上灰掉、不报「断了」的警。当前没有暂停的线，机制保留备用 */
   paused?: boolean;
 }[] = [
   { key: "english", name: "英语", target: "无字幕听懂 50–60%" },
-  { key: "cert", name: "华为认证", target: "已暂停 · 时间并给 AI", paused: true },
+  // ⚠️ 2026-09-01 由「华为认证（已暂停）」换成 AI PM（Rosie 拍板）。
+  // 这条线的数据源跟其他线不同：**不在时间轴里，在日日学的 pm 板块**——
+  // 每天一道「项目翻译」题，她交了作业、批改写进 meta.homework 才算这条线动了。
+  // 目标日期＝2027 年 3–4 月面试窗口。华为认证的暂停记录在 SEMESTER_TARGET 里，没丢。
+  { key: "pm", name: "AI PM", target: "3 月面试 · 把项目讲成 PM 的故事" },
   { key: "ai", name: "AI", target: "两个项目进简历" },
   { key: "weight", name: "体重", target: "≤58kg 达标" },
 ];

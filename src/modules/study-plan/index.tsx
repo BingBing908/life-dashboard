@@ -51,6 +51,8 @@ import {
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 import { Timetable } from "./Timetable";
+import { RoadmapStages } from "./RoadmapStages";
+import { Collapse } from "@/components/Collapse";
 
 /** 所有种子条目的确定性 id 集合（与 seedIfEmpty 的生成方式完全一致）。
  *  ⚠️ 用 id 判定「是否原定计划」，不用名字——名字会被经期开关换成 period_title、也会被就地改名，
@@ -1201,9 +1203,15 @@ function Page() {
         <Timetable items={shown} weekChecks={weekChecks} />
       ) : tab === "roadmap" ? (
         <div className="mt-4 space-y-4">
+          {/* 冲刺路线（2026-09-01 起的主路线）：阶段目标 + 她自己写「实际做了什么」。
+              形态刻意不是预排周计划，理由在 roadmap.ts 顶部。 */}
+          <RoadmapStages />
+
           <div className="rounded-lg border-l-4 border-primary bg-accent p-4 text-sm leading-relaxed text-accent-foreground">
             {SEMESTER_TARGET}
           </div>
+          {/* 旧版月度计划（7 月定的，含体重/运动线仍有效，但学习线是重定向前的）收进折叠区 */}
+          <Collapse title="7 月版月度计划（体重/运动线仍参考，学习线已被上面的冲刺路线取代）">
           {SEMESTER_PLAN.map((m) => (
             <section key={m.title} className={CARD}>
               <div className="mb-2 flex flex-wrap items-baseline gap-2">
@@ -1235,6 +1243,7 @@ function Page() {
               </ul>
             </section>
           ))}
+          </Collapse>
           <div className="flex justify-end">
             <Button
               variant="ghost"

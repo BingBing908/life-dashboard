@@ -387,3 +387,65 @@ export function cycleWeekOf(cycleStart: string, today: string): number {
   const weeks = Math.max(0, Math.floor(ms / (7 * 24 * 3600 * 1000)));
   return (weeks % 4) + 1;
 }
+
+/**
+ * 冲刺路线的「实际做了什么」（2026-09-01 加，Rosie：「最好是有计划，然后允许我在
+ * 计划后写入我实际做了什么」）。
+ *
+ * ⚠️ **复用 `app_settings`、零改库**——跟体重库/补剂打卡/单词标熟同一套。
+ * key ＝ `roadmap:<阶段id>:note`（她写的实际进展）和 `roadmap:<阶段id>:status`
+ * （'active' | 'done' | ''＝未开始）。**一个阶段两个 key**，别塞成一条 JSON
+ * （同步是最后写入胜出，整片一条会被跨设备互相盖掉——老规矩）。
+ *
+ * 计划本身（阶段的目标文案）在 `roadmap.ts` 里当代码常量维护，**不入库**：
+ * 它是我出的方向，改方向改代码就行；她的那部分（note/status）才需要跨设备同步。
+ */
+const ROADMAP_PREFIX = "roadmap:";
+
+export interface RoadmapMark {
+  note: string;
+  status: "" | "active" | "done";
+}
+
+/** 所有阶段的标记：阶段id -> {note, status} */
+export async function getRoadmapMarks(): Promise<Record<string, RoadmapMark>> {
+  const db = await getDb();
+  const rows = await db.select<{ key: string; value: string }[]>(
+    `SELECT key, value FROM app_settings WHERE key LIKE '${ROADMAP_PREFIX}%'`,
+  );
+  const out: Record<string, RoadmapMark> = {};
+  for (const r of rows) {
+    const rest = r.key.slice(ROADMAP_PREFIX.length);
+    const i = rest.lastIndexOf(":");
+    if (i < 0) continue;
+    const id = rest.slice(0, i);
+    const field = rest.slice(i + 1);
+    if (!out[id]) out[id] = { note: "", status: "" };
+    if (field === "note") out[id].note = r.value;
+    if (field === "status" && (r.value === "active" || r.value === "done" || r.value === ""))
+      out[id].status = r.value as RoadmapMark["status"];
+  }
+  return out;
+}
+
+/** 写一个阶段的一个字段。时间戳单调递增（同体重库，防被旧行盖回） */
+export async function setRoadmapMark(
+  stageId: string,
+  field: "note" | "status",
+  value: string,
+): Promise<void> {
+  const db = await getDb();
+  const key = `${ROADMAP_PREFIX}${stageId}:${field}`;
+  const prev = await db.select<{ updated_at: string }[]>(
+    "SELECT updated_at FROM app_settings WHERE key = $1",
+    [key],
+  );
+  const now = nowIso();
+  const prevTs = prev[0]?.updated_at ?? "";
+  const ts = now > prevTs ? now : new Date(Date.parse(prevTs) + 1000).toISOString();
+  await db.execute(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, $3)
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = $3`,
+    [key, value, ts],
+  );
+}

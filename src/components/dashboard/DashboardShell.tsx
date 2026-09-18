@@ -15,6 +15,7 @@ import {
 import { ACCEPTANCE_DATE } from "@/modules/study-plan/seed";
 import {
   buildPlanLines,
+  buildPmLine,
   buildWeightLine,
   daysToAcceptance,
   type DaySnapshot,
@@ -135,7 +136,12 @@ export function DashboardShell({ onOpenModule }: Props) {
         habit: { done: habitDone, total: todayHabits.length },
         learn: { done: learnDone, total: todayEntries.length },
         bars,
-        planLines: buildPlanLines(items, week, latestDone, latestNote, today),
+        // 顺序＝英语 → AI PM → AI → 体重（体重在渲染时另算）。PM 线的数据源是日日学
+        // 的 pm 板块（entries 这里本来就取了），不是时间轴——见 buildPmLine 注释。
+        planLines: (() => {
+          const [en, ai] = buildPlanLines(items, week, latestDone, latestNote, today);
+          return [en, buildPmLine(entries, week, today), ai];
+        })(),
       });
     })().catch(() => {});
   }, []);
