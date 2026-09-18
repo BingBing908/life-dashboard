@@ -3,16 +3,17 @@ import type { Track } from "./data";
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅。
  *  ⚠️ v25 起**纯新增**的版本会被 ensureSeedAdditions 静默补齐（不动她改过的条目、不弹横幅）；
  *  **修改了已有条目**的版本升级仍要靠横幅+一键同步（会重置她的改动，别轻易做）。 */
-export const SEED_VERSION = 26;
-// v26（2026-09-19 晚间改版，Rosie 口述）：18:30–19:45 学习 75 分钟一整段 /
-// 19:50–20:30 瑜伽芭蕾把杆 / 20:30–20:50 冲澡 / 21:00–21:30 泡脚。
+export const SEED_VERSION = 27;
+// v26+v27（2026-09-19 晚间改版，Rosie 口述，两次口令并成一次升级，她还没同步过）：
+// 18:30–19:45 学习 75 分钟一整段 / 19:50–20:30 瑜伽芭蕾把杆 / 20:30–20:50 冲澡 /
+// 21:00–21:30 泡脚 / 21:40–22:00 拉伸 / 22:00 睡觉。
 // 这是**修改型**升级（动了已有条目的时间和标题）⇒ 必须走横幅+一键同步，见下。
 
 /** 库版本小于它 ⇒ 本次升级**含对已有条目的修改**，不能增量补（会新旧并存重复），
  *  必须让她点时间轴的「一键同步」横幅（resetToSeed）。ensureSeedAdditions 只在
  *  库版本 ≥ 它时补纯新增。以后发**修改型**升级：改 SEED_VERSION 的同时把这个也提到同值；
  *  纯新增升级：只动 SEED_VERSION。 */
-export const SEED_RESET_BELOW = 26;
+export const SEED_RESET_BELOW = 27;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -166,7 +167,7 @@ export const SEED_ITEMS: {
   {
     track: "wellness",
     days: "*",
-    time_slot: "21:50–22:10",
+    time_slot: "21:40–22:00",
     title: "睡前拉伸",
     detail: "跟练 10-15 分钟；顺便吃当日补剂（小红镁/钙镁锌）",
     url: "https://www.bilibili.com/video/BV1UovWBNENi/",
@@ -190,6 +191,8 @@ export const SEED_ITEMS: {
   { track: "frame", days: "1,2,3,4,5", time_slot: "17:50–18:10", title: "通勤回家" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "18:10–18:30", title: "空档" },
   { track: "frame", days: "*", time_slot: "20:30–20:50", title: "冲澡" },
+  // 睡觉是个时刻不是时段，画 20 分钟只是让「22:00 睡觉」这个收尾在周历上看得见（再短字放不下）
+  { track: "frame", days: "*", time_slot: "22:00–22:20", title: "睡觉" },
   { track: "frame", days: "6,7", time_slot: "12:00–13:00", title: "午餐" },
   { track: "frame", days: "7", time_slot: "13:00–15:00", title: "打扫卫生" },
   { track: "frame", days: "7", time_slot: "15:00–17:00", title: "搓澡洗头沐浴" },
