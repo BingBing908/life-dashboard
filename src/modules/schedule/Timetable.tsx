@@ -14,7 +14,9 @@ import type { Todo } from "../todo/data";
  * 今天的「工作」块里同步显示今天的待办（一个时间段＝一段，段里装多个条目——她点名要的，
  * 同时间轴表格版一个思路）。待办在这里只读，增删改去待办模块。
  *
- * 颜色（白底＋深浅蓝）：#378ADD＝AI 学习 · #85B7EB＝英语 · #B5D4F4＝其他计划 · 灰白＝骨架。
+ * 颜色（2026-09-19 Rosie 二调，三档浅蓝、英语并入学习色）：
+ * 中浅蓝 #85B7EB＝学习（AI+英语）· 浅蓝 #B5D4F4＝运动养生 · 最浅蓝 #E6F1FB＝作息骨架。
+ * ⚠️ 她点名不要深蓝（#378ADD 那档已撤），别加回来。
  */
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
@@ -42,7 +44,7 @@ interface Part {
 interface Block {
   from: number;
   to: number;
-  kind: "frame" | "study" | "english" | "plan";
+  kind: "frame" | "study" | "plan";
   parts: Part[];
 }
 
@@ -63,7 +65,7 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
       continue;
     }
     const kind =
-      it.track === "frame" ? "frame" : it.track === "ai" || it.track === "cert" ? "study" : it.track === "english" ? "english" : "plan";
+      it.track === "frame" ? "frame" : it.track === "ai" || it.track === "cert" || it.track === "english" ? "study" : "plan";
     const block: Block = { ...p, kind, parts: [{ label: shortTitle(it.title), item: it }] };
     if (kind === "frame") blocks.push(block);
     else plans.push(block);
@@ -91,10 +93,9 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
 }
 
 const BLOCK_STYLE: Record<Block["kind"], string> = {
-  study: "bg-[#378ADD] text-[#E6F1FB]",
-  english: "bg-[#85B7EB] text-[#042C53]",
+  study: "bg-[#85B7EB] text-[#042C53]",
   plan: "bg-[#B5D4F4] text-[#0C447C]",
-  frame: "bg-[#F1F3F6] text-[#93A0AF]",
+  frame: "bg-[#E6F1FB] text-[#6E96C4]",
 };
 
 export function Timetable({
@@ -171,7 +172,7 @@ export function Timetable({
             key={d.dayNum}
             className={cn(
               "relative min-w-0 flex-1 border-l border-border/60",
-              d.dayNum === todayNum && "bg-[#EFF6FD]",
+              d.dayNum === todayNum && "bg-[#F3F8FE]",
             )}
           >
             {d.blocks.map((b, k) => {
@@ -249,7 +250,7 @@ export function Timetable({
       )}
 
       <p className="pt-3 text-xs text-muted-foreground">
-        深蓝＝AI 学习 · 中蓝＝英语 · 浅蓝＝其他计划 · 灰白＝作息骨架（不打卡）。
+        中浅蓝＝学习（AI/英语）· 浅蓝＝运动养生 · 最浅蓝＝作息骨架（不打卡）。
         块高＝时长；挨着的短条目合并成一块、名字用 · 连写；今天的「工作」块里带今天的待办（✓＝已完成）。
         <b>点任意块可直接编辑</b>（改名/改时间/删除），待办去待办模块改。
       </p>

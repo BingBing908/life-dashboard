@@ -7,6 +7,8 @@ import {
   applyPeriod,
   ensureSeedAdditions,
   getPeriodOn,
+  getSeedVersion,
+  latestSeedVersion,
   listAllItems,
   listCheckStatus,
   seedIfEmpty,
@@ -36,6 +38,7 @@ function Page() {
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
   const [selected, setSelected] = useState<PlanItem[] | null>(null);
+  const [outdated, setOutdated] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
@@ -61,6 +64,8 @@ function Page() {
       // ensureSeedAdditions：模板纯新增的升级（如 v25 作息骨架）静默补齐，不动她的编辑
       await seedIfEmpty().catch(() => {});
       await ensureSeedAdditions().catch(() => {});
+      // 修改型模板升级（SEED_RESET_BELOW 挡住增量补的那种）要她去时间轴点一键同步，这里提示
+      setOutdated((await getSeedVersion().catch(() => 0)) < latestSeedVersion());
       await reload();
     })()
       .catch(() => {})
@@ -82,6 +87,11 @@ function Page() {
       </div>
       {loaded ? (
         <>
+          {outdated && (
+            <div className="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+              作息模板有更新（晚间改版）——去<b>时间轴</b>页点顶部的「一键同步」就能换成新作息，这页会自动跟着变。
+            </div>
+          )}
           <Timetable items={items} weekChecks={weekChecks} todayTodos={todayTodos} onSelect={setSelected} />
           <EditorPanel selected={selected} onChanged={onChanged} onClose={() => setSelected(null)} />
         </>

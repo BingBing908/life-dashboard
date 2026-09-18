@@ -1,6 +1,6 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { mondayOf, todayStr } from "@/lib/dates";
-import { SEED_ITEMS, SEED_VERSION } from "./seed";
+import { SEED_ITEMS, SEED_RESET_BELOW, SEED_VERSION } from "./seed";
 
 /** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读；
  *  frame＝作息骨架（吃饭/通勤/工作，2026-09-19 从日程页的硬编码常量搬进数据库——
@@ -135,7 +135,11 @@ export function latestSeedVersion(): number {
  * 这里不会生效，得走横幅+resetToSeed。日程页每次加载都调它，幂等。
  */
 export async function ensureSeedAdditions(): Promise<void> {
-  if ((await getSeedVersion()) >= SEED_VERSION) return;
+  const cur = await getSeedVersion();
+  if (cur >= SEED_VERSION) return;
+  // 库版本太老 ⇒ 中间隔着修改型升级（如 v26 晚间改版），增量补会造成新旧条目并存，
+  // 这里不动、让时间轴的「模板有更新」横幅引导她一键同步（resetToSeed 才能删旧的）
+  if (cur < SEED_RESET_BELOW) return;
   const db = await getDb();
   let order = 1;
   for (const s of SEED_ITEMS) {

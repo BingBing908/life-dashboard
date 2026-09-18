@@ -3,7 +3,16 @@ import type { Track } from "./data";
 /** 种子模板版本号：每次修改 SEED_ITEMS 后 +1，已播种的设备会看到"模板有更新"横幅。
  *  ⚠️ v25 起**纯新增**的版本会被 ensureSeedAdditions 静默补齐（不动她改过的条目、不弹横幅）；
  *  **修改了已有条目**的版本升级仍要靠横幅+一键同步（会重置她的改动，别轻易做）。 */
-export const SEED_VERSION = 25;
+export const SEED_VERSION = 26;
+// v26（2026-09-19 晚间改版，Rosie 口述）：18:30–19:45 学习 75 分钟一整段 /
+// 19:50–20:30 瑜伽芭蕾把杆 / 20:30–20:50 冲澡 / 21:00–21:30 泡脚。
+// 这是**修改型**升级（动了已有条目的时间和标题）⇒ 必须走横幅+一键同步，见下。
+
+/** 库版本小于它 ⇒ 本次升级**含对已有条目的修改**，不能增量补（会新旧并存重复），
+ *  必须让她点时间轴的「一键同步」横幅（resetToSeed）。ensureSeedAdditions 只在
+ *  库版本 ≥ 它时补纯新增。以后发**修改型**升级：改 SEED_VERSION 的同时把这个也提到同值；
+ *  纯新增升级：只动 SEED_VERSION。 */
+export const SEED_RESET_BELOW = 26;
 
 /**
  * 首次使用时的种子计划——按 Rosie 的作息表时间排布。
@@ -95,67 +104,33 @@ export const SEED_ITEMS: {
     detail: "整块五小时，啃需要连贯注意力的内容：一整章课程、一篇 RAG/Agent 技术文、或把本周项目翻译题写成正式的一页纸。跟晚间碎片刷课分工——晚上看短段落，这里啃硬的。⚠️ 中途每小时起身 5 分钟（护腰），别连坐五小时。（2026-09-01 从「华为认证·eNSP 实验 14:00–16:00」换过来并扩到整个下午）",
     url: "https://www.bilibili.com/video/BV1yC4y127uj/",
   },
-  // ---------- 晚间学习：90 分钟拆两段，中间夹运动（2026-09-01 定，见文件头说明）----------
+  // ---------- 晚间（2026-09-19 Rosie 改版：学习 75 分钟一整段 + 瑜伽/芭蕾把杆 + 冲澡 + 泡脚）----------
+  // 原来的「90 分钟拆两段夹运动」和五个按天轮换的跟练视频被她整体替掉；
+  // 老配置（含视频链接）在 git 历史的 seed.ts 里，想找回翻历史版本。
   {
     track: "ai",
     days: "1,2,3,4,5",
-    time_slot: "19:00–19:45",
-    title: "AI 学习① 看课（45 分钟）",
-    detail: "沿路线看课：吴恩达 AI for Everyone→李宏毅生成式AI导论→Prompt→RAG/Agent。边看边记「AI 名词手册」。⚠️ 这段完就去做腰椎稳定+运动——**运动本身就是两段学习中间的那次起身**，护腰不用另外安排，也别把 90 分钟连着坐完",
+    time_slot: "18:30–19:45",
+    title: "AI 学习（晚间 75 分钟）",
+    detail: "前半看课：吴恩达 AI for Everyone→李宏毅生成式AI导论→Prompt→RAG/Agent，边看边记「AI 名词手册」；后半动手——把刚学的试一遍，或推进 NOC Sentinel / life-dashboard 的一小块。⚠️ 学 AI 最容易的失败方式是只看不做，每天都要有产出。散步日（周四）出门 1 小时优先，回来接着写，写不完就写一半",
     url: "https://www.bilibili.com/video/BV1yC4y127uj/",
-  },
-  {
-    track: "ai",
-    days: "1,2,3,4,5",
-    time_slot: "20:25–21:10",
-    title: "AI 学习② 动手（45 分钟）",
-    detail: "运动完缓 5 分钟再开始。跟①分工：①是输入（看课），②是输出——把刚学的动手试一遍，或推进 NOC Sentinel / life-dashboard 里的一小块。⚠️ 学 AI 最容易的失败方式是只看不做，这段就是为了每天都有产出。⚠️ 散步日（周四/周六）出门 1 小时，这段顺延到回来后，写不完就写一半，别为了赶时间不出门",
   },
   {
     track: "english",
     days: "6",
-    time_slot: "19:00–19:45",
+    time_slot: "18:30–19:45",
     title: "英语·本周复盘",
   },
   // ---------- 晚间运动 ----------
   {
     track: "sport",
-    // ⚠️ 不是每天：**散步日（四/六）不排它**（2026-07-30 Rosie：「只要是散步，那么运动页就只允许放散步，
-    // 不要别的」）。它本来的角色是视频跟练前的「开场」，而散步日没有视频跟练、出门 1 小时本身就是全部内容，
-    // 再垫 10 分钟腰椎稳定只会让人出不了门。周日虽是恢复日但仍在家做，保留。
+    // ⚠️ 散步日（四/六）不排它（2026-07-30 Rosie：「只要是散步，运动页就只允许放散步」）
     days: "1,2,3,5,7",
-    time_slot: "19:45–19:55",
-    title: "腰椎稳定 10 分钟（每晚开场）",
-    detail: "鸟狗式 / 侧桥 / 改良卷腹；⚠️ 出现放射性疼痛立即停。（视频待换成 Rosie 收藏的腰椎稳定跟练）",
-    // url 待定：原 BV11f421Q7ZU 非 Rosie 收藏，已移除；Rosie 提供她收藏的链接后再填
+    time_slot: "19:50–20:30",
+    title: "瑜伽/芭蕾把杆 40 分钟",
+    detail: "2026-09-19 起替换原来的按天轮换（瘦斜方肌/芭杆/太极/骨盆/泡沫轴），具体跟练视频她自己选",
     period_action: "swap",
-    period_title: "腰椎稳定·经期版 10 分钟",
-    period_detail: "猫牛式 + 臀桥 + 髋部轻拉伸（不做任何卷腹/侧桥/平板）；⚠️ 出现放射性疼痛立即停",
-  },
-  {
-    track: "sport",
-    days: "1",
-    time_slot: "19:55–20:20",
-    title: "C戈·瘦斜方肌 20 分钟（针对斜方肌肥大）",
-    detail: "正对你的斜方肌肥大；圆肩另配 C戈肩带综合矫正 BV15T411j7bs",
-    url: "https://www.bilibili.com/video/BV1Qv411u7aF/",
-  },
-  {
-    track: "sport",
-    days: "2",
-    time_slot: "19:55–20:20",
-    title: "欧阳春晓·芭杆练手臂 x 薄背 20 分钟（全程站立）",
-    url: "https://www.bilibili.com/video/BV11Autz4EoV/",
-    period_action: "swap",
-    period_detail: "🩸 经期：跳过视频里的卷腹/平板段落，其余照做",
-  },
-  {
-    track: "sport",
-    days: "3",
-    time_slot: "19:55–20:20",
-    title: "24 式太极·邱慧芳教学（分段学）",
-    detail: "跟你收藏的邱慧芳教学版，一次学一两式",
-    url: "https://www.bilibili.com/video/BV1iE411c7Ni/",
+    period_detail: "🩸 经期：跳过卷腹/平板/倒立类动作，其余照做",
   },
   {
     track: "sport",
@@ -167,40 +142,24 @@ export const SEED_ITEMS: {
   },
   {
     track: "sport",
-    days: "5",
-    time_slot: "19:55–20:20",
-    title: "欧阳春晓·大腿内侧 x 盆底肌 x 骨盆稳定 20 分钟",
-    detail: "针对骨盆前倾；膝超伸另配 C戈膝超伸矫正 BV1K7411b7yo",
-    url: "https://www.bilibili.com/video/BV1PhHrzfEqN/",
-  },
-  {
-    track: "sport",
     days: "6",
     time_slot: "出门时段",
     title: "出门散步 1 小时（周末·第2次出门）",
     detail: "本周第2次出门就走满1小时、晒太阳；不出门则在家做芭杆臀腿 BV1FczFBcEBQ",
     url: "https://www.bilibili.com/video/BV1FczFBcEBQ/",
   },
-  {
-    track: "sport",
-    days: "7",
-    time_slot: "19:55–20:20",
-    title: "恢复日·泡沫轴放松（周日下午搓澡+休闲，晚间放松即可）",
-    detail: "泡沫轴放松，重点滚斜方肌和小腿；周日安排搓澡+休闲，不再出门运动",
-    url: "https://www.bilibili.com/video/BV1pp4y1X7og/",
-  },
   // ---------- 睡前 ----------
   {
     track: "wellness",
     days: "1,5,6,7",
-    time_slot: "21:10–21:50",
+    time_slot: "21:00–21:30",
     title: "泡脚",
     detail: "和阅读同时段，边泡边看书；水别太烫、15-20分钟即可；其他晚上想泡随时加",
   },
   {
     track: "reading",
     days: "*",
-    time_slot: "21:10–21:50",
+    time_slot: "21:00–21:30",
     title: "阅读（泡脚时段）",
     detail: "当前：《她对此感到厌烦》；之后：长安的荔枝→秋园→显微镜下的大明→82年生的金智英→万历十五年→始于极限→叫魂→翦商；历史类只收史实可靠的；50 页弃权规则，只记进度不设 KPI",
   },
@@ -229,7 +188,8 @@ export const SEED_ITEMS: {
   { track: "frame", days: "1,2,3,4,5", time_slot: "14:00–17:30", title: "工作" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "17:30–17:50", title: "晚餐" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "17:50–18:10", title: "通勤回家" },
-  { track: "frame", days: "1,2,3,4,5", time_slot: "18:10–19:00", title: "空档" },
+  { track: "frame", days: "1,2,3,4,5", time_slot: "18:10–18:30", title: "空档" },
+  { track: "frame", days: "*", time_slot: "20:30–20:50", title: "冲澡" },
   { track: "frame", days: "6,7", time_slot: "12:00–13:00", title: "午餐" },
   { track: "frame", days: "7", time_slot: "13:00–15:00", title: "打扫卫生" },
   { track: "frame", days: "7", time_slot: "15:00–17:00", title: "搓澡洗头沐浴" },
