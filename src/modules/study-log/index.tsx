@@ -1671,6 +1671,12 @@ function Page() {
      （EntryDoc 刻意「只展示不可删，防误删」），所以这里不再需要删除函数。 */
 
   const boardEntries = board ? all.filter((e) => e.board === board) : [];
+  // 板块页头部的圆环统计（2026-09-19 Rosie：「每个科目的主界面里都有一个圆环进度统计」）：
+  // 环＝累计看完/全部（今日的环首页格子上已经有，这里给纵深），旁注今日进度
+  const boardReal = boardEntries.filter((e) => e.kind !== "note");
+  const boardDone = boardReal.filter(entryDone).length;
+  const boardTodays = boardReal.filter((e) => e.entry_date === todayStr());
+  const boardDoneToday = boardTodays.filter(entryDone).length;
 
   return (
     <div className={PAGE}>
@@ -1686,6 +1692,16 @@ function Page() {
           {cfg ? cfg.name : "日日学"}
         </h1>
         {cfg && <span className="text-sm text-muted-foreground">{cfg.hint}</span>}
+        {board && board !== "review" && cfg && (
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            <ProgressRing done={boardDone} total={boardReal.length} accent={cfg.c.accent} />
+            <span className="text-xs leading-snug" style={{ color: cfg.c.sub }}>
+              累计看完
+              <br />
+              今日 {boardTodays.length > 0 ? `${boardDoneToday}/${boardTodays.length}` : "无新内容"}
+            </span>
+          </span>
+        )}
         {!board && (
           <button
             onClick={() => setBoard("review")}
