@@ -118,7 +118,9 @@ function BookBoard({
       {books.length === 0 ? (
         <p className="py-10 text-sm text-muted-foreground">还没有书。上面加一本开始，我帮你找封面。</p>
       ) : (
-        {/* 2026-09-18 Rosie：「每本书界面太大，缩小为现在的 1/4」。面积 1/4＝列数翻倍（2→4、3→6），页面全宽，宽屏再补 xl:8 / 2xl:10，免得列少时封面又被拉大 */}
+        // 2026-09-18 Rosie：「每本书界面太大，缩小为现在的 1/4」。面积 1/4＝列数翻倍
+        // （2→4、3→6），页面全宽，宽屏再补 xl:8 / 2xl:10，免得列少时封面又被拉大。
+        // ⚠️ 这里是三元的分支，注释必须是 // 形式——JSX 的 {/* */} 放在 ( 后面是语法错误（CI 抓过）。
         <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
           {books.map((b) => {
             const cover = metaGet(b, "cover");
