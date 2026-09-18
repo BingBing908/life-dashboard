@@ -51,7 +51,7 @@ const DAY_FRAME: FrameSlot[] = [
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const AXIS_START = 360; // 06:00
 const AXIS_END = 1350; // 22:30
-const PX_PER_MIN = 0.62; // 一分钟几像素：0.62 ⇒ 全天约 614px，45 分钟的课约 28px、够放一行字
+const PX_PER_MIN = 0.8; // 一分钟几像素：0.8 ⇒ 全天约 792px；晨间养生合并块（30–35min）能放下两行名字
 
 function toMin(hhmm: string): number {
   const m = hhmm.match(/(\d{1,2}):(\d{2})/);
@@ -68,12 +68,15 @@ function fmt(min: number): string {
 const y = (min: number) => (min - AXIS_START) * PX_PER_MIN;
 const AXIS_H = y(AXIS_END);
 
+interface Part {
+  label: string;
+  item?: PlanItem;
+}
 interface Block {
   from: number;
   to: number;
-  label: string;
   kind: "frame" | "study" | "english" | "plan";
-  item?: PlanItem;
+  parts: Part[];
 }
 
 /** 列太窄放不下长标题：砍掉括号里的说明（「英语（新概念整块：…）」→「英语」），悬停看全称 */
@@ -85,9 +88,10 @@ function buildDay(dayNum: number, items: PlanItem[]): { blocks: Block[]; noTime:
   const blocks: Block[] = [];
   for (const f of DAY_FRAME) {
     if (f.days !== "*" && !f.days.split(",").includes(String(dayNum))) continue;
-    blocks.push({ from: toMin(f.from), to: toMin(f.to), label: f.label, kind: "frame" });
+    blocks.push({ from: toMin(f.from), to: toMin(f.to), kind: "frame", parts: [{ label: f.label }] });
   }
   const noTime: PlanItem[] = [];
+  const plans: Block[] = [];
   for (const it of items) {
     if (!matchesDay(it, dayNum)) continue;
     const p = parseSlot(it.time_slot);
@@ -96,7 +100,20 @@ function buildDay(dayNum: number, items: PlanItem[]): { blocks: Block[]; noTime:
       continue;
     }
     const kind = it.track === "ai" || it.track === "cert" ? "study" : it.track === "english" ? "english" : "plan";
-    blocks.push({ ...p, label: shortTitle(it.title), kind, item: it });
+    plans.push({ ...p, kind, parts: [{ label: shortTitle(it.title), item: it }] });
+  }
+  plans.sort((a, b) => a.from - b.from || a.to - b.to);
+  /** ⚠️ 挨着的（间隔≤10min，含同时段重叠的泡脚+阅读）「其他计划」合并成一个块、名字用 · 连写。
+   *  不合并的话晨间养生全是 10–20 分钟的矮条，字放不下——就是 09-19 Rosie 问
+   *  「五脏逼毒八段锦咋没了」的原因：块在，字被藏了。学习/英语块时长够，不参与合并。 */
+  for (const b of plans) {
+    const prev = blocks[blocks.length - 1];
+    if (prev && prev.kind === "plan" && b.kind === "plan" && b.from <= prev.to + 10) {
+      prev.to = Math.max(prev.to, b.to);
+      prev.parts.push(...b.parts);
+    } else {
+      blocks.push(b);
+    }
   }
   // 骨架先画、计划后画：偶有重叠时计划块盖在骨架上面（DOM 顺序即层级）
   blocks.sort((a, b) => (a.kind === "frame" ? 0 : 1) - (b.kind === "frame" ? 0 : 1) || a.from - b.from);
@@ -178,25 +195,37 @@ export function Timetable({
           >
             {d.blocks.map((b, k) => {
               const h = Math.max(8, y(b.to) - y(b.from));
-              const st = b.item ? d.checks?.get(b.item.id) : undefined;
+              const stOf = (p: Part) => (p.item ? d.checks?.get(p.item.id) : undefined);
+              const allDone = b.parts.every((p) => !p.item || stOf(p) === "done");
+              const tip =
+                `${fmt(b.from)}–${fmt(b.to)} ` +
+                b.parts
+                  .map((p) => (p.item?.title ?? p.label) + (stOf(p) === "skip" ? "（今天做不了）" : ""))
+                  .join(" / ");
               return (
                 <div
                   key={k}
-                  title={`${fmt(b.from)}–${fmt(b.to)} ${b.item?.title ?? b.label}${st === "skip" ? "（今天做不了）" : ""}`}
+                  title={tip}
                   className={cn(
-                    "absolute inset-x-0.5 overflow-hidden rounded-lg px-1.5 py-0.5 text-[12px] leading-[1.3]",
+                    "absolute inset-x-0.5 overflow-hidden rounded-lg px-1.5 py-[1px] text-[11.5px] leading-[1.25]",
                     BLOCK_STYLE[b.kind],
-                    st === "done" && "opacity-60",
-                    st === "skip" && "opacity-45 line-through",
+                    b.parts.some((p) => p.item) && allDone && "opacity-60",
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
-                  {h >= 17 && (
-                    <>
-                      {st === "done" && "✓ "}
-                      {b.label}
-                    </>
-                  )}
+                  {h >= 14 &&
+                    b.parts.map((p, j) => {
+                      const st = stOf(p);
+                      return (
+                        <span key={j}>
+                          {j > 0 && " · "}
+                          <span className={cn(st === "done" && "opacity-70", st === "skip" && "line-through opacity-60")}>
+                            {st === "done" && "✓"}
+                            {p.label}
+                          </span>
+                        </span>
+                      );
+                    })}
                 </div>
               );
             })}
@@ -229,7 +258,8 @@ export function Timetable({
 
       <p className="pt-3 text-xs text-muted-foreground">
         深蓝＝AI 学习 · 中蓝＝英语 · 浅蓝＝其他计划 · 灰白＝作息骨架（不打卡）。
-        块高＝时长，短块（10 分钟腰椎）悬停看名字。这张表实时来自时间轴的计划——改作息去时间轴改。
+        块高＝时长；挨着的短条目（晨间养生、腰椎+运动）合并成一块、名字用 · 连写，悬停看全称和各自时间。
+        这张表实时来自时间轴的计划——改作息去时间轴改。
       </p>
     </div>
   );
