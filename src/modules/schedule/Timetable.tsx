@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { CARD } from "@/lib/ui";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
-import { dayNumOf, matchesDay, type CheckStatus, type PlanItem, type Track } from "./data";
+import { dayNumOf, matchesDay, type CheckStatus, type PlanItem, type Track } from "../study-plan/data";
 
 /**
  * 「日程」视图（2026-09-01 加）：**一日全揽**——把一天从早到晚所有时段排成一张竖表，
@@ -178,26 +178,63 @@ export function Timetable({
 
   return (
     <div className="space-y-4">
-      {/* 七天切换，默认落在今天 */}
-      <div className="flex flex-wrap gap-2">
-        {DAY_NAMES.map((n, i) => {
-          const d = i + 1;
-          const isToday = dayNumOf(today) === d;
-          return (
-            <button
-              key={n}
-              onClick={() => setPick(d)}
-              className={cn(
-                "rounded-full border px-3.5 py-1.5 text-sm transition-colors",
-                pick === d ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent",
-                isToday && pick !== d && "border-primary text-primary",
-              )}
-            >
-              {n}
-              {isToday && <span className="ml-1 text-xs opacity-80">今天</span>}
-            </button>
-          );
-        })}
+      {/* ── 一周全览（2026-09-18 加，Rosie：「希望给一周时间线全览单开一个界面」）──
+          七列＝周一到周日，每列从早到晚列出全部时段块。这就是"全览"本体；
+          点某一列，下面那张明细表切到那天。今天那列高亮描边。
+          ⚠️ 各天时段数量不同（周末没有工作段），列内自然堆叠即可，别去对齐行。 */}
+      <div className={cn(CARD, "overflow-x-auto")}>
+        <div className="grid min-w-[900px] grid-cols-7 gap-2">
+          {DAY_NAMES.map((n, i) => {
+            const d = i + 1;
+            const isToday = dayNumOf(today) === d;
+            const dDate = addDays(mon, i);
+            const day = buildDay(d, items);
+            const dChecks = weekChecks[dDate];
+            return (
+              <button
+                key={n}
+                onClick={() => setPick(d)}
+                className={cn(
+                  "flex flex-col gap-1 rounded-lg border p-1.5 text-left transition-colors",
+                  pick === d ? "border-primary bg-primary/5" : "hover:bg-accent/40",
+                  isToday && "ring-1 ring-primary",
+                )}
+              >
+                <div className={cn("px-1 text-sm font-medium", isToday && "text-primary")}>
+                  {n}
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                    {dDate.slice(5).replace("-", "/")}
+                  </span>
+                  {isToday && <span className="ml-1 text-[10px]">今天</span>}
+                </div>
+                {day.rows.map((r, k) => {
+                  const st = r.item ? dChecks?.get(r.item.id) : undefined;
+                  const tint = r.item ? TRACK_TINT[r.item.track] : KIND_STYLE[r.frameKind!];
+                  return (
+                    <div
+                      key={k}
+                      className={cn("rounded px-1.5 py-0.5 text-[10px] leading-tight", tint.bg, tint.text)}
+                    >
+                      <span className="tabular-nums opacity-70">{fmt(r.from)}</span>{" "}
+                      <span className={cn(r.item && "font-medium", st === "done" && "line-through opacity-60")}>
+                        {r.label}
+                      </span>
+                      {st === "done" && " ✓"}
+                    </div>
+                  );
+                })}
+                {day.noTime.map((it) => (
+                  <div
+                    key={it.id}
+                    className={cn("rounded border border-dashed px-1.5 py-0.5 text-[10px] leading-tight", TRACK_TINT[it.track].text)}
+                  >
+                    {it.title}
+                  </div>
+                ))}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className={CARD}>

@@ -65,9 +65,21 @@ export function seedIfEmpty(): Promise<PlanItem[]> {
         const f = newRecordFields();
         // 确定性 id：按内容（track|title|time_slot，已验证唯一）生成，任意设备一致 → 云同步去重（#25）
         const id = seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`);
+        // ⚠️⚠️ 必须是 upsert，不能裸 INSERT（2026-09-18 修的真事故）：
+        // 「一键同步」＝ resetToSeed 先把全部条目**软删**（行还在，只是 deleted_at 有值），
+        // 再调这里重播。key 没变过的条目（如仙人揉腹）算出**同一个确定性 id**，
+        // 裸 INSERT 撞主键 ⇒ 抛错 ⇒ 整个播种中止 ⇒ 时间轴 0 条。
+        // 这个 bug 从 7 月就潜伏着——resetToSeed 一直没人真点过（云端版本号停在 21），
+        // Rosie 9/18 第一次点「一键同步」当场全空。
+        // upsert 语义＝复活软删的同 id 行并更新全部内容字段；updated_at 用当前时间，
+        // 晚于 resetToSeed 刚写的删除时间戳 ⇒ 本地和同步都以复活为准。
         await db.execute(
           `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, created_at, updated_at, device_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+           ON CONFLICT(id) DO UPDATE SET
+             track = $2, days = $3, time_slot = $4, title = $5, detail = $6, url = $7,
+             period_action = $8, period_title = $9, period_detail = $10, sort_order = $11,
+             updated_at = $13, device_id = $14, deleted_at = NULL`,
           [id, s.track, s.days, s.time_slot, s.title, s.detail ?? null, s.url ?? null, s.period_action ?? null, s.period_title ?? null, s.period_detail ?? null, order++, f.created_at, f.updated_at, f.device_id],
         );
       }

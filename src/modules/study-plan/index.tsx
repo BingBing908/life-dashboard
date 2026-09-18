@@ -50,7 +50,6 @@ import {
 } from "./data";
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
-import { Timetable } from "./Timetable";
 import { RoadmapStages } from "./RoadmapStages";
 import { Collapse } from "@/components/Collapse";
 
@@ -86,13 +85,12 @@ function isSeedItem(item: PlanItem): boolean {
  *  「当前」＝此刻该干什么——竖线时间轴自动跟随时间 + 当前领域按状态分栏，进来就动手；
  *  「今天」＝全天一览——紧凑清单，一条一行、13 条一屏，用来扫和补勾（不放笔记框和详解）。
  *  ⚠️ 别让「今天」也去做整天时间轴，那就跟「当前」职责重了。 */
-const PLAN_TABS = ["current", "today", "week", "schedule", "roadmap"] as const;
+const PLAN_TABS = ["current", "today", "week", "roadmap"] as const;
 type PlanTab = (typeof PLAN_TABS)[number];
 const TAB_LABEL: Record<PlanTab, string> = {
   current: "当前",
   today: "今天",
   week: "一周",
-  schedule: "日程",
   roadmap: "路线",
 };
 
@@ -1195,13 +1193,8 @@ function Page() {
             )}
           </div>
         </div>
-      ) : tab === "schedule" ? (
-        /* 日程＝一日全揽（作息骨架 + 要打卡的计划，按时间排成一张竖表，默认落在今天）。
-           ⚠️ 它跟「今天」的分工：「今天」只列**要打卡的**、求一屏扫完随手勾；
-           「日程」把**全天所有时段**（含吃饭/通勤/工作/空档）都排出来，答的是
-           「我这一天到底长什么样、空档在哪」。见 Timetable.tsx 顶部注释。 */
-        <Timetable items={shown} weekChecks={weekChecks} />
       ) : tab === "roadmap" ? (
+        /* 「日程」已于 2026-09-18 拆成独立模块（modules/schedule），侧栏直接进。 */
         <div className="mt-4 space-y-4">
           {/* 冲刺路线（2026-09-01 起的主路线）：阶段目标 + 她自己写「实际做了什么」。
               形态刻意不是预排周计划，理由在 roadmap.ts 顶部。 */}
