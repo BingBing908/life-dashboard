@@ -14,15 +14,16 @@ import type { Todo } from "../todo/data";
  * 今天的「工作」块里同步显示今天的待办（一个时间段＝一段，段里装多个条目——她点名要的，
  * 同时间轴表格版一个思路）。待办在这里只读，增删改去待办模块。
  *
- * 颜色（2026-09-19 Rosie 二调，三档浅蓝、英语并入学习色）：
- * 中浅蓝 #85B7EB＝学习（AI+英语）· 浅蓝 #B5D4F4＝运动养生 · 最浅蓝 #E6F1FB＝作息骨架。
- * ⚠️ 她点名不要深蓝（#378ADD 那档已撤），别加回来。
+ * 颜色（2026-09-19 Rosie 三调，见 BLOCK_STYLE）：三档蓝，学习（AI+英语）最深、
+ * 运动养生居中、作息骨架最浅。她先嫌深蓝跳（#378ADD 撤了）、又嫌最浅档隐身（各加深一档）——
+ * 再调色时保持「三档、层次靠深浅」这个骨架，动具体色值就行。
  */
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const AXIS_START = 360; // 06:00
 const AXIS_END = 1350; // 22:30
-const PX_PER_MIN = 0.8; // 一分钟几像素：0.8 ⇒ 全天约 792px；晨间养生合并块（30–35min）能放下两行名字
+const PX_PER_MIN = 1.15; // 一分钟几像素：1.15 ⇒ 全天约 1139px。09-19 Rosie 要求整体文字放大，
+// 字大了行就高（15px × 1.3 ≈ 20px/行），晨间合并块 4 行要 ~80px（75min），比例跟着提
 
 function parseSlot(s: string | null): { from: number; to: number } | null {
   const m = (s ?? "").match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/);
@@ -93,11 +94,12 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
   return { blocks, noTime };
 }
 
+// 09-19 Rosie：「浅蓝过于浅了，搞稍微深色一点」——三档各加深一档，层次关系不变
 const BLOCK_STYLE: Record<Block["kind"], string> = {
-  study: "bg-[#85B7EB] text-[#042C53]",
-  plan: "bg-[#B5D4F4] text-[#0C447C]",
-  // 骨架＝最浅蓝。⚠️ 它铺在白色列上，不描边就快看不见了——border 别删
-  frame: "bg-[#E6F1FB] text-[#5D8AB8] border border-[#C9DEF3]",
+  study: "bg-[#6FA7E4] text-[#04264A]",
+  plan: "bg-[#A6CBF1] text-[#0C447C]",
+  // 骨架＝最浅档。⚠️ 它铺在白色列上，不描边就快看不见了——border 别删
+  frame: "bg-[#D5E7F7] text-[#4F7EAD] border border-[#BBD7EF]",
 };
 
 export function Timetable({
@@ -138,13 +140,13 @@ export function Timetable({
           <div key={d.dayNum} className="min-w-0 flex-1 px-0.5 pb-2 text-center">
             <span
               className={cn(
-                "inline-block rounded-full px-2.5 py-1 text-[13px] font-medium",
+                "inline-block rounded-full px-3 py-1 text-[15px] font-medium",
                 d.dayNum === todayNum ? "bg-primary text-primary-foreground" : "text-foreground",
               )}
             >
               {d.name}
             </span>
-            <div className="text-[11px] text-muted-foreground">{d.date.slice(5).replace("-", "/")}</div>
+            <div className="text-[12px] text-muted-foreground">{d.date.slice(5).replace("-", "/")}</div>
           </div>
         ))}
       </div>
@@ -162,7 +164,7 @@ export function Timetable({
           {hourMarks.map((h) => (
             <span
               key={h}
-              className="absolute right-2 text-[11px] tabular-nums text-muted-foreground"
+              className="absolute right-2 text-[12px] tabular-nums text-muted-foreground"
               style={{ top: y(h) - 8 }}
             >
               {fmt(h)}
@@ -187,39 +189,39 @@ export function Timetable({
                 b.parts
                   .map((p) => (p.item?.title ?? p.label) + (stOf(p) === "skip" ? "（今天做不了）" : ""))
                   .join(" / ") +
-                " · 点击编辑";
+                " · 双击编辑";
               const editable = b.parts.filter((p) => p.item).map((p) => p.item!);
               return (
                 <div
                   key={k}
                   title={tip}
-                  onClick={() => editable.length > 0 && onSelect(editable)}
+                  onDoubleClick={() => editable.length > 0 && onSelect(editable)}
                   className={cn(
-                    "absolute inset-x-0.5 cursor-pointer overflow-hidden rounded-lg px-1.5 py-[1px] text-[11.5px] leading-[1.25]",
+                    "absolute inset-x-0.5 cursor-pointer select-none overflow-hidden rounded-lg px-2 py-0.5 text-[15px] leading-[1.3]",
                     BLOCK_STYLE[b.kind],
                     allDone && "opacity-60",
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
-                  {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；放不下的行被
-                      overflow 裁掉，悬停 tooltip 里有全部 */}
-                  {h >= 14 &&
+                  {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；标题里的手动换行
+                      （编辑区 Ctrl+Enter）也各占一行；放不下的行被 overflow 裁掉，悬停 tooltip 里有全部 */}
+                  {h >= 20 &&
                     b.parts.map((p, j) => {
                       const st = stOf(p);
                       const done = st === "done" || p.todoDone;
-                      return (
+                      return p.label.split("\n").map((line, li) => (
                         <div
-                          key={j}
+                          key={`${j}-${li}`}
                           className={cn(
                             "truncate",
                             done && "opacity-70",
                             st === "skip" && "line-through opacity-60",
                           )}
                         >
-                          {done && "✓"}
-                          {p.label}
+                          {done && li === 0 && "✓"}
+                          {line}
                         </div>
-                      );
+                      ));
                     })}
                 </div>
               );
@@ -237,12 +239,12 @@ export function Timetable({
               {d.noTime.map((it) => (
                 <div
                   key={it.id}
-                  onClick={() => onSelect([it])}
+                  onDoubleClick={() => onSelect([it])}
                   className={cn(
-                    "cursor-pointer truncate rounded-lg border border-dashed border-[#B5D4F4] px-1.5 py-0.5 text-[11px] text-[#185FA5]",
+                    "cursor-pointer select-none truncate rounded-lg border border-dashed border-[#A6CBF1] px-2 py-0.5 text-[13px] text-[#185FA5]",
                     d.checks?.get(it.id) === "done" && "line-through opacity-55",
                   )}
-                  title={`${it.title} · 点击编辑`}
+                  title={`${it.title} · 双击编辑`}
                 >
                   {shortTitle(it.title)}
                 </div>
@@ -252,10 +254,10 @@ export function Timetable({
         </div>
       )}
 
-      <p className="pt-3 text-xs text-muted-foreground">
-        中浅蓝＝学习（AI/英语）· 浅蓝＝运动养生 · 最浅蓝＝作息骨架（不打卡）。
+      <p className="pt-3 text-[13px] text-muted-foreground">
+        深＝学习（AI/英语）· 中＝运动养生 · 浅＝作息骨架（不打卡）。
         块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办（✓＝已完成）。
-        <b>点任意块可直接编辑</b>（改名/改时间/删除），待办去待办模块改。
+        <b>双击任意块进编辑</b>（改名/改时间/删除），待办去待办模块改。
       </p>
     </div>
   );
