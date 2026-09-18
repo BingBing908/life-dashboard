@@ -343,6 +343,13 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 - [x] **把「统一卡片规格」真正落干净**（Rosie：「可以把这个搞完」）。7/29 那次只落了 `CARD` 和 `TWO_COL`，另四个常量零使用＝半成品。这轮：修正 `PAGE` 的错误定义（`space-y-6 p-6` → `p-6`）并落到六个页面根节点、删掉假抽象 `CARD_SUB`、`SUBCARD` 落 4 处、`CARD_TITLE` 落 9 处、`CARD_BTN` 统一三套可点 hover。详见上面「卡片规格」段。**除 hover 外零外观变化**（只做同值替换，刻意不把 `p-3`→`p-4` 那类"顺手统一"塞进来——那会让饮食页更高，跟她要的反着走）
 - [x] **总览底部加「四条线」卡**（原本那片空白）：`components/dashboard/fourLines.ts`（纯计算，**别在组件里重写**）+ `data.ts` 新增 `latestDoneByItem()`／`latestNoteByItem()` + `seed.ts` 新增 `ACCEPTANCE_DATE`／`LINE_TARGETS`（挨着 `SEMESTER_TARGET` 放，防两份漂移）。设计理由与三层数据边界全在 `fourLines.ts` 顶部注释和 PRODUCT.md「总览」段。⚠️ 本周推进天数复用 DashboardShell **本来就有的**「本周完成柱」那个逐天循环（收成 `DaySnapshot[]` 传进去），别为它再查一遍库。⚠️ 体重那格单独走 `buildWeightLine`、在**渲染时**算，好跟着她现填的数字实时变（合成一个函数就得把 weightLog 塞进 effect 依赖，一改数字就重查库）
 - [ ] ⚠️ **自检教训（2026-07-30，同一天犯了两次同类错）**：`noUnusedLocals` **不只管 import，也管局部变量**。本机没 Node 时我手写脚本只扫了 import，漏了 `const ids` ⇒ 构建失败。正确的手工自检要**两样都扫**（局部变量用 `grep -oP '^\s*(?:const|let)\s+\K\w+'` 再数出现次数）。CI 的 `annotations_url` 确实能不带 token 读到确切行号，这条路子有效——但它是**事后**发现，别拿它当自检
+**2026-09-01 第二批（重定向落地）：**
+- [x] **日日学首页两行布局**（AI/PM 大框 + 英语/语文/历史/金融小框，`MAIN_BOARDS`/`SUB_BOARDS`）；**书影拆去独立模块 `bookshelf`**（数据没搬，仍在 study_entries；路由 `#/bookshelf/<id>`）
+- [x] **作息全套换新**（SEED_VERSION 24）：早餐 07:30 → 英语 07:50–09:40 一整块（四条并一条）→ 通勤 09:45 → 工作 10:15；晚间 19:00 学习① → 腰椎 → 运动 → 20:25 学习②；周六下午 13:00–18:00 AI 大块；周日下午恢复日。**DOMAINS 锚点同步改**（english 470 / work 615 / sport 1185）
+- [x] **时间轴加「日程」tab**（`Timetable.tsx`）：一日全揽＝plan_items（要打卡）+ `DAY_FRAME` 作息骨架（吃饭/通勤/工作/空档，**不入库不进统计**；站立办公等已在打卡模块，只标注不重复）。⚠️ **拒绝了"22 周预排静态表"方案**，理由在组件顶部注释（日历式排课 vs 进度指针）
+- [x] **四条线的「华为认证」格换成「AI PM」**（`buildPmLine`）：数据源是日日学 pm 板块（exercise 条目交了作业才算动），不在时间轴。cert 移出 LINE_TARGETS，暂停记录留在 SEMESTER_TARGET
+- [x] **路线页顶部加「冲刺 AI PM · 阶段路线」**（`roadmap.ts` 七阶段常量 + `RoadmapStages.tsx` + data.ts 的 `getRoadmapMarks`/`setRoadmapMark`）：每阶段＝目标清单 + 达标判据 + 状态钮 + **她写「实际做了什么」**（`app_settings` 的 `roadmap:<id>:note`/`:status`，一阶段两 key、显式提交、loaded 门控、组件顶层——四条老铁律全套）。旧 7 月版月度计划收进 Collapse
+- [x] **《金字塔原理》进书架**（book-pyramid-principle，封面从豆瓣页面解析真实 URL、带 referer 下载转 data URI——直接猜图片 URL 三连 404，⚠️ 豆瓣图必须先从 subject 页拿到真实文件名）
 - [ ] 总览还可以加的（原「底部空白」的其余候选）：**打卡月度热力图**（对应「连续性 > 进度速度」）／「此刻」能直接勾的块。⚠️ 体重**永远别做天级缺口提醒**（她漏了就跳过、不回头补，天天红字只会变成噪音）——这条已落在 `buildWeightLine` 里
 - [x] **默写把「文章」和「单词本」拆成两份独立状态**（Rosie：「我默写完单词给文章也标成已默写了…把单词本和文章独立开，仅仅前端显示是叠加在一起的」）：`entryDone` 的 `artAtt || wordAtt` 改成 `dictState(meta).allOk`＝`artOk && (没有单词本 || wordOk)`，三枚徽标各自独立。详见「日日学」段那条 ⚠️⚠️。影响面**只有 `eng-20260720-1` 一条**（文章 0 遍 / 单词 1 遍 ⇒ 正确退回未完成）；云端另 4 条精读两边都是 0，**没有任何「只默了文章」的条目**，所以没人白丢已挣到的完成
 - [x] **作业分数补齐 + 写进规则**：`【批改 · X】` 一节（A/A-/B+/B/B-）补进批改格式；云端 16 条带作业的条目全部补上分数（07-28 起漏分的 4 条 pm + 从没打分的 4 条练笔 + 当天新批的 2 条 AI）。漏分的根因＝07-27 定四节格式时没把分数列进去，见批改格式段那条 ⚠️⚠️
