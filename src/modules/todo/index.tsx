@@ -437,7 +437,7 @@ function Page() {
                   <input
                     value={notes[t.id] ?? ""}
                     onChange={(e) => saveTodoNote(t.id, e.target.value)}
-                    placeholder="✍ 做完记一笔：实际做了什么"
+                    placeholder="实际做了什么"
                     className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
                   />
                 </div>
