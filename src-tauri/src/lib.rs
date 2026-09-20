@@ -299,6 +299,16 @@ fn migrations() -> Vec<Migration> {
             CREATE INDEX IF NOT EXISTS idx_study_entries_board ON study_entries(board);
         "#,
         },
+        Migration {
+            version: 13,
+            description: "todos_detail",
+            kind: MigrationKind::Up,
+            // 待办 G1 格式（2026-09-19）：标题=15 字内概括，detail=第二行小字「要做什么怎么做」
+            // （「我具体做了什么」沿用 plan_notes，不加列）
+            sql: r#"
+            ALTER TABLE todos ADD COLUMN detail TEXT;
+        "#,
+        },
     ]
 }
 

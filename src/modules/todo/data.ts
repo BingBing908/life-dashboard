@@ -13,6 +13,8 @@ export const QUADRANTS: { key: Quadrant; name: string }[] = [
 export interface Todo {
   id: string;
   title: string;
+  /** G1 格式（2026-09-19）第二行小字：要做什么、怎么做（可空；「我做了什么」在 plan_notes，不在这） */
+  detail: string | null;
   done: number;
   done_at: string | null;
   quadrant: Quadrant;
@@ -25,10 +27,20 @@ export interface Todo {
 export async function listTodos(): Promise<Todo[]> {
   const db = await getDb();
   return db.select<Todo[]>(
-    `SELECT id, title, done, done_at, quadrant, due_date, sort_order, created_at
+    `SELECT id, title, detail, done, done_at, quadrant, due_date, sort_order, created_at
      FROM todos WHERE deleted_at IS NULL
      ORDER BY done, CASE WHEN done = 0 THEN sort_order ELSE 0 END, done_at DESC`,
   );
+}
+
+/** 改第二行小字（空串存 NULL） */
+export async function updateTodoDetail(id: string, detail: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE todos SET detail = $1, updated_at = $2 WHERE id = $3", [
+    detail.trim() || null,
+    nowIso(),
+    id,
+  ]);
 }
 
 export async function createTodo(
@@ -47,6 +59,7 @@ export async function createTodo(
   return {
     id: f.id,
     title,
+    detail: null,
     done: 0,
     done_at: null,
     quadrant,

@@ -29,6 +29,7 @@ import {
   setTodoDueDate,
   setTodoQuadrant,
   toggleTodo,
+  updateTodoDetail,
   updateTodoTitle,
   type Quadrant,
   type Todo,
@@ -102,7 +103,7 @@ function QuadrantTag({ q, onChange }: { q: Quadrant; onChange?: (next: Quadrant)
   );
 }
 
-/** 已完成的待办行：勾态 + 标题划线 + 「做了：…」笔记（今天完成的留主列表底部、更早的进历史已完成，两处同一展示） */
+/** 已完成的待办行：勾态 + 标题划线 + 小字 detail + 「做了：…」笔记（今天完成的留主列表底部、更早的进历史已完成，两处同一展示） */
 function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo; note: string; dateLabel?: string; onClear: () => void; onDelete: () => void }) {
   return (
     <div className="group rounded-lg border px-4 py-3 hover:bg-accent/40">
@@ -118,9 +119,12 @@ function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo;
           <Trash2 className="size-4" />
         </button>
       </div>
+      {(todo.detail ?? "").trim() && (
+        <p className="mt-1 pl-1 text-xs leading-relaxed text-muted-foreground/80">{todo.detail}</p>
+      )}
       {note.trim() && (
-        <p className="mt-1.5 pl-1 text-xs text-muted-foreground">
-          <span className="text-muted-foreground/70">做了：</span>
+        <p className="mt-1.5 rounded-md bg-accent/60 px-2.5 py-1.5 text-xs leading-relaxed text-accent-foreground">
+          <span className="opacity-70">✍ </span>
           {note}
         </p>
       )}
@@ -243,6 +247,11 @@ function Page() {
     await setTodoDueDate(t.id, next);
   }
 
+  async function handleDetail(id: string, v: string) {
+    await updateTodoDetail(id, v);
+    setTodos((s) => s.map((t) => (t.id === id ? { ...t, detail: v.trim() || null } : t)));
+  }
+
   async function handleRename(id: string, title: string) {
     patch(id, { title });
     await updateTodoTitle(id, title);
@@ -348,7 +357,7 @@ function Page() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              placeholder="要做什么？回车添加"
+              placeholder="要做什么？15 字以内概括，回车添加（细节加进条目第二行）"
               className="min-w-40 flex-1"
             />
             <Select value={newQuadrant} onValueChange={(v) => setNewQuadrant(v as Quadrant)}>
@@ -416,10 +425,19 @@ function Page() {
                       <Trash2 className="size-4" />
                     </button>
                   </div>
+                  {/* G1 层级卡（2026-09-19）第二行小字：要做什么怎么做。没写时是浅色提示，点击即输入。
+                      ⚠️ 占位语别出现「非必填/选填」字样（Rosie 点名） */}
+                  <EditableText
+                    value={t.detail ?? ""}
+                    onSave={(v) => handleDetail(t.id, v)}
+                    placeholder="补充要点：做什么、怎么做…"
+                    className="mt-1 block truncate pl-1 text-xs leading-relaxed text-muted-foreground"
+                    inputClassName="mt-1 w-full text-xs"
+                  />
                   <input
                     value={notes[t.id] ?? ""}
                     onChange={(e) => saveTodoNote(t.id, e.target.value)}
-                    placeholder="我具体做了什么？（选填）"
+                    placeholder="✍ 做完记一笔：实际做了什么"
                     className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
                   />
                 </div>
