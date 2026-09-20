@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
+import { useSubPath } from "@/lib/hashRoute";
 import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
@@ -190,6 +191,9 @@ function Card() {
 }
 
 function Page() {
+  // 双界面：主界面工作（#/todo）、副界面学习（#/todo/study）——2026-09-20 Rosie 定
+  const [sub, navSub] = useSubPath("todo");
+  const tab = sub[0] === "study" ? "study" : "work";
   const [todos, setTodos] = useState<Todo[]>([]);
   const [newTitle, setNewTitle] = useState("");
   const [newQuadrant, setNewQuadrant] = useState<Quadrant>("in");
@@ -359,11 +363,76 @@ function Page() {
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
         <section className={CARD}>
-          <div className="mb-3 flex items-baseline gap-2">
+          {/* 双界面（2026-09-20 Rosie：跟日程右上的按钮一样切换）：主界面工作、副界面学习。
+              学习界面=今天的计划条目本尊（引用不复印），tab 进 URL（铁律 3：#/todo/study） */}
+          <div className="mb-3 flex items-center gap-2">
             <h2 className={CARD_TITLE}>待办</h2>
-            <span className="text-xs text-muted-foreground">点小框筛选，点「今天」标记当天要做</span>
+            <span className="text-xs text-muted-foreground">
+              {tab === "study" ? "今天的学习任务（和日程/时间轴同一份数据，增删去那边）" : "点小框筛选，点「今天」标记当天要做"}
+            </span>
+            <div className="ml-auto flex overflow-hidden rounded-md border">
+              {(
+                [
+                  ["work", "工作"],
+                  ["study", `学习 ${studyToday.filter((i) => skipMap.get(i.id) === "done").length}/${studyToday.length}`],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => navSub(k === "work" ? [] : [k])}
+                  className={cn(
+                    "px-4 py-1 text-sm transition-colors",
+                    tab === k ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {tab === "study" ? (
+            <div className="space-y-2">
+              {studyToday.map((i) => {
+                const st = skipMap.get(i.id) ?? "pending";
+                const note = notes[i.id] ?? "";
+                return (
+                  <div key={i.id} className="rounded-lg border border-[#C9DEF3] bg-[#F3F8FE]/60 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <DoneToggle
+                        state={st}
+                        canComplete={st === "done" || note.trim().length > 0}
+                        disabledHint="先写「今天做了什么」才能标记完成（学习线的老规矩）"
+                        onDone={() => setStudyState(i, "done")}
+                        onSkip={() => setStudyState(i, "skip")}
+                        onClear={() => setStudyState(i, null)}
+                        size="sm"
+                      />
+                      {i.time_slot && (
+                        <span className="shrink-0 rounded bg-[#E6F1FB] px-2 py-0.5 text-xs tabular-nums text-[#185FA5]">
+                          {i.time_slot}
+                        </span>
+                      )}
+                      <span className={cn("min-w-0 flex-1 truncate text-[15px] font-medium", st === "done" && "line-through")}>
+                        {i.title}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-[#E6F1FB] px-2 py-0.5 text-[11px] text-[#185FA5]">学习</span>
+                    </div>
+                    <input
+                      value={note}
+                      onChange={(e) => saveTodoNote(i.id, e.target.value)}
+                      placeholder="今天做了什么？如：刷完001（写了才能打勾）"
+                      className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                    />
+                  </div>
+                );
+              })}
+              {studyToday.length === 0 && (
+                <p className="py-6 text-sm text-muted-foreground">今天没有排学习任务——去日程或时间轴加。</p>
+              )}
+            </div>
+          ) : (
+            <>
           {/* 五个筛选框 */}
           <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
             {tiles.map((tile) => (
@@ -429,55 +498,6 @@ function Page() {
             </Button>
           </div>
 
-          {/* 今日学习：直接引用时间轴/日程的计划条目（不是复印件）——在那边增删改名，这里即时一致；
-              打卡/未完成/笔记全走 plan_checks/plan_notes 同一份记录 */}
-          {studyToday.length > 0 && !filterQ && (
-            <div className="mb-4">
-              <div className="mb-2 flex items-baseline gap-2">
-                <span className="text-sm font-medium">今日学习</span>
-                <span className="text-xs text-muted-foreground">
-                  来自日程/时间轴（同一份数据，增删去那边）·{" "}
-                  {studyToday.filter((i) => skipMap.get(i.id) === "done").length}/{studyToday.length}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {studyToday.map((i) => {
-                  const st = skipMap.get(i.id) ?? "pending";
-                  const note = notes[i.id] ?? "";
-                  return (
-                    <div key={i.id} className="rounded-lg border border-[#C9DEF3] bg-[#F3F8FE]/60 px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <DoneToggle
-                          state={st}
-                          canComplete={st === "done" || note.trim().length > 0}
-                          disabledHint="先写「今天做了什么」才能标记完成（学习线的老规矩）"
-                          onDone={() => setStudyState(i, "done")}
-                          onSkip={() => setStudyState(i, "skip")}
-                          onClear={() => setStudyState(i, null)}
-                          size="sm"
-                        />
-                        {i.time_slot && (
-                          <span className="shrink-0 rounded bg-[#E6F1FB] px-2 py-0.5 text-xs tabular-nums text-[#185FA5]">
-                            {i.time_slot}
-                          </span>
-                        )}
-                        <span className={cn("min-w-0 flex-1 truncate text-[15px] font-medium", st === "done" && "line-through")}>
-                          {i.title}
-                        </span>
-                        <span className="shrink-0 rounded-full bg-[#E6F1FB] px-2 py-0.5 text-[11px] text-[#185FA5]">学习</span>
-                      </div>
-                      <input
-                        value={note}
-                        onChange={(e) => saveTodoNote(i.id, e.target.value)}
-                        placeholder="今天做了什么？如：刷完001（写了才能打勾）"
-                        className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* 列表 */}
           <div className="space-y-2">
@@ -585,6 +605,8 @@ function Page() {
                 </div>
               </Collapse>
             </div>
+          )}
+            </>
           )}
         </section>
 
