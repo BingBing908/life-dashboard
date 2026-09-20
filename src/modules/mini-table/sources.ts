@@ -126,8 +126,21 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
 
 /** 本周一~周日的日期（供 compute 用） */
 export function currentWeekDates(): string[] {
-  const mon = mondayOf(todayStr());
+  return weekDatesOf(mondayOf(todayStr()));
+}
+
+/* ───── 周表回看（2026-09-20 Rosie：「小表格要能看到生成之后的每一周」）─────
+ * 自动周表（三餐/时间轴周表）按任选的周一重算；第 1 周＝2026-09-14 那周（她定的
+ * 「就把这周当作第一周」），之前的周只显示日期不编号。 */
+export const WEEK1_MON = "2026-09-14";
+
+export function weekDatesOf(mon: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+}
+
+/** 第几周（第 1 周＝WEEK1_MON 那周；更早返回 0 或负数，界面不显示编号） */
+export function weekNoOf(mon: string): number {
+  return Math.round((Date.parse(mon) - Date.parse(WEEK1_MON)) / (7 * 86400000)) + 1;
 }
 
 /* ══════════════════════════ 清单型表格（2026-08-21 加） ══════════════════════════

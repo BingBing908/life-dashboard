@@ -90,14 +90,11 @@ function isSeedItem(item: PlanItem): boolean {
  *  「当前」＝此刻该干什么——竖线时间轴自动跟随时间 + 当前领域按状态分栏，进来就动手；
  *  「今天」＝全天一览——紧凑清单，一条一行、13 条一屏，用来扫和补勾（不放笔记框和详解）。
  *  ⚠️ 别让「今天」也去做整天时间轴，那就跟「当前」职责重了。 */
+/** ⚠️ 2026-09-20 Rosie：时间轴只留「当前」＝一日简览——今天/一周与日程重合、路线搬去了日程页。
+ *  tab 按钮已从页面移除；这三个视图的代码分支和 URL（#/study-plan/today|week|roadmap）暂时保留，
+ *  等用稳了再做删除大扫除（一次删干净涉及 ItemRow/weekChecks/Roadmap 引用一大串，别顺手删一半）。 */
 const PLAN_TABS = ["current", "today", "week", "roadmap"] as const;
 type PlanTab = (typeof PLAN_TABS)[number];
-const TAB_LABEL: Record<PlanTab, string> = {
-  current: "当前",
-  today: "今天",
-  week: "一周",
-  roadmap: "路线",
-};
 
 /** 今天视图（此刻时间轴）的领域：养生→英语→工作→学习→运动→阅读，按一天时间早晚排 */
 interface Domain {
@@ -1042,20 +1039,7 @@ function Page() {
             🩸 经期中 · 已避开腹部
           </span>
         )}
-        <div className="ml-auto flex overflow-hidden rounded-md border">
-          {PLAN_TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "px-4 py-1 text-sm transition-colors",
-                tab === t ? "bg-primary text-primary-foreground" : "hover:bg-accent",
-              )}
-            >
-              {TAB_LABEL[t]}
-            </button>
-          ))}
-        </div>
+        {/* tab 按钮组已撤（2026-09-20）：今天/一周/路线与日程重合，时间轴只做一日简览 */}
       </div>
 
       {seedOutdated && (

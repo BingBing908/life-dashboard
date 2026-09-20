@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PAGE } from "@/lib/ui";
+import { useSubPath } from "@/lib/hashRoute";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import {
@@ -20,6 +22,9 @@ import { isStaleStudyTodo, listTodos, type Todo } from "../todo/data";
 import { getMeals } from "../supplement/data";
 import { Timetable } from "./Timetable";
 import { EditorPanel } from "./Editor";
+// 路线 2026-09-20 从时间轴搬来（Rosie：时间轴只做一日简览，其余归日程）
+import { RoadmapStages } from "../study-plan/RoadmapStages";
+import { SEMESTER_TARGET } from "../study-plan/seed";
 
 /**
  * 「日程」独立模块（2026-09-18 从时间轴的 tab 拆出来，Rosie：「我是希望给
@@ -35,7 +40,15 @@ function Card() {
   return <p className="text-sm text-muted-foreground">一周时间线全览 · 点任意块可直接编辑</p>;
 }
 
+const SCHEDULE_TABS = [
+  { key: "week", label: "周视图" },
+  { key: "roadmap", label: "路线" },
+] as const;
+
 function Page() {
+  // tab 进 URL（铁律 3）：#/schedule＝周视图，#/schedule/roadmap＝路线
+  const [sub, navSub] = useSubPath("schedule");
+  const tab = sub[0] === "roadmap" ? "roadmap" : "week";
   const [items, setItems] = useState<PlanItem[]>([]);
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [weekMeals, setWeekMeals] = useState<Record<string, Record<string, string>>>({});
@@ -104,10 +117,34 @@ function Page() {
       <div className="mb-4 flex items-baseline gap-3">
         <h1 className="text-2xl font-semibold">日程</h1>
         <span className="text-sm text-muted-foreground">
-          一周全览 · 和时间轴/待办同一份数据 · 点任意块可直接编辑
+          {tab === "roadmap"
+            ? "冲刺 AI PM 的阶段路线（从时间轴搬来）"
+            : "一周全览 · 和时间轴/待办同一份数据 · 点任意块可直接编辑"}
         </span>
+        <div className="ml-auto flex overflow-hidden rounded-md border">
+          {SCHEDULE_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => navSub(t.key === "week" ? [] : [t.key])}
+              className={cn(
+                "px-4 py-1 text-sm transition-colors",
+                tab === t.key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
-      {loaded ? (
+      {tab === "roadmap" ? (
+        <div className="space-y-4">
+          {/* 阶段目标 + 她自己写「实际做了什么」；形态刻意不是预排周计划，理由在 roadmap.ts 顶部 */}
+          <RoadmapStages />
+          <div className="rounded-lg border-l-4 border-primary bg-accent p-4 text-sm leading-relaxed text-accent-foreground">
+            {SEMESTER_TARGET}
+          </div>
+        </div>
+      ) : loaded ? (
         <>
           {outdated && (
             <div className="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">

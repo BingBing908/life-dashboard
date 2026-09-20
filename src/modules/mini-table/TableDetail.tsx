@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Cell } from "./cells";
-import { TABLE_SOURCES, currentWeekDates } from "./sources";
+import { TABLE_SOURCES, weekDatesOf, weekNoOf } from "./sources";
 import {
   addRow,
   deleteRow,
@@ -51,11 +52,18 @@ interface Props {
   onColumnsChange: (cols: MiniColumn[]) => void;
 }
 
+const fmtMD = (d: string) => d.slice(5).replace("-", "/");
+
 export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   const [rows, setRows] = useState<MiniRow[]>([]);
   const columns = table.columns;
-  const source = TABLE_SOURCES[table.id]; // 绑定了数据源的表（如三餐/运动）
+  const source = TABLE_SOURCES[table.id]; // 绑定了数据源的表（如三餐/时间轴周表）
   const [auto, setAuto] = useState<Record<string, Record<string, string>>>({});
+  // 周表回看（2026-09-20 Rosie：要能翻到生成之后的每一周）：weekMon＝当前显示的那周的周一
+  const curMon = mondayOf(todayStr());
+  const [weekMon, setWeekMon] = useState(curMon);
+  const isCurWeek = weekMon === curMon;
+  const weekDates = weekDatesOf(weekMon);
 
   useEffect(() => {
     listRows(table.id).then(setRows);
@@ -66,8 +74,8 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
       setAuto({});
       return;
     }
-    source.compute(currentWeekDates()).then(setAuto).catch(() => {});
-  }, [table.id, source]);
+    source.compute(weekDatesOf(weekMon)).then(setAuto).catch(() => {});
+  }, [table.id, source, weekMon]);
 
   async function handleAddRow() {
     const row = await addRow(table.id);
@@ -119,6 +127,39 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
         </div>
       </div>
 
+      {/* 周导航（只有绑定数据源的周表有）：◀▶ 逐周翻、📅 像苹果日历那样先选月/年再点周 */}
+      {source && (
+        <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+          <Button variant="outline" size="icon-sm" title="上一周" onClick={() => setWeekMon(addDays(weekMon, -7))}>
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-sm font-medium tabular-nums">
+            {weekNoOf(weekMon) >= 1 ? `第 ${weekNoOf(weekMon)} 周 · ` : ""}
+            {fmtMD(weekDates[0])}–{fmtMD(weekDates[6])}
+          </span>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            title="下一周"
+            disabled={isCurWeek}
+            onClick={() => setWeekMon(addDays(weekMon, 7))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+          <WeekPicker value={weekMon} max={curMon} onPick={setWeekMon} />
+          {!isCurWeek && (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => setWeekMon(curMon)}>
+                回本周
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                回看模式：自动行按所选周计算；手填行不分周（显示当前内容，只读）
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* min-h-0 让 flex 子项能真正缩；内层 table-container 变成滚动容器，表头才吸得住 */}
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
         {/* h-full：让浏览器把剩余高度按比例摊给各行，表格顶到底、不留大片空白。
@@ -130,6 +171,11 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                 <TableHead key={col.id} className="group h-12 min-w-40 px-3">
                   <span className="flex items-center gap-1">
                     {col.name}
+                    {source && source.dayCols.includes(col.id) && (
+                      <span className="text-[11px] font-normal tabular-nums text-muted-foreground">
+                        {fmtMD(weekDates[source.dayCols.indexOf(col.id)])}
+                      </span>
+                    )}
                     <button
                       className="invisible text-muted-foreground hover:text-destructive group-hover:visible"
                       title="删除此列"
@@ -164,6 +210,11 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
                           title="自动来自源模块（饮食 / 时间轴 / 日日学）"
                         >
                           {auto[label!]?.[col.id] || "—"}
+                        </div>
+                      ) : source && !isCurWeek ? (
+                        // 回看模式手填格只读：mini_table_rows 的手填值不分周，改了会污染当前周
+                        <div className="h-full min-h-14 px-3 py-2 text-sm text-muted-foreground/70" title="手填行不分周，回看时只读">
+                          {row.data[col.id] === true ? "✓" : String(row.data[col.id] ?? "") || "—"}
                         </div>
                       ) : (
                         <Cell
@@ -200,6 +251,103 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
         </Table>
       </div>
     </div>
+  );
+}
+
+/** 周选择器（2026-09-20，Rosie：「像苹果日历一样可以选一月/一年来回顾」）：
+ *  📅 弹层默认按月列出该月覆盖的周（点周跳表），点标题升到年（12 个月钻回月）。
+ *  未来的周禁用（还没发生，没得回顾）。 */
+function WeekPicker({ value, max, onPick }: { value: string; max: string; onPick: (mon: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"month" | "year">("month");
+  const [ym, setYm] = useState(value.slice(0, 7)); // "YYYY-MM"
+  const year = Number(ym.slice(0, 4));
+  const shiftMonth = (n: number) => {
+    const d = new Date(year, Number(ym.slice(5, 7)) - 1 + n, 1);
+    setYm(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  // 该月覆盖的周（以周一代表）：从含 1 号的那周起，最多 6 周，周一超出当月为止
+  const weeks: string[] = [];
+  let m = mondayOf(`${ym}-01`);
+  for (let i = 0; i < 6; i++) {
+    if (m.slice(0, 7) > ym) break;
+    weeks.push(m);
+    m = addDays(m, 7);
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) {
+          setMode("month");
+          setYm(value.slice(0, 7));
+        }
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button variant="outline" size="sm" title="选一周回顾">
+            <Calendar className="size-4" /> 选周
+          </Button>
+        }
+      />
+      <PopoverContent className="w-64 space-y-2">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="icon-sm" onClick={() => (mode === "month" ? shiftMonth(-1) : setYm(`${year - 1}${ym.slice(4)}`))}>
+            <ChevronLeft className="size-4" />
+          </Button>
+          <button
+            className="rounded-md px-2 py-0.5 text-sm font-medium hover:bg-accent"
+            onClick={() => setMode(mode === "month" ? "year" : "month")}
+            title={mode === "month" ? "点击切到全年选月" : "点击回到本月"}
+          >
+            {mode === "month" ? `${year} 年 ${Number(ym.slice(5, 7))} 月` : `${year} 年`}
+          </button>
+          <Button variant="ghost" size="icon-sm" onClick={() => (mode === "month" ? shiftMonth(1) : setYm(`${year + 1}${ym.slice(4)}`))}>
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+        {mode === "year" ? (
+          <div className="grid grid-cols-3 gap-1.5">
+            {Array.from({ length: 12 }, (_, i) => (
+              <Button
+                key={i}
+                variant={Number(ym.slice(5, 7)) === i + 1 ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => {
+                  setYm(`${year}-${String(i + 1).padStart(2, "0")}`);
+                  setMode("month");
+                }}
+              >
+                {i + 1} 月
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {weeks.map((w) => (
+              <Button
+                key={w}
+                variant={w === value ? "secondary" : "ghost"}
+                size="sm"
+                className="justify-between tabular-nums"
+                disabled={w > max}
+                onClick={() => {
+                  onPick(w);
+                  setOpen(false);
+                }}
+              >
+                <span>{weekNoOf(w) >= 1 ? `第 ${weekNoOf(w)} 周` : "—"}</span>
+                <span className="text-muted-foreground">
+                  {fmtMD(w)}–{fmtMD(addDays(w, 6))}
+                </span>
+              </Button>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
