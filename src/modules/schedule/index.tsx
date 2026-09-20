@@ -40,8 +40,10 @@ function Page() {
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [weekMeals, setWeekMeals] = useState<Record<string, Record<string, string>>>({});
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
-  // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）
-  const [selected, setSelected] = useState<{ items: PlanItem[]; day: number | null } | null>(null);
+  // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）。
+  // ⚠️ 存 id 不存对象（2026-09-20 Rosie：「三项都想改要改三遍」）——保存单项后面板不关，
+  // 条目从最新 items 里按 id 现取，保存过的行自动变回「未改动」态，其余行的草稿原样留着。
+  const [selected, setSelected] = useState<{ ids: string[]; day: number | null } | null>(null);
   const [outdated, setOutdated] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -83,10 +85,12 @@ function Page() {
       .finally(() => setLoaded(true));
   }, [reload]);
 
+  // 保存/删除/新增后只刷数据、不收面板——她要一口气改完一块里的好几项再点 X
   const onChanged = useCallback(() => {
-    setSelected(null);
     void reload();
   }, [reload]);
+
+  const selectedItems = selected ? items.filter((i) => selected.ids.includes(i.id)) : null;
 
   return (
     <div className={PAGE}>
@@ -108,10 +112,10 @@ function Page() {
             weekChecks={weekChecks}
             weekMeals={weekMeals}
             todayTodos={todayTodos}
-            onSelect={(sel, day) => setSelected({ items: sel, day })}
+            onSelect={(sel, day) => setSelected({ ids: sel.map((i) => i.id), day })}
           />
           <EditorPanel
-            selected={selected?.items ?? null}
+            selected={selectedItems}
             day={selected?.day ?? null}
             onChanged={onChanged}
             onClose={() => setSelected(null)}

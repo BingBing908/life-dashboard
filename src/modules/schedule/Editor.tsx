@@ -266,7 +266,7 @@ export function EditorPanel({
               {day !== null
                 ? `只改${DAY_NAMES[day - 1]}这一天（其他天不受影响）`
                 : "编辑整条（一周同款一起变）"}
-              {" · Enter 保存 · Ctrl+Enter 换行 · 右上角垃圾桶删除（点两次确认）"}
+              {" · Enter 逐项保存（面板不关，可接着改下一项）· Ctrl+Enter 换行 · 垃圾桶删除点两次 · 全改完点右上 ✕ 收起"}
             </span>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="收起">
               <X className="size-4" />
