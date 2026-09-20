@@ -16,6 +16,8 @@ import {
   type PlanItem,
 } from "../study-plan/data";
 import { listTodos, type Todo } from "../todo/data";
+// 三餐互通（2026-09-20 Rosie）：周历里的三餐块显示饮食模块填的内容（早餐｜茶叶蛋+豆浆）
+import { getMeals } from "../supplement/data";
 import { Timetable } from "./Timetable";
 import { EditorPanel } from "./Editor";
 
@@ -36,6 +38,7 @@ function Card() {
 function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
+  const [weekMeals, setWeekMeals] = useState<Record<string, Record<string, string>>>({});
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
   // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）
   const [selected, setSelected] = useState<{ items: PlanItem[]; day: number | null } | null>(null);
@@ -52,11 +55,18 @@ function Page() {
     );
     const mon = mondayOf(today);
     const checks: Record<string, Map<string, CheckStatus>> = {};
+    const meals: Record<string, Record<string, string>> = {};
     for (let d = 0; d < 7; d++) {
       const date = addDays(mon, d);
       checks[date] = await listCheckStatus(date);
+      // 三餐互通：键＝骨架条目的标题（早餐/午餐/晚餐），值＝饮食里填的内容；没填是空串
+      const m = await getMeals(date).catch(() => null);
+      meals[date] = m
+        ? { 早餐: m.早.content ?? "", 午餐: m.午.content ?? "", 晚餐: m.晚.content ?? "" }
+        : {};
     }
     setWeekChecks(checks);
+    setWeekMeals(meals);
   }, []);
 
   useEffect(() => {
@@ -96,6 +106,7 @@ function Page() {
           <Timetable
             items={items}
             weekChecks={weekChecks}
+            weekMeals={weekMeals}
             todayTodos={todayTodos}
             onSelect={(sel, day) => setSelected({ items: sel, day })}
           />

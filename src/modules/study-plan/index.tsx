@@ -31,6 +31,7 @@ import {
   getPeriodOn,
   getSeedVersion,
   latestSeedVersion,
+  listAllItems,
   listChecks,
   listCheckStatus,
   listItems,
@@ -51,6 +52,8 @@ import {
   type Track,
 } from "./data";
 import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
+// 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
+import { getMeals } from "../supplement/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 import { RoadmapStages } from "./RoadmapStages";
 import { Collapse } from "@/components/Collapse";
@@ -697,12 +700,25 @@ function Page() {
 
   const yesterday = addDays(today, -1);
   // 本周一~日日期（一周视图 + 补卡用）
+  const [frames, setFrames] = useState<PlanItem[]>([]);
+  const [mealTexts, setMealTexts] = useState<Record<string, string>>({});
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(mondayOf(today), i));
   // 本周各天的打卡状态（补卡：可改「今天及以前」任意一天）
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
 
   useEffect(() => {
     seedIfEmpty().then(setItems);
+    // 全天轴（2026-09-20 J3 改版）：骨架条目 + 今天的三餐内容（饮食模块互通，只读展示）
+    listAllItems().then((all) => setFrames(all.filter((i) => i.track === "frame"))).catch(() => {});
+    getMeals(today)
+      .then((m) =>
+        setMealTexts({
+          早餐: m.早.content ?? "",
+          午餐: m.午.content ?? "",
+          晚餐: m.晚.content ?? "",
+        }),
+      )
+      .catch(() => {});
     listCheckStatus(today).then(setCheckMap);
     getCycleStart().then(setCycleStart);
     getSeedVersion().then((v) => setSeedOutdated(v < latestSeedVersion()));
@@ -776,6 +792,36 @@ function Page() {
   const autoKey = autoDomainKey(domains, items, todayNum);
   const activeKey = selected ?? autoKey;
   const active = domains.find((d) => d.key === activeKey) ?? domains.find((d) => d.key === autoKey)!;
+
+  /** 全天轴（2026-09-20 Rosie 选 J3 迷你卡轴 + 要求「把全天的日程盖上去」）：
+   *  领域卡（可点，进右侧大卡）+ 骨架卡（三餐/通勤/日日学/家务等，背景信息）按时间混排。
+   *  工作日/周末自动不同——骨架和条目本来就带 days。骨架里的「工作」不放（工作域卡已有）、
+   *  「缓冲」不放（5 分钟填缝是噪音）。三餐卡显示饮食模块填的内容（早餐｜茶叶蛋+豆浆），
+   *  点三餐跳饮食页、点日日学跳日日学。 */
+  const axisRows: (
+    | { kind: "domain"; key: string; start: number; d: Domain }
+    | { kind: "frame"; key: string; start: number; it: PlanItem; label: string; jump?: string }
+  )[] = [
+    ...domains.map((d) => {
+      let s = Infinity;
+      for (const it of domainItems(d, todays)) {
+        const v = slotStartMin(it);
+        if (v > 0) s = Math.min(s, v);
+      }
+      return { kind: "domain" as const, key: `d-${d.key}`, start: s === Infinity ? d.start : s, d };
+    }),
+    ...frames
+      .filter((f) => matchesDay(f, todayNum) && f.title !== "工作" && f.title !== "缓冲")
+      .map((f) => ({
+        kind: "frame" as const,
+        key: `f-${f.id}`,
+        start: slotStartMin(f),
+        it: f,
+        label: mealTexts[f.title] ? `${f.title}｜${mealTexts[f.title]}` : f.title,
+        jump: f.title.includes("餐") ? "#/supplement" : f.title === "日日学" ? "#/study-log" : undefined,
+      })),
+  ].sort((a, b) => a.start - b.start);
+  const nowIdx = axisRows.reduce((acc, r, i) => (r.start <= nowMinutes() ? i : acc), -1);
   /**
    * 工作域「今天该露面」的待办：未完成的（due≤今天，含逾期）+ **今天**完成的。
    * 今天以前就完成的不算——那些归待办页的「历史已完成」。
@@ -1039,61 +1085,67 @@ function Page() {
           ))}
 
           <div className="flex gap-6">
-            {/* 左：连线时间轴，点圆点切到那个时段。每站挂一条迷你进度条，
-                所以「哪条线做完了、哪条还空着」不用点进去就看得见（方案 A）。 */}
-            <div className="relative w-40 shrink-0 sm:w-44">
-              <div className="absolute bottom-4 left-[9px] top-4 w-0.5 bg-border" />
-              <div className="flex flex-col gap-10">
-                {domains.map((d) => {
-                  const isActive = d.key === activeKey;
-                  const isPast = d.start <= nowMinutes();
-                  const p = domainProgress(d);
-                  const allDone = p.total > 0 && p.done === p.total;
-                  return (
-                    <div key={d.key}>
-                      <button
-                        onClick={() => setSelected(d.key)}
-                        className="relative flex w-full items-start gap-3 rounded-md py-1 pr-1 text-left transition-colors hover:bg-accent/40"
-                        style={isActive ? { background: d.tint } : undefined}
-                        title={`${d.name} ${p.done}/${p.total}`}
+            {/* 左：全天轴（J3 迷你卡，2026-09-20 Rosie 选定）：领域卡可点、骨架卡是背景，
+                按时间混排铺满一天；红虚线=现在（她点名要保留）。 */}
+            <div className="w-44 shrink-0 sm:w-52">
+              <div className="flex flex-col gap-2">
+                {axisRows.map((row, idx) => (
+                  <div key={row.key}>
+                    {row.kind === "domain" ? (
+                      (() => {
+                        const d = row.d;
+                        const isActive = d.key === activeKey;
+                        const p = domainProgress(d);
+                        const allDone = p.total > 0 && p.done === p.total;
+                        return (
+                          <button
+                            onClick={() => setSelected(d.key)}
+                            className="w-full rounded-xl border bg-card px-3 py-2 text-left transition-all hover:border-primary/50"
+                            style={
+                              isActive
+                                ? { borderColor: d.color, boxShadow: `0 0 0 1.5px ${d.color}`, background: d.tint }
+                                : undefined
+                            }
+                            title={`${d.name} ${p.done}/${p.total}`}
+                          >
+                            <span className="flex items-baseline gap-1.5">
+                              <span
+                                className="text-[15px]"
+                                style={{ color: isActive ? d.textc : undefined, fontWeight: isActive ? 600 : 500 }}
+                              >
+                                {d.name}
+                              </span>
+                              <span className="text-[11px] tabular-nums text-muted-foreground">
+                                {p.done}/{p.total}
+                              </span>
+                              {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
+                              {d.key === autoKey && <span className="ml-auto text-[11px] text-red-500">现在</span>}
+                            </span>
+                            <span className="block text-xs tabular-nums text-muted-foreground">
+                              {domainTimeLabel(d, todays)}
+                            </span>
+                            <MiniBar done={p.done} total={p.total} color={d.color} />
+                          </button>
+                        );
+                      })()
+                    ) : (
+                      <div
+                        onClick={row.jump ? () => (window.location.hash = row.jump!) : undefined}
+                        title={row.jump ? "点击打开对应模块" : undefined}
+                        className={cn(
+                          "rounded-xl bg-muted/50 px-3 py-1.5",
+                          row.jump && "cursor-pointer transition-colors hover:bg-muted",
+                        )}
                       >
-                        <span
-                          className="z-10 mt-0.5 shrink-0 rounded-full transition-all"
-                          style={{
-                            width: isActive ? 20 : 16,
-                            height: isActive ? 20 : 16,
-                            marginLeft: isActive ? -2 : 0,
-                            background: isActive || isPast || allDone ? d.color : "var(--color-card)",
-                            border: isActive || isPast || allDone ? "none" : `2px solid ${d.color}`,
-                            boxShadow: isActive ? `0 0 0 5px ${d.tint}` : "none",
-                          }}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline gap-1.5">
-                            <span
-                              className="text-[15px]"
-                              style={{ color: isActive ? d.textc : undefined, fontWeight: isActive ? 600 : 400 }}
-                            >
-                              {d.name}
-                            </span>
-                            <span className="text-[11px] tabular-nums text-muted-foreground">
-                              {p.done}/{p.total}
-                            </span>
-                            {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
-                          </span>
-                          <span className="block text-xs tabular-nums text-muted-foreground">
-                            {domainTimeLabel(d, todays)}
-                            {d.key === autoKey && " · 现在"}
-                          </span>
-                          <MiniBar done={p.done} total={p.total} color={d.color} />
+                        <span className="block truncate text-[13px] text-muted-foreground">{row.label}</span>
+                        <span className="block text-[11px] tabular-nums text-muted-foreground/70">
+                          {row.it.time_slot}
                         </span>
-                      </button>
-                      {d.key === autoKey && (
-                        <div className="my-2 ml-[-4px] border-t border-dashed border-red-400" />
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    )}
+                    {idx === nowIdx && <div className="mt-2 border-t-2 border-dashed border-red-400" />}
+                  </div>
+                ))}
               </div>
             </div>
 

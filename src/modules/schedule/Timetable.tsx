@@ -57,7 +57,12 @@ function shortTitle(t: string): string {
   return t.length <= 10 ? t : t.replace(/[（(].*$/, "");
 }
 
-function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blocks: Block[]; noTime: PlanItem[] } {
+function buildDay(
+  dayNum: number,
+  items: PlanItem[],
+  todosForDay: Todo[],
+  meals: Record<string, string>,
+): { blocks: Block[]; noTime: PlanItem[] } {
   const blocks: Block[] = [];
   const noTime: PlanItem[] = [];
   const plans: Block[] = [];
@@ -70,7 +75,10 @@ function buildDay(dayNum: number, items: PlanItem[], todosForDay: Todo[]): { blo
     }
     const kind =
       it.track === "frame" ? "frame" : it.track === "ai" || it.track === "cert" || it.track === "english" ? "study" : "plan";
-    const block: Block = { ...p, kind, parts: [{ label: shortTitle(it.title), item: it }] };
+    // 三餐互通（2026-09-20）：饮食里填了就显示「早餐｜茶叶蛋+豆浆」，没填就还是「早餐」
+    const label =
+      kind === "frame" && meals[it.title] ? `${it.title}｜${meals[it.title]}` : shortTitle(it.title);
+    const block: Block = { ...p, kind, parts: [{ label, item: it }] };
     if (kind === "frame") blocks.push(block);
     else plans.push(block);
   }
@@ -107,11 +115,14 @@ const BLOCK_STYLE: Record<Block["kind"], string> = {
 export function Timetable({
   items,
   weekChecks,
+  weekMeals,
   todayTodos,
   onSelect,
 }: {
   items: PlanItem[];
   weekChecks: Record<string, Map<string, CheckStatus>>;
+  /** date → { 早餐/午餐/晚餐 → 饮食里填的内容 }，三餐块显示用 */
+  weekMeals: Record<string, Record<string, string>>;
   todayTodos: Todo[];
   /** 把块里的计划条目交给日程页的编辑区（待办条目不在内，去待办模块改）。
    *  day＝null ⇒ 编辑整条（一周同款一起变，双击触发）；
@@ -132,7 +143,7 @@ export function Timetable({
       name,
       dayNum,
       date,
-      ...buildDay(dayNum, items, dayNum === todayNum ? todayTodos : []),
+      ...buildDay(dayNum, items, dayNum === todayNum ? todayTodos : [], weekMeals[date] ?? {}),
       checks: weekChecks[date],
     };
   });
