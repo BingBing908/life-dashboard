@@ -49,7 +49,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
-import { createTodo, createTodoIfMissing, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
+import { createTodo, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
@@ -866,7 +866,7 @@ function Page() {
   function todaysWorkTodos(): Todo[] {
     return todos
       .filter(
-        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today),
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today) && t.source !== "study",
       )
       .sort((a, b) => Number(!!a.done) - Number(!!b.done)); // 今天完成的沉到最下，不消失
   }
@@ -1003,10 +1003,7 @@ function Page() {
     let order = Math.max(0, ...items.map((x) => x.sort_order));
     for (const ln of rest) {
       await createItem({ track: item.track, days: item.days, time_slot: item.time_slot, title: ln }, ++order);
-      if (item.track === "english" || item.track === "ai" || item.track === "cert") {
-        // IfMissing：同名同天不重复建——反复保存曾把待办滚成雪球（新概念学习×3）
-        await createTodoIfMissing(ln, "iu", today, 500, "study");
-      }
+      // 学习行不再复印进待办（2026-09-20 重构）：待办页「今日学习」直接引用 plan_items
     }
     await refreshItems();
   }

@@ -29,6 +29,7 @@ import {
   setCheckStatus,
   setNote,
   type CheckStatus,
+  type PlanItem,
 } from "../study-plan/data";
 import {
   clearDone,
@@ -159,7 +160,7 @@ function Card() {
       ]);
       const today = todayStr();
       // 学习类过期不顺延（isStaleStudyTodo）：昨天的学习任务不再回到待做，今天有今天的
-      const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today));
+      const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today) && t.source !== "study");
       setSummary({
         today: pending.filter((t) => t.due_date && t.due_date <= today).length,
         total: pending.length,
@@ -199,9 +200,10 @@ function Page() {
   // 待办的「今天做不了」（2026-09-20 Rosie：未完成点不了不合理）——借 plan_checks 存 skip
   // （按 id+日期），明天自动回待做，零改表；与时间轴工作域共用同一份状态
   const [skipMap, setSkipMap] = useState<Map<string, CheckStatus>>(new Map());
-  // 今天排了的学习条目 标题→计划id：同名待办的 skip **共用计划条目那条打卡记录**，
-  // 时间轴点「未完成」这里同亮、这里点了那边也亮（2026-09-20 Rosie 报的不同步）
-  const [planIdByTitle, setPlanIdByTitle] = useState<Map<string, string>>(new Map());
+  /** 今天的学习条目（2026-09-20 重构：**不再复印进 todos，直接引用时间轴那份数据**——
+   *  Rosie 抓到复印式同步只抄新增不抄删除：「按理说全模块化应该调用一个模块」。
+   *  这一节的行=plan_items 本尊，增删改名天然同步，打卡/未完成走 plan_checks 同一条记录。 */
+  const [studyToday, setStudyToday] = useState<PlanItem[]>([]);
   const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
@@ -212,18 +214,26 @@ function Page() {
     listItems()
       .then((its) => {
         const dn = dayNumOf(today);
-        const m = new Map<string, string>();
-        for (const i of its) {
-          if (["english", "ai", "cert"].includes(i.track) && matchesDay(i, dn, today)) m.set(i.title, i.id);
-        }
-        setPlanIdByTitle(m);
+        setStudyToday(its.filter((i) => ["english", "ai", "cert"].includes(i.track) && matchesDay(i, dn, today)));
       })
       .catch(() => {});
     listLatestNotes().then(setHistNotes);
   }, [today]);
 
-  /** skip 的读写键：学习类待办若与今天某条计划同名，就用计划条目的 id（两边一条记录） */
-  const skipKey = (t: Todo) => planIdByTitle.get(t.title) ?? t.id;
+  // 老复印件的影子（source='study' 或与今天学习条目同名的存量拷贝）不再显示，防止和引用行重复
+  const studyTitles = new Set(studyToday.map((i) => i.title));
+  const isStudyShadow = (t: Todo) => t.source === "study" || (!t.done && studyTitles.has(t.title));
+
+  /** 学习行的三态直接写 plan_checks（和时间轴同一条记录） */
+  async function setStudyState(item: PlanItem, next: CheckStatus | null) {
+    setSkipMap((prev) => {
+      const m = new Map(prev);
+      if (next === null) m.delete(item.id);
+      else m.set(item.id, next);
+      return m;
+    });
+    await setCheckStatus(item.id, today, next);
+  }
 
   function saveTodoNote(id: string, v: string) {
     setNotes((s) => ({ ...s, [id]: v }));
@@ -235,9 +245,8 @@ function Page() {
 
   const isToday = (t: Todo) => !!t.due_date && t.due_date <= today;
   const doneDate = (t: Todo) => (t.done_at ? t.done_at.slice(0, 10) : "");
-  // 学习类过期不顺延（2026-09-20 Rosie：「第二天有第二天的学习任务」）：
-  // 昨天同步来的学习待办不回到待做；手动建的照常逾期顺延
-  const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today));
+  // 学习类过期不顺延（isStaleStudyTodo）+ 老复印件影子不显示（学习行现在直接引用计划数据）
+  const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today) && !isStudyShadow(t));
   const finished = todos.filter((t) => t.done);
   const finishedToday = finished.filter((t) => doneDate(t) === today); // 今天完成的：留在待办列表最下面
   const finishedHistory = finished.filter((t) => doneDate(t) !== today); // 今天以前完成的：收进历史已完成
@@ -281,14 +290,13 @@ function Page() {
   }
 
   async function setTodoSkip(t: Todo, skip: boolean) {
-    const key = skipKey(t);
     setSkipMap((prev) => {
       const m = new Map(prev);
-      if (skip) m.set(key, "skip");
-      else m.delete(key);
+      if (skip) m.set(t.id, "skip");
+      else m.delete(t.id);
       return m;
     });
-    await setCheckStatus(key, today, skip ? "skip" : null);
+    await setCheckStatus(t.id, today, skip ? "skip" : null);
   }
 
   async function handleDetail(id: string, v: string) {
@@ -421,6 +429,56 @@ function Page() {
             </Button>
           </div>
 
+          {/* 今日学习：直接引用时间轴/日程的计划条目（不是复印件）——在那边增删改名，这里即时一致；
+              打卡/未完成/笔记全走 plan_checks/plan_notes 同一份记录 */}
+          {studyToday.length > 0 && !filterQ && (
+            <div className="mb-4">
+              <div className="mb-2 flex items-baseline gap-2">
+                <span className="text-sm font-medium">今日学习</span>
+                <span className="text-xs text-muted-foreground">
+                  来自日程/时间轴（同一份数据，增删去那边）·{" "}
+                  {studyToday.filter((i) => skipMap.get(i.id) === "done").length}/{studyToday.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {studyToday.map((i) => {
+                  const st = skipMap.get(i.id) ?? "pending";
+                  const note = notes[i.id] ?? "";
+                  return (
+                    <div key={i.id} className="rounded-lg border border-[#C9DEF3] bg-[#F3F8FE]/60 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <DoneToggle
+                          state={st}
+                          canComplete={st === "done" || note.trim().length > 0}
+                          disabledHint="先写「今天做了什么」才能标记完成（学习线的老规矩）"
+                          onDone={() => setStudyState(i, "done")}
+                          onSkip={() => setStudyState(i, "skip")}
+                          onClear={() => setStudyState(i, null)}
+                          size="sm"
+                        />
+                        {i.time_slot && (
+                          <span className="shrink-0 rounded bg-[#E6F1FB] px-2 py-0.5 text-xs tabular-nums text-[#185FA5]">
+                            {i.time_slot}
+                          </span>
+                        )}
+                        <span className={cn("min-w-0 flex-1 truncate text-[15px] font-medium", st === "done" && "line-through")}>
+                          {i.title}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-[#E6F1FB] px-2 py-0.5 text-[11px] text-[#185FA5]">学习</span>
+                      </div>
+                      <input
+                        value={note}
+                        onChange={(e) => saveTodoNote(i.id, e.target.value)}
+                        placeholder="今天做了什么？如：刷完001（写了才能打勾）"
+                        className="mt-2 h-8 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus:ring-1 focus:ring-primary/40"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 列表 */}
           <div className="space-y-2">
             {pendingShown.map((t) => {
@@ -429,9 +487,9 @@ function Page() {
                 <div key={t.id} className="group rounded-lg border px-4 py-3.5 hover:bg-accent/40">
                   <div className="flex items-center gap-3">
                     <DoneToggle
-                      state={t.done ? "done" : (skipMap.get(skipKey(t)) ?? "pending")}
+                      state={t.done ? "done" : (skipMap.get(t.id) ?? "pending")}
                       onDone={() => {
-                        if (skipMap.get(skipKey(t)) === "skip") void setTodoSkip(t, false);
+                        if (skipMap.get(t.id) === "skip") void setTodoSkip(t, false);
                         handleToggle(t);
                       }}
                       onSkip={() => setTodoSkip(t, true)}

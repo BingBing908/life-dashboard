@@ -75,7 +75,9 @@ function Page() {
           t.due_date &&
           t.due_date <= today &&
           (!t.done || (t.done_at ?? "").slice(0, 10) === today) &&
-          !isStaleStudyTodo(t, today),
+          !isStaleStudyTodo(t, today) &&
+          // 学习行已改为直接引用计划数据，老复印件（source='study'）不再进工作块
+          t.source !== "study",
       ),
     );
     const mon = mondayOf(today);

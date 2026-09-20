@@ -57,9 +57,11 @@ const ADD_CHOICES: { key: Track | "work"; name: string }[] = [
   { key: "frame", name: "作息骨架" },
 ];
 
-/** 学习类新增行同步进待办（今天·重要紧急）——她定的：「待办仅同步工作和学习」 */
-async function syncTodoIfStudy(track: Track, line: string): Promise<void> {
-  if (track === "ai" || track === "english") await createTodoIfMissing(line, "iu", todayStr(), 500, "study");
+/** 学习类不再复印进待办（2026-09-20 重构）：待办页的「今日学习」直接引用 plan_items——
+ *  复印式同步只抄新增不抄删除，被 Rosie 抓个正着（「按理说全模块化应该调用一个模块」）。
+ *  留这个空壳是为了调用点零改动；工作→待办仍是真待办（那本来就归待办管）。 */
+async function syncTodoIfStudy(_track: Track, _line: string): Promise<void> {
+  /* 引用模式下无事可做 */
 }
 
 function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null; onChanged: () => void }) {
