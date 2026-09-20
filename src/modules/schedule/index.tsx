@@ -51,9 +51,16 @@ function Page() {
     const today = todayStr();
     const [list, periodOn, todos] = await Promise.all([listAllItems(), getPeriodOn(), listTodos()]);
     setItems(list.map((i) => applyPeriod(i, periodOn)).filter((i): i is PlanItem => i !== null));
-    // 「今天的待办」口径与总览/时间轴一致：标过今天（含逾期未完成），已完成的只留今天完成的
+    // 「今天的待办」口径与总览/时间轴一致：标过今天（含逾期未完成），已完成的只留今天完成的；
+    // 学习类过期不顺延（isStaleStudyTodo）
     setTodayTodos(
-      todos.filter((t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today)),
+      todos.filter(
+        (t) =>
+          t.due_date &&
+          t.due_date <= today &&
+          (!t.done || (t.done_at ?? "").slice(0, 10) === today) &&
+          !isStaleStudyTodo(t, today),
+      ),
     );
     const mon = mondayOf(today);
     const checks: Record<string, Map<string, CheckStatus>> = {};
