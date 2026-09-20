@@ -340,13 +340,9 @@ export function Timetable({
         </div>
       )}
 
-      <p className="pt-3 text-[13px] text-muted-foreground">
-        深＝学习（AI/英语）· 中＝运动养生 · 浅＝作息骨架（不打卡）。
-        块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办。
-        状态：<span className="line-through decoration-emerald-500 decoration-2">绿杠＝已完成</span> ·{" "}
-        <span className="line-through decoration-red-500 decoration-2">✗红杠＝今天做不了</span>。
-        <b>双击块＝改/删（一周同款一起变）；单击块出 🖊＝只改那一天；双击空白处或点右上 ＋＝加新日程</b>——单日改时行内再选「以后每个周X」或「仅这一个日期」（过了那天自动回归）。待办去待办模块改。
-      </p>
+      {/* 页脚图例 2026-09-20 撤（Rosie：「这咋还在，给我隐藏了」）——她已用熟，说明书只碍眼。
+          操作速查（给以后的维护者）：深=学习/中=运动养生/浅=骨架；绿杠=已完成、红✗=今天做不了；
+          双击块=改删整条、单击出🖊=只改那天（行内选每周X/仅该日期）、双击空白或右上＋=加新日程 */}
     </div>
   );
 }
