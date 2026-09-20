@@ -37,7 +37,8 @@ function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
-  const [selected, setSelected] = useState<PlanItem[] | null>(null);
+  // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）
+  const [selected, setSelected] = useState<{ items: PlanItem[]; day: number | null } | null>(null);
   const [outdated, setOutdated] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -92,8 +93,18 @@ function Page() {
               作息模板有更新（晚间改版）——去<b>时间轴</b>页点顶部的「一键同步」就能换成新作息，这页会自动跟着变。
             </div>
           )}
-          <Timetable items={items} weekChecks={weekChecks} todayTodos={todayTodos} onSelect={setSelected} />
-          <EditorPanel selected={selected} onChanged={onChanged} onClose={() => setSelected(null)} />
+          <Timetable
+            items={items}
+            weekChecks={weekChecks}
+            todayTodos={todayTodos}
+            onSelect={(sel, day) => setSelected({ items: sel, day })}
+          />
+          <EditorPanel
+            selected={selected?.items ?? null}
+            day={selected?.day ?? null}
+            onChanged={onChanged}
+            onClose={() => setSelected(null)}
+          />
         </>
       ) : (
         <p className="py-8 text-sm text-muted-foreground">读取本周计划…</p>

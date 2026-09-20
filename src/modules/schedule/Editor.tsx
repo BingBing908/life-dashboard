@@ -24,6 +24,13 @@ import {
  * 切换选中块时草稿自动重建。
  */
 
+const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+const ALL_DAYS = ["1", "2", "3", "4", "5", "6", "7"];
+/** 条目实际覆盖哪几天（'*' 展开成 1-7） */
+function daysOf(item: PlanItem): string[] {
+  return item.days === "*" ? ALL_DAYS : item.days.split(",");
+}
+
 const TRACK_CHOICES: { key: Track; name: string }[] = [
   { key: "ai", name: "AI 学习" },
   { key: "english", name: "英语" },
@@ -33,17 +40,28 @@ const TRACK_CHOICES: { key: Track; name: string }[] = [
   { key: "frame", name: "作息骨架" },
 ];
 
-function ItemRow({ item, onChanged }: { item: PlanItem; onChanged: () => void }) {
+function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null; onChanged: () => void }) {
   const [title, setTitle] = useState(item.title);
   const [slot, setSlot] = useState(item.time_slot ?? "");
   const [days, setDays] = useState(item.days);
   const [confirmDel, setConfirmDel] = useState(false);
   const dirty = title !== item.title || slot !== (item.time_slot ?? "") || days !== item.days;
+  // 单日模式下这条是不是「一周多天共用」的——是的话，改/删都要先把这一天拆出来
+  const multi = day !== null && daysOf(item).length > 1 && daysOf(item).includes(String(day));
 
   const save = async () => {
     if (!title.trim()) return;
-    if (title !== item.title) await updateItemTitle(item.id, title.trim());
-    if (slot !== (item.time_slot ?? "") || days !== item.days) await updateItemSlot(item.id, slot, days);
+    if (multi) {
+      // 只改这一天：原条目去掉这天，这天按编辑后的内容单独成条（url 带上；detail/经期设置留在原条目）
+      await updateItemSlot(item.id, item.time_slot ?? "", daysOf(item).filter((x) => x !== String(day)).join(","));
+      await createItem(
+        { track: item.track, days: String(day), time_slot: slot.trim() || null, title: title.trim(), url: item.url },
+        item.sort_order,
+      );
+    } else {
+      if (title !== item.title) await updateItemTitle(item.id, title.trim());
+      if (slot !== (item.time_slot ?? "") || days !== item.days) await updateItemSlot(item.id, slot, days);
+    }
     onChanged();
   };
   const del = async () => {
@@ -51,7 +69,12 @@ function ItemRow({ item, onChanged }: { item: PlanItem; onChanged: () => void })
       setConfirmDel(true);
       return;
     }
-    await deleteItem(item.id);
+    if (multi) {
+      // 只删这一天＝从 days 里摘掉这天，条目本身和其他天不动
+      await updateItemSlot(item.id, item.time_slot ?? "", daysOf(item).filter((x) => x !== String(day)).join(","));
+    } else {
+      await deleteItem(item.id);
+    }
     onChanged();
   };
 
@@ -60,7 +83,7 @@ function ItemRow({ item, onChanged }: { item: PlanItem; onChanged: () => void })
       <button
         onClick={del}
         onBlur={() => setConfirmDel(false)}
-        title={confirmDel ? "再点一次确认删除" : "删除这条"}
+        title={confirmDel ? "再点一次确认删除" : multi ? `只删${DAY_NAMES[(day ?? 1) - 1]}这一天` : "删除这条"}
         className={cn(
           "absolute right-2 top-2 rounded-md p-1.5 transition-colors",
           confirmDel ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:text-destructive",
@@ -98,14 +121,20 @@ function ItemRow({ item, onChanged }: { item: PlanItem; onChanged: () => void })
             placeholder="06:10–06:30（留空＝无固定钟点）"
             className="w-60"
           />
-          <Input
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && save()}
-            placeholder="* 或 1,3,5"
-            title="哪几天：* ＝每天；1,3,5 ＝周一三五（1=周一 … 7=周日）"
-            className="w-28"
-          />
+          {multi ? (
+            <span className="rounded-full bg-secondary px-3 py-1 text-[13px] text-secondary-foreground">
+              只改{DAY_NAMES[(day ?? 1) - 1]}（保存后这天自动拆成单独一条）
+            </span>
+          ) : (
+            <Input
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder="* 或 1,3,5"
+              title="哪几天：* ＝每天；1,3,5 ＝周一三五（1=周一 … 7=周日）"
+              className="w-28"
+            />
+          )}
           {dirty && (
             <Button size="sm" disabled={!title.trim()} onClick={save}>
               保存
@@ -167,11 +196,14 @@ function AddForm({ onChanged }: { onChanged: () => void }) {
 
 export function EditorPanel({
   selected,
+  day,
   onChanged,
   onClose,
 }: {
-  /** null＝没双击块，只显示「加一条」 */
+  /** null＝没选块，只显示「加一条」 */
   selected: PlanItem[] | null;
+  /** null＝编辑整条（一周同款一起变）；1..7＝只改那一天（拆分模式） */
+  day: number | null;
   onChanged: () => void;
   onClose: () => void;
 }) {
@@ -181,14 +213,17 @@ export function EditorPanel({
         <>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">
-              编辑这一块 · Enter 保存 · Ctrl+Enter 换行 · 右上角垃圾桶删除（点两次确认）
+              {day !== null
+                ? `只改${DAY_NAMES[day - 1]}这一天（其他天不受影响）`
+                : "编辑整条（一周同款一起变）"}
+              {" · Enter 保存 · Ctrl+Enter 换行 · 右上角垃圾桶删除（点两次确认）"}
             </span>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="收起">
               <X className="size-4" />
             </button>
           </div>
           {selected.map((it) => (
-            <ItemRow key={it.id} item={it} onChanged={onChanged} />
+            <ItemRow key={`${it.id}-${day ?? "all"}`} item={it} day={day} onChanged={onChanged} />
           ))}
           <div className="border-t border-border/60" />
         </>

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayNumOf, matchesDay, type CheckStatus, type PlanItem } from "../study-plan/data";
@@ -111,9 +113,13 @@ export function Timetable({
   items: PlanItem[];
   weekChecks: Record<string, Map<string, CheckStatus>>;
   todayTodos: Todo[];
-  /** 点一个块 ⇒ 把块里的计划条目交给日程页的编辑区（待办条目不在内，去待办模块改） */
-  onSelect: (items: PlanItem[]) => void;
+  /** 把块里的计划条目交给日程页的编辑区（待办条目不在内，去待办模块改）。
+   *  day＝null ⇒ 编辑整条（一周同款一起变，双击触发）；
+   *  day＝1..7 ⇒ 只改那一天（单击块出 🖊 再点触发，编辑区负责拆分）。 */
+  onSelect: (items: PlanItem[], day: number | null) => void;
 }) {
+  // 单击选中的块（`${dayNum}-${k}`）：右上角出 🖊，点 🖊 只改这一天
+  const [active, setActive] = useState<string | null>(null);
   const today = todayStr();
   const mon = mondayOf(today);
   const todayNum = dayNumOf(today);
@@ -189,13 +195,15 @@ export function Timetable({
                 b.parts
                   .map((p) => (p.item?.title ?? p.label) + (stOf(p) === "skip" ? "（今天做不了）" : ""))
                   .join(" / ") +
-                " · 双击编辑";
+                " · 双击改整条 · 单击出🖊只改这天";
               const editable = b.parts.filter((p) => p.item).map((p) => p.item!);
+              const blockKey = `${d.dayNum}-${k}`;
               return (
                 <div
                   key={k}
                   title={tip}
-                  onDoubleClick={() => editable.length > 0 && onSelect(editable)}
+                  onClick={() => editable.length > 0 && setActive(active === blockKey ? null : blockKey)}
+                  onDoubleClick={() => editable.length > 0 && onSelect(editable, null)}
                   className={cn(
                     "absolute inset-x-0.5 cursor-pointer select-none overflow-hidden rounded-lg px-2 py-0.5 text-[15px] leading-[1.3]",
                     BLOCK_STYLE[b.kind],
@@ -203,6 +211,19 @@ export function Timetable({
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
+                  {active === blockKey && editable.length > 0 && (
+                    <button
+                      title={`只改${d.name}这一天`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActive(null);
+                        onSelect(editable, d.dayNum);
+                      }}
+                      className="absolute right-1 top-1 rounded-md bg-white/80 p-1 text-[#185FA5] shadow-sm"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
                   {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；标题里的手动换行
                       （编辑区 Ctrl+Enter）也各占一行；放不下的行被 overflow 裁掉，悬停 tooltip 里有全部 */}
                   {h >= 20 &&
@@ -239,7 +260,7 @@ export function Timetable({
               {d.noTime.map((it) => (
                 <div
                   key={it.id}
-                  onDoubleClick={() => onSelect([it])}
+                  onDoubleClick={() => onSelect([it], null)}
                   className={cn(
                     "cursor-pointer select-none truncate rounded-lg border border-dashed border-[#A6CBF1] px-2 py-0.5 text-[13px] text-[#185FA5]",
                     d.checks?.get(it.id) === "done" && "line-through opacity-55",
@@ -257,7 +278,7 @@ export function Timetable({
       <p className="pt-3 text-[13px] text-muted-foreground">
         深＝学习（AI/英语）· 中＝运动养生 · 浅＝作息骨架（不打卡）。
         块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办（✓＝已完成）。
-        <b>双击任意块进编辑</b>（改名/改时间/删除），待办去待办模块改。
+        <b>双击块＝编辑整条（一周同款一起变）；单击块出 🖊，点 🖊 只改那一天</b>（自动拆成单日条目，其他天不动）。待办去待办模块改。
       </p>
     </div>
   );
