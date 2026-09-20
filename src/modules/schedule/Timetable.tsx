@@ -21,6 +21,9 @@ import type { Todo } from "../todo/data";
  * 再调色时保持「三档、层次靠深浅」这个骨架，动具体色值就行。
  */
 
+/** 版块默认名（占位条目标题）：块里有细项时这些行自动隐藏。新锁定的版块名加进来即可 */
+const PLACEHOLDER_TITLES = new Set(["学习", "英语", "日日学"]);
+
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const AXIS_START = 360; // 06:00
 const AXIS_END = 1350; // 22:30
@@ -107,6 +110,14 @@ function buildDay(
     } else {
       blocks.push(b);
     }
+  }
+  /** 占位规则（2026-09-20 Rosie：「什么都不写就显示英语，写了详细项目就显示详细项目」）：
+   *  「学习/英语/日日学」是版块的默认名（占位条目）——块里有别的项目时占位行隐藏，
+   *  块空着时占位行独自撑名字。占位条目本身照常可打卡（当天没细项就勾它）。 */
+  for (const b of blocks) {
+    if (b.parts.length <= 1) continue;
+    const detail = b.parts.filter((p) => !(p.item && PLACEHOLDER_TITLES.has(p.item.title)));
+    if (detail.length > 0 && detail.length < b.parts.length) b.parts = detail;
   }
   // 骨架先画、计划后画：偶有重叠时计划块盖在骨架上面（DOM 顺序即层级）
   blocks.sort((a, b) => (a.kind === "frame" ? 0 : 1) - (b.kind === "frame" ? 0 : 1) || a.from - b.from);

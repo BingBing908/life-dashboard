@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -297,6 +297,70 @@ function AddForm({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+/** 版块内的 ＋（2026-09-20 Rosie 圈的那个位置）：往当前选中的版块里加项目。
+ *  类型/星期/默认时间都继承版块（拿第一条当模板）；时间选填——不填就用版块时间，
+ *  同时段的多个项目按写入先后排（sort_order 用秒级时间戳，天然递增）。 */
+function BlockAdd({ template, onChanged }: { template: PlanItem; onChanged: () => void }) {
+  const [title, setTitle] = useState("");
+  const [slot, setSlot] = useState("");
+  const add = async () => {
+    const lines = title.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+    const base = Math.floor(Date.now() / 1000);
+    for (let i = 0; i < lines.length; i++) {
+      await createItem(
+        {
+          track: template.track,
+          days: template.days.split("!")[0] || "*",
+          time_slot: slot.trim() || template.time_slot,
+          title: lines[i],
+        },
+        base + i,
+      );
+      await syncTodoIfStudy(template.track, lines[i]);
+    }
+    setTitle("");
+    setSlot("");
+    onChanged();
+  };
+  return (
+    <div className="flex flex-wrap items-start gap-2 rounded-xl border border-dashed border-border/70 p-3">
+      <Plus className="mt-2.5 size-4 shrink-0 text-muted-foreground" />
+      <Textarea
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          if (e.ctrlKey) {
+            const el = e.currentTarget;
+            const s = el.selectionStart;
+            setTitle(title.slice(0, s) + "\n" + title.slice(el.selectionEnd));
+            requestAnimationFrame(() => {
+              el.selectionStart = el.selectionEnd = s + 1;
+            });
+          } else {
+            void add();
+          }
+        }}
+        rows={Math.max(1, title.split("\n").length)}
+        placeholder="往这个版块加项目（Enter 添加 · Ctrl+Enter 换行，一行一个）"
+        className="min-h-0 min-w-40 flex-1 resize-none text-[15px]"
+      />
+      <Input
+        value={slot}
+        onChange={(e) => setSlot(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+        placeholder={`时间选填（默认 ${template.time_slot ?? "无"}）`}
+        className="w-60"
+      />
+      <Button size="sm" disabled={!title.trim()} onClick={add}>
+        添加
+      </Button>
+    </div>
+  );
+}
+
 export function EditorPanel({
   selected,
   day,
@@ -328,6 +392,7 @@ export function EditorPanel({
           {selected.map((it) => (
             <ItemRow key={`${it.id}-${day ?? "all"}`} item={it} day={day} onChanged={onChanged} />
           ))}
+          <BlockAdd template={selected[0]} onChanged={onChanged} />
           <div className="border-t border-border/60" />
         </>
       )}
