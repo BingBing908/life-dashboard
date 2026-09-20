@@ -182,6 +182,9 @@ export const SEED_ITEMS: {
   { track: "frame", days: "1,2,3,4,5", time_slot: "10:15–12:00", title: "工作" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "12:00–12:30", title: "午餐" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "12:30–13:00", title: "空档" },
+  // ⚠️ 日日学在她的活库里已被 PATCH 成 track='ai'（2026-09-20 她要求「跟英语和 AI 学习一样的
+  // 学习板块」，id 未变所以补种不冲突）；种子这行保持 frame 只是为了 id 对齐——别改 track，
+  // 改了 key 就变、将来 ensureSeedAdditions 会插出一条重复的日日学。
   { track: "frame", days: "1,2,3,4,5", time_slot: "13:00–14:00", title: "日日学" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "14:00–17:30", title: "工作" },
   { track: "frame", days: "1,2,3,4,5", time_slot: "17:30–17:50", title: "晚餐" },

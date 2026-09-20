@@ -47,7 +47,11 @@ interface Part {
 interface Block {
   from: number;
   to: number;
-  kind: "frame" | "study" | "plan";
+  kind: "frame" | "study" | "english" | "plan";
+  /** 合并分组键（track 级，reading 并入 wellness）：同组且间隔≤30min 的条目合成一个大块。
+   *  这是 Rosie 的容器模型（2026-09-20）：「一段时间属于一个区块，里面我填不同的内容」——
+   *  早上 06:10–07:25 是一个运动块、周末上午是一个学习块，块内小段是填充物不是独立块。 */
+  grp?: string;
   parts: Part[];
 }
 
@@ -75,11 +79,14 @@ function buildDay(
       continue;
     }
     const kind =
-      it.track === "frame" ? "frame" : it.track === "ai" || it.track === "cert" || it.track === "english" ? "study" : "plan";
+      it.track === "frame" ? "frame" : it.track === "english" ? "english" : it.track === "ai" || it.track === "cert" ? "study" : "plan";
     // 三餐互通（2026-09-20）：饮食里填了就显示「早餐｜茶叶蛋+豆浆」，没填就还是「早餐」
     const label =
       kind === "frame" && meals[it.title] ? `${it.title}｜${meals[it.title]}` : shortTitle(it.title);
-    const block: Block = { ...p, kind, parts: [{ label, item: it }] };
+    // 分组键按 track（阅读并入养生——晚间泡脚+阅读+拉伸是同一个养生块）；
+    // 英语和学习同色不同组：周末英语块 09:40 结束、学习块 09:45 开始，不能焊成一坨
+    const grp = it.track === "reading" ? "wellness" : it.track;
+    const block: Block = { ...p, kind, grp, parts: [{ label, item: it }] };
     if (kind === "frame") blocks.push(block);
     else plans.push(block);
   }
@@ -88,21 +95,13 @@ function buildDay(
   if (work) work.parts.push(...todosForDay.map((t) => ({ label: t.title, todoDone: t.done === 1 })));
 
   plans.sort((a, b) => a.from - b.from || a.to - b.to);
-  /** ⚠️ 合并规则（块内一项一行）：
-   *  · plan（运动养生阅读）：间隔≤10min 就合并——晨间养生全是 10–20 分钟矮条，不合并字放不下
-   *    （09-19「五脏逼毒八段锦咋没了」）；
-   *  · study（学习/英语）：**只合并时间重叠的**——09-20 她把英语拆成三条同时段（新概念/口语/单词），
-   *    绝对定位完全重叠、只看得见最上面一条，她以为保存失败又建一遍造成重复。
-   *    刻意不用 ≤10min 规则：周末英语 09:40 结束 AI 正好 09:40 开始，按间隔合并会把
-   *    两个不同的大块焊成一坨。 */
+  /** ⚠️ 合并规则（2026-09-20 Rosie 容器模型定稿）：**同组（grp）且间隔≤30min 合成一个块**，
+   *  块内一项一行。这让 06:10–07:25 的晨间养生（揉腹/逼毒→隔 30min→八段锦）是一个完整块，
+   *  同时段重叠的英语三件套也是一个块；而英语↔学习（不同组）、运动↔养生（不同组）
+   *  即使只隔几分钟也各自成块——组的边界就是她说的「区块」边界。 */
   for (const b of plans) {
     const prev = blocks[blocks.length - 1];
-    const mergeable =
-      prev &&
-      prev.kind === b.kind &&
-      prev.kind !== "frame" &&
-      (b.kind === "plan" ? b.from <= prev.to + 10 : b.from < prev.to);
-    if (mergeable) {
+    if (prev && prev.grp && prev.grp === b.grp && b.from <= prev.to + 30) {
       prev.to = Math.max(prev.to, b.to);
       prev.parts.push(...b.parts);
     } else {
@@ -117,6 +116,7 @@ function buildDay(
 // 09-19 Rosie：「浅蓝过于浅了，搞稍微深色一点」——三档各加深一档，层次关系不变
 const BLOCK_STYLE: Record<Block["kind"], string> = {
   study: "bg-[#6FA7E4] text-[#04264A]",
+  english: "bg-[#6FA7E4] text-[#04264A]", // 和学习同色（她定的三档蓝），但合并分组分开、各自成块
   plan: "bg-[#A6CBF1] text-[#0C447C]",
   // 骨架＝最浅档。⚠️ 它铺在白色列上，不描边就快看不见了——border 别删
   frame: "bg-[#D5E7F7] text-[#4F7EAD] border border-[#BBD7EF]",
