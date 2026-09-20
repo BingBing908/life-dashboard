@@ -46,7 +46,10 @@ export function dayNumOf(dateStr: string): number {
  *  ⚠️ date 不传时（老调用方式），@条目永不匹配、!排除不生效——所以知道具体日期的调用点都要把
  *  date 传进来，否则单次调整在那个视图里看不见。 */
 export function matchesDay(item: PlanItem, dayNum: number, date?: string): boolean {
-  const [pat, exc] = item.days.split("!");
+  // ⚠️ 全角容错（2026-09-20 真事故）：Rosie 手填「2，4，6」（全角逗号），按半角解析
+  // 匹配不到任何一天，仙人揉腹整条消失。读侧统一归一化，她怎么打都认。
+  const days = item.days.replace(/，/g, ",").replace(/！/g, "!").replace(/＠/g, "@").replace(/\s/g, "");
+  const [pat, exc] = days.split("!");
   if (date && exc && exc.split(",").includes(date)) return false;
   if (pat.startsWith("@")) return date !== undefined && pat.slice(1) === date;
   if (pat === "*") return true;
