@@ -86,7 +86,7 @@ export function DashboardShell({ onOpenModule }: Props) {
           latestNoteByItem(),
         ]);
       const todayCheck = await listCheckStatus(today);
-      const todayPlan = items.filter((i) => matchesDay(i, tNum));
+      const todayPlan = items.filter((i) => matchesDay(i, tNum, today));
       const planDone = todayPlan.filter((i) => todayCheck.get(i.id) === "done").length;
 
       // ⚠️ 顶排的「待办」只数**今天该做的**（标了今天、或过期没做的），不是全部待办；
@@ -124,7 +124,7 @@ export function DashboardShell({ onOpenModule }: Props) {
         }
         const cs = await listCheckStatus(date);
         week.push({ date, dayNum: d + 1, status: cs });
-        const dayItems = items.filter((i) => matchesDay(i, d + 1));
+        const dayItems = items.filter((i) => matchesDay(i, d + 1, date));
         const done = dayItems.filter((i) => cs.get(i.id) === "done").length;
         bars.push({ done, total: dayItems.length, isToday: date === today });
       }

@@ -59,6 +59,7 @@ function shortTitle(t: string): string {
 
 function buildDay(
   dayNum: number,
+  date: string,
   items: PlanItem[],
   todosForDay: Todo[],
   meals: Record<string, string>,
@@ -67,7 +68,7 @@ function buildDay(
   const noTime: PlanItem[] = [];
   const plans: Block[] = [];
   for (const it of items) {
-    if (!matchesDay(it, dayNum)) continue;
+    if (!matchesDay(it, dayNum, date)) continue;
     const p = parseSlot(it.time_slot);
     if (!p) {
       if (it.track !== "frame") noTime.push(it);
@@ -152,7 +153,7 @@ export function Timetable({
       name,
       dayNum,
       date,
-      ...buildDay(dayNum, items, dayNum === todayNum ? todayTodos : [], weekMeals[date] ?? {}),
+      ...buildDay(dayNum, date, items, dayNum === todayNum ? todayTodos : [], weekMeals[date] ?? {}),
       checks: weekChecks[date],
     };
   });
@@ -298,7 +299,7 @@ export function Timetable({
       <p className="pt-3 text-[13px] text-muted-foreground">
         深＝学习（AI/英语）· 中＝运动养生 · 浅＝作息骨架（不打卡）。
         块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办（✓＝已完成）。
-        <b>双击块＝编辑整条（一周同款一起变）；单击块出 🖊，点 🖊 只改那一天</b>（自动拆成单日条目，其他天不动）。待办去待办模块改。
+        <b>双击块＝编辑整条（一周同款一起变）；单击块出 🖊＝只改那一天</b>——行内再选「以后每个周X」或「仅这一个日期」（单次调整，过了那天自动回归）。待办去待办模块改。
       </p>
     </div>
   );

@@ -39,9 +39,26 @@ export function dayNumOf(dateStr: string): number {
   return ((d.getDay() + 6) % 7) + 1;
 }
 
-export function matchesDay(item: PlanItem, dayNum: number): boolean {
-  if (item.days === "*") return true;
-  return item.days.split(",").includes(String(dayNum));
+/** days 语法（2026-09-20 扩充，Rosie 要「真正的单次调整」；不加列、不用跑 Supabase SQL）：
+ *  · '*' 或 '1,3,5'＝按周几重复（老语义不变）
+ *  · '@2026-09-24'＝**仅那一天**生效（单次条目；过了那天自然消失）
+ *  · 任何规则后可挂 '!2026-09-24,2026-10-01'＝**这些日期跳过**（单次修改/删除＝原条目排除那天）
+ *  ⚠️ date 不传时（老调用方式），@条目永不匹配、!排除不生效——所以知道具体日期的调用点都要把
+ *  date 传进来，否则单次调整在那个视图里看不见。 */
+export function matchesDay(item: PlanItem, dayNum: number, date?: string): boolean {
+  const [pat, exc] = item.days.split("!");
+  if (date && exc && exc.split(",").includes(date)) return false;
+  if (pat.startsWith("@")) return date !== undefined && pat.slice(1) === date;
+  if (pat === "*") return true;
+  return pat.split(",").includes(String(dayNum));
+}
+
+/** 给 days 追加一个「这天跳过」的排除日期（幂等） */
+export function withDateExcluded(days: string, date: string): string {
+  const [pat, exc] = days.split("!");
+  const list = exc ? exc.split(",") : [];
+  if (!list.includes(date)) list.push(date);
+  return `${pat}!${list.join(",")}`;
 }
 
 export async function listItems(): Promise<PlanItem[]> {

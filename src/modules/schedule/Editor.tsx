@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { todayStr } from "@/lib/dates";
+import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,6 +10,7 @@ import {
   deleteItem,
   updateItemSlot,
   updateItemTitle,
+  withDateExcluded,
   type PlanItem,
   type Track,
 } from "../study-plan/data";
@@ -28,9 +29,17 @@ import { createTodo } from "../todo/data";
 
 const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const ALL_DAYS = ["1", "2", "3", "4", "5", "6", "7"];
-/** 条目实际覆盖哪几天（'*' 展开成 1-7） */
+/** 条目实际覆盖哪几个周几（'*' 展开成 1-7；'!日期' 排除后缀不参与） */
 function daysOf(item: PlanItem): string[] {
-  return item.days === "*" ? ALL_DAYS : item.days.split(",");
+  const pat = item.days.split("!")[0];
+  return pat === "*" ? ALL_DAYS : pat.split(",");
+}
+
+/** 从 days 里摘掉一个周几，保留 '!日期' 排除后缀 */
+function daysWithoutWeekday(item: PlanItem, day: number): string {
+  const exc = item.days.split("!")[1];
+  const rest = daysOf(item).filter((x) => x !== String(day)).join(",");
+  return exc ? `${rest}!${exc}` : rest;
 }
 
 /** 「加一条」的类型（2026-09-19 Rosie 定的同步规则）：
@@ -58,20 +67,35 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
   const [slot, setSlot] = useState(item.time_slot ?? "");
   const [days, setDays] = useState(item.days);
   const [confirmDel, setConfirmDel] = useState(false);
+  /** 单日模式再分两档（2026-09-20 Rosie 要「真正的单次调整」）：
+   *  once=false ⇒ 改「以后每个周X」（把这个周几拆成独立重复条目）；
+   *  once=true  ⇒ 只改「这一个日期」（原条目那天排除 + 生成 @日期 的单次条目，过了自动回归）。 */
+  const [once, setOnce] = useState(false);
   const dirty = title !== item.title || slot !== (item.time_slot ?? "") || days !== item.days;
-  // 单日模式下这条是不是「一周多天共用」的——是的话，改/删都要先把这一天拆出来
-  const multi = day !== null && daysOf(item).length > 1 && daysOf(item).includes(String(day));
+  const isOnceItem = item.days.startsWith("@"); // 本身就是单次条目：普通改/删即可
+  const dayDate = day !== null ? addDays(mondayOf(todayStr()), day - 1) : null;
+  const dayMode = day !== null && dayDate !== null && !isOnceItem;
+  // 「以后每个周X」需要拆分的前提：条目覆盖多个周几
+  const multi = dayMode && daysOf(item).length > 1 && daysOf(item).includes(String(day));
 
   const save = async () => {
     // 一行一个事件：第一行落在原条目上，后面每行各成一条新条目（同时段同类型）
     const lines = title.split("\n").map((s) => s.trim()).filter(Boolean);
     if (lines.length === 0) return;
     const [first, ...rest] = lines;
-    if (multi) {
-      // 只改这一天：原条目去掉这天，这天按编辑后的内容单独成条（url 带上；detail/经期设置留在原条目）
-      await updateItemSlot(item.id, item.time_slot ?? "", daysOf(item).filter((x) => x !== String(day)).join(","));
+    const newDays = dayMode ? (once ? `@${dayDate}` : String(day)) : days.trim() || "*";
+    if (dayMode && once) {
+      // 单次修改：原条目这个日期跳过，这天的内容单独成一条 @日期 条目
+      await updateItemSlot(item.id, item.time_slot ?? "", withDateExcluded(item.days, dayDate!));
       await createItem(
-        { track: item.track, days: String(day), time_slot: slot.trim() || null, title: first, url: item.url },
+        { track: item.track, days: newDays, time_slot: slot.trim() || null, title: first, url: item.url },
+        item.sort_order,
+      );
+    } else if (multi) {
+      // 只改这个周几（以后每周都变）：原条目去掉这个周几，它单独成条（url 带上；detail/经期设置留在原条目）
+      await updateItemSlot(item.id, item.time_slot ?? "", daysWithoutWeekday(item, day!));
+      await createItem(
+        { track: item.track, days: newDays, time_slot: slot.trim() || null, title: first, url: item.url },
         item.sort_order,
       );
     } else {
@@ -80,7 +104,7 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
     }
     for (const ln of rest) {
       await createItem(
-        { track: item.track, days: multi ? String(day) : days.trim() || "*", time_slot: slot.trim() || null, title: ln },
+        { track: item.track, days: dayMode ? newDays : days.trim() || "*", time_slot: slot.trim() || null, title: ln },
         item.sort_order,
       );
       await syncTodoIfStudy(item.track, ln);
@@ -92,9 +116,12 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
       setConfirmDel(true);
       return;
     }
-    if (multi) {
-      // 只删这一天＝从 days 里摘掉这天，条目本身和其他天不动
-      await updateItemSlot(item.id, item.time_slot ?? "", daysOf(item).filter((x) => x !== String(day)).join(","));
+    if (dayMode && once) {
+      // 单次删除＝只是这一天跳过，条目本身和以后的同一周几都不动
+      await updateItemSlot(item.id, item.time_slot ?? "", withDateExcluded(item.days, dayDate!));
+    } else if (multi) {
+      // 只删这个周几＝从 days 里摘掉，条目本身和其他天不动
+      await updateItemSlot(item.id, item.time_slot ?? "", daysWithoutWeekday(item, day!));
     } else {
       await deleteItem(item.id);
     }
@@ -106,7 +133,15 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
       <button
         onClick={del}
         onBlur={() => setConfirmDel(false)}
-        title={confirmDel ? "再点一次确认删除" : multi ? `只删${DAY_NAMES[(day ?? 1) - 1]}这一天` : "删除这条"}
+        title={
+          confirmDel
+            ? "再点一次确认删除"
+            : dayMode
+              ? once
+                ? `只跳过 ${dayDate} 这一天，以后照常`
+                : `删掉以后每个${DAY_NAMES[(day ?? 1) - 1]}的这条`
+              : "删除这条"
+        }
         className={cn(
           "absolute right-2 top-2 rounded-md p-1.5 transition-colors",
           confirmDel ? "bg-destructive/15 text-destructive" : "text-muted-foreground hover:text-destructive",
@@ -144,9 +179,27 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
             placeholder="06:10–06:30（留空＝无固定钟点）"
             className="w-60"
           />
-          {multi ? (
-            <span className="rounded-full bg-secondary px-3 py-1 text-[13px] text-secondary-foreground">
-              只改{DAY_NAMES[(day ?? 1) - 1]}（保存后这天自动拆成单独一条）
+          {dayMode ? (
+            // 单日模式两档（她要的「真正的单次调整」）：默认改以后每个周X，切「仅这一天」＝过后自动回归
+            <span className="flex gap-1.5">
+              <button
+                onClick={() => setOnce(false)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[13px]",
+                  !once ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground",
+                )}
+              >
+                以后每个{DAY_NAMES[(day ?? 1) - 1]}
+              </button>
+              <button
+                onClick={() => setOnce(true)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-[13px]",
+                  once ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground",
+                )}
+              >
+                仅 {dayDate?.slice(5).replace("-", "/")} 这一天
+              </button>
             </span>
           ) : (
             <Input
@@ -154,7 +207,7 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
               onChange={(e) => setDays(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && save()}
               placeholder="* 或 1,3,5"
-              title="哪几天：* ＝每天；1,3,5 ＝周一三五（1=周一 … 7=周日）"
+              title="哪几天：* ＝每天；1,3,5 ＝周一三五；@2026-09-24 ＝仅那一天；规则后挂 !2026-09-24 ＝那天跳过"
               className="w-28"
             />
           )}
@@ -264,7 +317,7 @@ export function EditorPanel({
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">
               {day !== null
-                ? `只改${DAY_NAMES[day - 1]}这一天（其他天不受影响）`
+                ? `只改${DAY_NAMES[day - 1]}（行内可选：以后每个${DAY_NAMES[day - 1]} / 仅这一个日期）`
                 : "编辑整条（一周同款一起变）"}
               {" · Enter 逐项保存（面板不关，可接着改下一项）· Ctrl+Enter 换行 · 垃圾桶删除点两次 · 全改完点右上 ✕ 收起"}
             </span>

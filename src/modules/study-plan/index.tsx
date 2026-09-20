@@ -372,9 +372,10 @@ function slotEndMin(item: PlanItem): number {
  */
 function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): string {
   const now = nowMinutes();
+  const date = todayStr(); // autoDomainKey 只用于今天，单次条目(@日期)按今天匹配
   for (const d of domains) {
     for (const it of domainItems(d, items)) {
-      if (!matchesDay(it, dayNum)) continue;
+      if (!matchesDay(it, dayNum, date)) continue;
       const s = slotStartMin(it);
       const e = slotEndMin(it);
       if (e > s && now >= s && now < e) return d.key;
@@ -425,7 +426,7 @@ function Card() {
         return;
       }
       const dayNum = dayNumOf(todayStr());
-      const todays = items.filter((i) => matchesDay(i, dayNum));
+      const todays = items.filter((i) => matchesDay(i, dayNum, todayStr()));
       const done = todays.filter((i) => checks.has(i.id)).length;
       const week = cycleStart ? cycleWeekOf(cycleStart, todayStr()) : 1;
       setText(`今日 ${done}/${todays.length} 项 · 周期第 ${week} 周`);
@@ -786,7 +787,7 @@ function Page() {
   }
 
   const week = cycleStart ? cycleWeekOf(cycleStart, today) : 1;
-  const todays = shown.filter((i) => matchesDay(i, todayNum));
+  const todays = shown.filter((i) => matchesDay(i, todayNum, today));
   const doneCount = todays.filter((i) => checkMap.get(i.id) === "done").length;
 
   // 待做(pending)排上面，已决定(done/skip)沉到下面；同组保持原顺序
@@ -822,7 +823,7 @@ function Page() {
       return { kind: "domain" as const, key: `d-${d.key}`, start: s === Infinity ? d.start : s, d };
     }),
     ...frames
-      .filter((f) => matchesDay(f, todayNum) && f.title !== "工作" && f.title !== "缓冲")
+      .filter((f) => matchesDay(f, todayNum, today) && f.title !== "工作" && f.title !== "缓冲")
       .map((f) => ({
         kind: "frame" as const,
         key: `f-${f.id}`,
@@ -905,7 +906,7 @@ function Page() {
   const graceItems = items.filter(
     (i) =>
       i.title.includes("睡前拉伸") &&
-      matchesDay(i, dayNumOf(yesterday)) &&
+      matchesDay(i, dayNumOf(yesterday), yesterday) &&
       !yChecks.has(i.id),
   );
 
@@ -1464,7 +1465,7 @@ function Page() {
         <div className="mt-4 space-y-6">
           <p className="text-xs text-muted-foreground">「今天及以前」的天都能补勾（漏打卡了倒回来补）；将来的天不能勾。</p>
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
-            const dayItems = shown.filter((i) => matchesDay(i, d));
+            const dayItems = shown.filter((i) => matchesDay(i, d, weekDates[d - 1]));
             const dateD = weekDates[d - 1];
             const canBackfill = dateD <= today; // 今天及以前可勾/补卡
             const dayState = weekChecks[dateD] ?? new Map<string, CheckStatus>();

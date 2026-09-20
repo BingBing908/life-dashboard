@@ -134,7 +134,7 @@ function planLine(
   let due = 0;
   let advanced = 0;
   for (const day of week) {
-    const scheduled = mine.filter((i) => matchesDay(i, day.dayNum));
+    const scheduled = mine.filter((i) => matchesDay(i, day.dayNum, day.date));
     if (scheduled.length === 0) continue;
     due++;
     if (scheduled.some((i) => day.status.get(i.id) === "done")) advanced++;
