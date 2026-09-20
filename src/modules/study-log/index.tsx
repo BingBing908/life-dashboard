@@ -178,8 +178,9 @@ export function entryDone(e: Entry): boolean {
 
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
-/** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。 */
-function ProgressRing({ done, total, accent }: { done: number; total: number; accent: string }) {
+/** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。
+ *  hideText＝不画中间数字（首页格子把图标叠在环心，数字在环下面那行——2026-09-20 Rosie 定的样式） */
+function ProgressRing({ done, total, accent, hideText }: { done: number; total: number; accent: string; hideText?: boolean }) {
   const R = 30;
   const C = 2 * Math.PI * R;
   const p = total > 0 ? done / total : 0;
@@ -192,9 +193,11 @@ function ProgressRing({ done, total, accent }: { done: number; total: number; ac
           strokeDasharray={`${C * p} ${C}`} strokeLinecap="round" transform="rotate(-90 38 38)"
         />
       )}
-      <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="500" fill="#042C53">
-        {total > 0 ? `${done}/${total}` : "—"}
-      </text>
+      {!hideText && (
+        <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="500" fill="#042C53">
+          {total > 0 ? `${done}/${total}` : "—"}
+        </text>
+      )}
     </svg>
   );
 }
@@ -218,32 +221,31 @@ function BoardTile({
   onOpen: (b: Board) => void;
 }) {
   const real = entries.filter((e) => e.board === b.key && e.kind !== "note");
+  const doneAll = real.filter(entryDone).length;
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
   const paused = b.key === "finance";
   return (
+    // 2026-09-20 Rosie 定稿：图标套在累计进度环里，下一行给「12/13」这种总体字样（+今日）
     <button
       onClick={() => onOpen(b.key)}
       className={cn(
-        "flex aspect-square flex-col items-center justify-center gap-2 rounded-3xl bg-card p-4 text-center transition-transform hover:scale-[1.02]",
+        "flex aspect-square flex-col items-center justify-center gap-1.5 rounded-3xl bg-card p-3 text-center transition-transform hover:scale-[1.02]",
         paused && "opacity-55",
       )}
     >
-      {todays.length > 0 ? (
-        <ProgressRing done={doneToday} total={todays.length} accent={b.c.accent} />
-      ) : (
-        <span
-          className="flex size-[76px] items-center justify-center rounded-full"
-          style={{ background: b.c.bg, color: b.c.sub }}
-        >
-          <b.icon className="size-8" />
+      <span className="relative">
+        <ProgressRing done={doneAll} total={real.length} accent={b.c.accent} hideText />
+        <span className="absolute inset-0 flex items-center justify-center" style={{ color: b.c.sub }}>
+          <b.icon className="size-7" />
         </span>
-      )}
-      <div className="text-lg font-medium" style={{ color: b.c.text }}>
+      </span>
+      <div className="text-base font-medium" style={{ color: b.c.text }}>
         {b.name}
       </div>
-      <div className="text-xs leading-snug" style={{ color: b.c.sub }}>
-        {todays.length > 0 ? `今日看完 ${doneToday}/${todays.length} · 共 ${real.length} 条` : `${b.hint} · ${real.length} 条`}
+      <div className="text-xs leading-snug tabular-nums" style={{ color: b.c.sub }}>
+        已看 {doneAll}/{real.length}
+        {todays.length > 0 && ` · 今日 ${doneToday}/${todays.length}`}
       </div>
     </button>
   );
@@ -264,7 +266,8 @@ function Landing({
   const today = todayStr();
   const ordered = [...MAIN_BOARDS, ...SUB_BOARDS];
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    // 一行 4~5 个（2026-09-20 Rosie：三个太大；后面还要加各行各业的新板块，格子小一点装得下）
+    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-5">
       {ordered.map((b) => (
         <BoardTile key={b.key} b={b} entries={entries} today={today} onOpen={onOpen} />
       ))}

@@ -130,9 +130,9 @@ export function currentWeekDates(): string[] {
 }
 
 /* ───── 周表回看（2026-09-20 Rosie：「小表格要能看到生成之后的每一周」）─────
- * 自动周表（三餐/时间轴周表）按任选的周一重算；第 1 周＝2026-09-14 那周（她定的
+ * 自动周表（三餐/时间轴周表）按任选的周一重算；第 1 周＝2026-09-21 那周（她定的：下周作为正式第一周
  * 「就把这周当作第一周」），之前的周只显示日期不编号。 */
-export const WEEK1_MON = "2026-09-14";
+export const WEEK1_MON = "2026-09-21";
 
 export function weekDatesOf(mon: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(mon, i));

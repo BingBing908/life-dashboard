@@ -466,10 +466,12 @@ export async function setCycleStart(date: string): Promise<void> {
 }
 
 /** 当前处于 4 周周期的第几周（1-4） */
+/** 周期第几周：**持续累计不归零**（2026-09-20 Rosie：「后面每周的周数记得变化」，
+ *  起点已重置为 2026-09-21 那周＝第 1 周）。4 周训练相位由调用方拿 (week-1)%4 取。 */
 export function cycleWeekOf(cycleStart: string, today: string): number {
   const ms = new Date(today + "T00:00:00").getTime() - new Date(cycleStart + "T00:00:00").getTime();
   const weeks = Math.max(0, Math.floor(ms / (7 * 24 * 3600 * 1000)));
-  return (weeks % 4) + 1;
+  return weeks + 1;
 }
 
 /**

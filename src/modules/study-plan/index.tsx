@@ -1028,18 +1028,41 @@ function Page() {
 
   return (
     <div className={PAGE}>
-      <div className="mb-1 flex flex-wrap items-center gap-3">
+      {/* 头部一行（2026-09-20 Rosie：日期/现在/今日进度/适应周提示挪到一行、居右；tab 已撤） */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">时间轴</h1>
-        <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
-          周期第 {week} 周
-        </span>
-        <span className="text-sm text-muted-foreground">{CYCLE_PHASES[week - 1]}</span>
         {periodOn && (
           <span className="rounded-full border border-pink-300 bg-pink-50 px-3 py-0.5 text-sm text-pink-700">
             🩸 经期中 · 已避开腹部
           </span>
         )}
-        {/* tab 按钮组已撤（2026-09-20）：今天/一周/路线与日程重合，时间轴只做一日简览 */}
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <span className="text-sm text-muted-foreground">{formatDateCn(today)}</span>
+          {/* 「现在」药丸收进蓝色系（她说红色太跳）；轴上的红虚线保留做定位 */}
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F1FB] px-2.5 py-0.5 text-xs text-[#185FA5]"
+            title="按当前时间自动定位到该做的领域"
+          >
+            <span className="size-1.5 rounded-full bg-[#2E7CD6]" />
+            现在 {String(Math.floor(nowMinutes() / 60)).padStart(2, "0")}:
+            {String(nowMinutes() % 60).padStart(2, "0")} · 自动跟随
+          </span>
+          <span className="flex items-center gap-2 text-sm">
+            <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+              <span
+                className="block h-full rounded-full bg-primary transition-all"
+                style={{ width: todays.length ? `${(doneCount / todays.length) * 100}%` : 0 }}
+              />
+            </span>
+            <span className="text-muted-foreground">
+              今日 <b className="font-medium text-foreground">{doneCount}</b>/{todays.length}
+            </span>
+          </span>
+          <span className="rounded-full bg-accent px-3 py-0.5 text-sm font-medium text-accent-foreground">
+            周期第 {week} 周
+          </span>
+          <span className="text-sm text-muted-foreground">{CYCLE_PHASES[(week - 1) % 4]}</span>
+        </span>
       </div>
 
       {seedOutdated && (
@@ -1055,38 +1078,13 @@ function Page() {
       )}
       {tab === "current" ? (
         <>
-          <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <p className="text-sm text-muted-foreground">{formatDateCn(today)}</p>
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs"
-              style={{ borderColor: "#e0484a55", color: "#e0484a", background: "#e0484a12" }}
-              title="按当前时间自动定位到该做的领域"
-            >
-              <span className="size-1.5 rounded-full" style={{ background: "#e0484a" }} />
-              现在 {String(Math.floor(nowMinutes() / 60)).padStart(2, "0")}:
-              {String(nowMinutes() % 60).padStart(2, "0")} · 自动跟随
-            </span>
-            {/* 今日总进度：柱条 + 数字，一眼知道整天做了多少 */}
-            <span className="flex items-center gap-2 text-sm">
-              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                <span
-                  className="block h-full rounded-full bg-primary transition-all"
-                  style={{ width: todays.length ? `${(doneCount / todays.length) * 100}%` : 0 }}
-                />
-              </span>
-              <span className="text-muted-foreground">
-                今日 <b className="font-medium text-foreground">{doneCount}</b>/{todays.length}
-              </span>
-            </span>
-            {selected && selected !== autoKey && (
-              <button
-                className="text-sm text-primary hover:underline"
-                onClick={() => setSelected(null)}
-              >
+          {selected && selected !== autoKey && (
+            <div className="mb-3">
+              <button className="text-sm text-primary hover:underline" onClick={() => setSelected(null)}>
                 ← 回到此刻
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* 睡前拉伸次日补勾：其余任务过了今天不再补，只有它有宽限 */}
           {graceItems.map((i) => (
