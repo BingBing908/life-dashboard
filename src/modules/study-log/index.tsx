@@ -75,7 +75,8 @@ const BOARDS: BoardCfg[] = [
   // kinds 只喂「加一条」表单的下拉框（渲染不看它，LearningBoard 只筛 kind !== 'note'）。
   { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "2 深读 + 速览 + 术语卡 + 趋势", c: { ...BLUE_MAIN } },
   { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "周末更新 · 当故事看", c: { ...BLUE_SOFT } },
-  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "暂停中（第 7 课起恢复）", c: { ...BLUE_SOFT } },
+  // 金融 2026-09-20 恢复（Rosie：「AIPM 需要较广的知识网，keep learning」），从第 7 课接着走，点名才更新
+  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "第 7 课起 · 点名更新", c: { ...BLUE_SOFT } },
   { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "概念 + 用自己的项目练表达", c: { ...BLUE_MAIN } },
 ];
 
@@ -224,7 +225,8 @@ function BoardTile({
   const doneAll = real.filter(entryDone).length;
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
-  const paused = b.key === "finance";
+  // 目前没有暂停中的板块（金融 2026-09-20 恢复）；以后要停哪个就把 key 填进来，灰环+⏸ 机制现成
+  const paused = (["--none--"] as string[]).includes(b.key);
   // 环色按「还欠几条」加深（2026-09-20 三调：百分比分档会把 83%~94% 的板块挤成同色，
   // 她说肉眼区别小——改成绝对欠账数：欠 0 几乎隐形 → 欠 6+ 深蓝 → 欠 10+ 海军蓝，
   // 深色直接指着「该去补哪块、欠了多少」）。暂停板块＝灰环+⏸，不再整格压暗（金融曾被冲成白板）。
