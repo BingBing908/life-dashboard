@@ -225,32 +225,39 @@ function BoardTile({
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
   const paused = b.key === "finance";
-  // 环色随完成度反向加深（2026-09-20 Rosie：完成得越少颜色越深，全完成最浅——提醒意义）。
-  // 同日二调：档距拉大（她说英语/语文/金融肉眼区别不大）——全完成几乎隐入底色，
-  // 落后一半直接跳到深蓝，最落后是海军蓝，扫一眼就知道该补哪块。
-  const p = real.length ? doneAll / real.length : 1;
-  const ringAccent =
-    p >= 1 ? "#DDEBF8" : p >= 0.8 ? "#9FC4EE" : p >= 0.6 ? "#5E9AE0" : p >= 0.4 ? "#2E7CD6" : p >= 0.2 ? "#185FA5" : "#0C447C";
+  // 环色按「还欠几条」加深（2026-09-20 三调：百分比分档会把 83%~94% 的板块挤成同色，
+  // 她说肉眼区别小——改成绝对欠账数：欠 0 几乎隐形 → 欠 6+ 深蓝 → 欠 10+ 海军蓝，
+  // 深色直接指着「该去补哪块、欠了多少」）。暂停板块＝灰环+⏸，不再整格压暗（金融曾被冲成白板）。
+  const left = real.length - doneAll;
+  const ringAccent = paused
+    ? "#D6D3CA"
+    : left <= 0
+      ? "#E3EEF9"
+      : left <= 2
+        ? "#9FC4EE"
+        : left <= 5
+          ? "#5E9AE0"
+          : left <= 9
+            ? "#2E7CD6"
+            : "#0C447C";
   return (
     // 2026-09-20 Rosie 定稿：图标套在累计进度环里，下一行给「12/13」这种总体字样（+今日）
     <button
       onClick={() => onOpen(b.key)}
-      className={cn(
-        "flex aspect-square flex-col items-center justify-center gap-1.5 rounded-3xl bg-card p-3 text-center transition-transform hover:scale-[1.02]",
-        paused && "opacity-55",
-      )}
+      className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-3xl bg-card p-3 text-center transition-transform hover:scale-[1.02]"
     >
       <span className="relative">
         <ProgressRing done={doneAll} total={real.length} accent={ringAccent} hideText />
-        <span className="absolute inset-0 flex items-center justify-center" style={{ color: b.c.sub }}>
+        <span className="absolute inset-0 flex items-center justify-center" style={{ color: paused ? "#A6A49D" : b.c.sub }}>
           <b.icon className="size-7" />
         </span>
       </span>
-      <div className="text-base font-medium" style={{ color: b.c.text }}>
+      <div className="text-base font-medium" style={{ color: paused ? "#8A8984" : b.c.text }}>
         {b.name}
+        {paused && <span className="ml-1 text-xs">⏸</span>}
       </div>
-      <div className="text-xs leading-snug tabular-nums" style={{ color: b.c.sub }}>
-        已看 {doneAll}/{real.length}
+      <div className="text-xs leading-snug tabular-nums" style={{ color: paused ? "#A6A49D" : b.c.sub }}>
+        {paused ? "暂停中 · " : ""}已看 {doneAll}/{real.length}
         {todays.length > 0 && ` · 今日 ${doneToday}/${todays.length}`}
       </div>
     </button>
