@@ -319,6 +319,18 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE todos ADD COLUMN source TEXT;
         "#,
         },
+        Migration {
+            version: 15,
+            description: "plan_items_validity",
+            kind: MigrationKind::Up,
+            // 生效区间（2026-09-20 Rosie 铁律「默认变更只变当天以及以后，不改之前的」）：
+            // 改历史条目＝旧行 valid_to=昨天封存、新内容 valid_from=今天另起一行，
+            // 过去几周的日程/打卡记录保持当时的样子。NULL=不设界（种子老条目）
+            sql: r#"
+            ALTER TABLE plan_items ADD COLUMN valid_from TEXT;
+            ALTER TABLE plan_items ADD COLUMN valid_to TEXT;
+        "#,
+        },
     ]
 }
 

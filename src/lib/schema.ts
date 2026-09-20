@@ -93,6 +93,8 @@ export const SCHEMA_SQL = `
         period_title  TEXT,
         period_detail TEXT,
         sort_order    REAL NOT NULL DEFAULT 0,
+        valid_from    TEXT,
+        valid_to      TEXT,
         created_at    TEXT NOT NULL,
         updated_at    TEXT NOT NULL,
         device_id     TEXT,
@@ -211,4 +213,6 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE plan_checks ADD COLUMN status TEXT",
   "ALTER TABLE todos ADD COLUMN detail TEXT",
   "ALTER TABLE todos ADD COLUMN source TEXT",
+  "ALTER TABLE plan_items ADD COLUMN valid_from TEXT",
+  "ALTER TABLE plan_items ADD COLUMN valid_to TEXT",
 ];

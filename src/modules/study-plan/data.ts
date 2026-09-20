@@ -1,5 +1,5 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
-import { mondayOf, todayStr } from "@/lib/dates";
+import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { SEED_ITEMS, SEED_RESET_BELOW, SEED_VERSION } from "./seed";
 
 /** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读；
@@ -31,6 +31,10 @@ export interface PlanItem {
   period_title: string | null;
   period_detail: string | null;
   sort_order: number;
+  /** 生效区间（2026-09-20 铁律「默认变更只变当天及以后」）：改历史条目＝旧行 valid_to=昨天
+   *  封存 + 新内容 valid_from=今天另起一行。NULL＝不设界。matchesDay 传了 date 才生效。 */
+  valid_from: string | null;
+  valid_to: string | null;
 }
 
 /** date -> 1..7（周一=1） */
@@ -46,6 +50,11 @@ export function dayNumOf(dateStr: string): number {
  *  ⚠️ date 不传时（老调用方式），@条目永不匹配、!排除不生效——所以知道具体日期的调用点都要把
  *  date 传进来，否则单次调整在那个视图里看不见。 */
 export function matchesDay(item: PlanItem, dayNum: number, date?: string): boolean {
+  // 生效区间（改动只影响当天及以后）：封存的旧条目只在它的历史区间里出现
+  if (date) {
+    if (item.valid_from && date < item.valid_from) return false;
+    if (item.valid_to && date > item.valid_to) return false;
+  }
   // ⚠️ 全角容错（2026-09-20 真事故）：Rosie 手填「2，4，6」（全角逗号），按半角解析
   // 匹配不到任何一天，仙人揉腹整条消失。读侧统一归一化，她怎么打都认。
   const days = item.days.replace(/，/g, ",").replace(/！/g, "!").replace(/＠/g, "@").replace(/\s/g, "");
@@ -69,7 +78,7 @@ export async function listItems(): Promise<PlanItem[]> {
   // ⚠️ 骨架（track='frame'）在这里就滤掉：时间轴/总览/小表格的所有统计天然不含它，
   // 各消费方零改动。要骨架的只有日程页 ⇒ 用 listAllItems。
   return db.select<PlanItem[]>(
-    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order
+    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, valid_from, valid_to
      FROM plan_items WHERE deleted_at IS NULL AND track != 'frame' ORDER BY time_slot, sort_order`,
   );
 }
@@ -78,7 +87,7 @@ export async function listItems(): Promise<PlanItem[]> {
 export async function listAllItems(): Promise<PlanItem[]> {
   const db = await getDb();
   return db.select<PlanItem[]>(
-    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order
+    `SELECT id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, valid_from, valid_to
      FROM plan_items WHERE deleted_at IS NULL ORDER BY time_slot, sort_order`,
   );
 }
@@ -195,10 +204,12 @@ export async function createItem(
 ): Promise<PlanItem> {
   const db = await getDb();
   const f = newRecordFields();
+  // 新建一律 valid_from=今天：新加的条目不出现在过去的周里（不污染历史，2026-09-20 铁律）
+  const validFrom = todayStr();
   await db.execute(
-    `INSERT INTO plan_items (id, track, days, time_slot, title, url, sort_order, created_at, updated_at, device_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [f.id, fields.track, fields.days, fields.time_slot, fields.title, fields.url ?? null, sortOrder, f.created_at, f.updated_at, f.device_id],
+    `INSERT INTO plan_items (id, track, days, time_slot, title, url, sort_order, valid_from, created_at, updated_at, device_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [f.id, fields.track, fields.days, fields.time_slot, fields.title, fields.url ?? null, sortOrder, validFrom, f.created_at, f.updated_at, f.device_id],
   );
   return {
     id: f.id,
@@ -212,7 +223,56 @@ export async function createItem(
     period_title: null,
     period_detail: null,
     sort_order: sortOrder,
+    valid_from: validFrom,
+    valid_to: null,
   };
+}
+
+/** 只改「fromDate 起」（2026-09-20 Rosie 铁律「默认变更只变当天以及以后，不改之前的——
+ *  不然等我后面更新了，前面的学习痕迹也被抹掉了」）：
+ *  · 历史条目（fromDate 之前就已生效）⇒ 旧行封存到昨天（valid_to），改后的内容以新行
+ *    从今天起生效——过去几周的日程/小表格/打卡记录保持当时的样子（勾挂在旧 id 上）；
+ *  · 今天才建的条目 ⇒ 原地改，不留一次性的壳。 */
+export async function editItemFrom(
+  item: PlanItem,
+  changes: Partial<Pick<PlanItem, "title" | "time_slot" | "days" | "detail" | "url">>,
+  fromDate: string,
+): Promise<void> {
+  const db = await getDb();
+  const merged = { ...item, ...changes };
+  const historic = !item.valid_from || item.valid_from < fromDate;
+  if (!historic) {
+    await db.execute(
+      "UPDATE plan_items SET title = $1, time_slot = $2, days = $3, detail = $4, url = $5, updated_at = $6 WHERE id = $7",
+      [merged.title, merged.time_slot, merged.days, merged.detail, merged.url, nowIso(), item.id],
+    );
+    return;
+  }
+  await db.execute("UPDATE plan_items SET valid_to = $1, updated_at = $2 WHERE id = $3", [
+    addDays(fromDate, -1),
+    nowIso(),
+    item.id,
+  ]);
+  const f = newRecordFields();
+  await db.execute(
+    `INSERT INTO plan_items (id, track, days, time_slot, title, detail, url, period_action, period_title, period_detail, sort_order, valid_from, created_at, updated_at, device_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+    [f.id, merged.track, merged.days, merged.time_slot, merged.title, merged.detail, merged.url, item.period_action, item.period_title, item.period_detail, item.sort_order, fromDate, f.created_at, f.updated_at, f.device_id],
+  );
+}
+
+/** 删除同样只删「fromDate 起」：历史条目封存（过去照常显示），今天才建的才真软删 */
+export async function retireOrDeleteItem(item: PlanItem, fromDate: string): Promise<void> {
+  if (item.valid_from && item.valid_from >= fromDate) {
+    await deleteItem(item.id);
+    return;
+  }
+  const db = await getDb();
+  await db.execute("UPDATE plan_items SET valid_to = $1, updated_at = $2 WHERE id = $3", [
+    addDays(fromDate, -1),
+    nowIso(),
+    item.id,
+  ]);
 }
 
 /** 经期开关是否打开 */

@@ -31,7 +31,7 @@ create table if not exists public.habit_checkins (
 );
 create table if not exists public.plan_items (
   id text primary key, track text, days text, time_slot text, title text, detail text, url text,
-  period_action text, period_title text, period_detail text, sort_order real,
+  period_action text, period_title text, period_detail text, sort_order real, valid_from text, valid_to text,
   created_at text, updated_at text, device_id text, deleted_at text
 );
 create table if not exists public.plan_checks (
@@ -90,3 +90,7 @@ end $$;
 -- 2026-09-20 学习类待办不顺延：todos 加 source（'study'=日程/时间轴同步来的，只在当天出现）。
 -- 已有库在 SQL Editor 跑：
 -- alter table public.todos add column if not exists source text;
+
+-- 2026-09-20 变更只影响当天及以后：plan_items 加生效区间。已有库在 SQL Editor 跑：
+-- alter table public.plan_items add column if not exists valid_from text;
+-- alter table public.plan_items add column if not exists valid_to text;

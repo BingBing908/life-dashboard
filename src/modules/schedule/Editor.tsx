@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createItem,
-  deleteItem,
+  editItemFrom,
+  retireOrDeleteItem,
   updateItemSlot,
-  updateItemTitle,
   withDateExcluded,
   type PlanItem,
   type Track,
@@ -85,22 +85,22 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
     const [first, ...rest] = lines;
     const newDays = dayMode ? (once ? `@${dayDate}` : String(day)) : days.trim() || "*";
     if (dayMode && once) {
-      // 单次修改：原条目这个日期跳过，这天的内容单独成一条 @日期 条目
+      // 单次修改：原条目这个日期跳过（只影响那一个日期，历史安全），这天的内容单独成 @日期 条目
       await updateItemSlot(item.id, item.time_slot ?? "", withDateExcluded(item.days, dayDate!));
       await createItem(
         { track: item.track, days: newDays, time_slot: slot.trim() || null, title: first, url: item.url },
         item.sort_order,
       );
     } else if (multi) {
-      // 只改这个周几（以后每周都变）：原条目去掉这个周几，它单独成条（url 带上；detail/经期设置留在原条目）
-      await updateItemSlot(item.id, item.time_slot ?? "", daysWithoutWeekday(item, day!));
+      // 只改这个周几（今天起以后每周都变）：原条目今天起去掉这个周几（历史封存），它单独成条
+      await editItemFrom(item, { days: daysWithoutWeekday(item, day!) }, todayStr());
       await createItem(
         { track: item.track, days: newDays, time_slot: slot.trim() || null, title: first, url: item.url },
         item.sort_order,
       );
-    } else {
-      if (first !== item.title) await updateItemTitle(item.id, first);
-      if (slot !== (item.time_slot ?? "") || days !== item.days) await updateItemSlot(item.id, slot, days);
+    } else if (first !== item.title || slot !== (item.time_slot ?? "") || days !== item.days) {
+      // 整条编辑＝只改今天及以后（她的铁律：过去的学习痕迹不动）——历史条目自动封存+另起新行
+      await editItemFrom(item, { title: first, time_slot: slot.trim() || null, days: days.trim() || "*" }, todayStr());
     }
     for (const ln of rest) {
       await createItem(
@@ -120,10 +120,11 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
       // 单次删除＝只是这一天跳过，条目本身和以后的同一周几都不动
       await updateItemSlot(item.id, item.time_slot ?? "", withDateExcluded(item.days, dayDate!));
     } else if (multi) {
-      // 只删这个周几＝从 days 里摘掉，条目本身和其他天不动
-      await updateItemSlot(item.id, item.time_slot ?? "", daysWithoutWeekday(item, day!));
+      // 只删这个周几＝今天起摘掉（历史封存），其他天不动
+      await editItemFrom(item, { days: daysWithoutWeekday(item, day!) }, todayStr());
     } else {
-      await deleteItem(item.id);
+      // 整条删除＝只删今天及以后：历史条目封存（过去照常显示），今天才建的才真删
+      await retireOrDeleteItem(item, todayStr());
     }
     onChanged();
   };

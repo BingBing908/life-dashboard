@@ -26,7 +26,7 @@ import {
   CYCLE_PHASES,
   cycleWeekOf,
   dayNumOf,
-  deleteItem,
+  editItemFrom,
   getCycleStart,
   getPeriodOn,
   getSeedVersion,
@@ -43,9 +43,7 @@ import {
   setNote,
   toggleCheck,
   TRACKS,
-  updateItemDetail,
-  updateItemSlot,
-  updateItemTitle,
+  retireOrDeleteItem,
   updateItemUrl,
   type CheckStatus,
   type PlanItem,
@@ -972,14 +970,21 @@ function Page() {
     setNote(id, today, v);
   }
 
-  async function handleRename(id: string, title: string) {
-    setItems((its) => its.map((i) => (i.id === id ? { ...i, title } : i)));
-    await updateItemTitle(id, title);
+  /** 编辑后整表现查——editItemFrom 会给历史条目封存+另起新行（id 变了），本地打补丁跟不上 */
+  async function refreshItems() {
+    setItems(await listItems());
   }
 
-  async function handleDelete(id: string) {
-    setItems((its) => its.filter((i) => i.id !== id));
-    await deleteItem(id);
+  /** 所有编辑走 editItemFrom（2026-09-20 铁律「默认变更只变当天以及以后」）：
+   *  历史条目＝旧行封存到昨天+新内容今天另起一行，过去的学习痕迹原样保留 */
+  async function handleRename(item: PlanItem, title: string) {
+    await editItemFrom(item, { title }, today);
+    await refreshItems();
+  }
+
+  async function handleDelete(item: PlanItem) {
+    await retireOrDeleteItem(item, today);
+    await refreshItems();
   }
 
   async function handleSetUrl(id: string, url: string) {
@@ -988,35 +993,32 @@ function Page() {
   }
 
   /** 标题多行拆分（2026-09-20 她定的连贯流程：时间轴只放空框架、内容去日日学写）：
-   *  第一行改在原条目上，后面每行各成一条新条目（同时段同 track 同 days），
+   *  第一行改在原条目上（只改今天起），后面每行各成一条新条目（同时段同 track 同 days），
    *  英语/学习的新行照规矩同步一条今天·重要紧急待办。 */
   async function handleRenameMulti(item: PlanItem, text: string) {
     const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
     if (lines.length === 0) return;
     const [first, ...rest] = lines;
-    if (first !== item.title) await handleRename(item.id, first);
+    if (first !== item.title) await editItemFrom(item, { title: first }, today);
     let order = Math.max(0, ...items.map((x) => x.sort_order));
     for (const ln of rest) {
-      const created = await createItem(
-        { track: item.track, days: item.days, time_slot: item.time_slot, title: ln },
-        ++order,
-      );
-      setItems((its) => [...its, created]);
+      await createItem({ track: item.track, days: item.days, time_slot: item.time_slot, title: ln }, ++order);
       if (item.track === "english" || item.track === "ai" || item.track === "cert") {
         // IfMissing：同名同天不重复建——反复保存曾把待办滚成雪球（新概念学习×3）
         await createTodoIfMissing(ln, "iu", today, 500, "study");
       }
     }
+    await refreshItems();
   }
 
-  // 2026-09-20 起计划卡的详解/时间也可就地改（她按自己的思路学，内容她说了算）
-  async function handleSetDetail(id: string, detail: string) {
-    setItems((its) => its.map((i) => (i.id === id ? { ...i, detail: detail || null } : i)));
-    await updateItemDetail(id, detail);
+  // 2026-09-20 起计划卡的详解/时间也可就地改（她按自己的思路学，内容她说了算）——同样只改今天起
+  async function handleSetDetail(item: PlanItem, detail: string) {
+    await editItemFrom(item, { detail: detail || null }, today);
+    await refreshItems();
   }
   async function handleSetSlot(item: PlanItem, slot: string) {
-    setItems((its) => its.map((i) => (i.id === item.id ? { ...i, time_slot: slot.trim() || null } : i)));
-    await updateItemSlot(item.id, slot, item.days);
+    await editItemFrom(item, { time_slot: slot.trim() || null }, today);
+    await refreshItems();
   }
 
   async function handleCreate() {
@@ -1270,10 +1272,10 @@ function Page() {
                           onDone={() => setStatus(i, "done")}
                           onSkip={() => setStatus(i, "skip")}
                           onClear={() => setStatus(i, null)}
-                          onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
+                          onDelete={isSeedItem(i) ? undefined : () => handleDelete(i)}
                           onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
                           onEditTitle={(v) => handleRenameMulti(i, v)}
-                          onEditDetail={(v) => handleSetDetail(i.id, v)}
+                          onEditDetail={(v) => handleSetDetail(i, v)}
                           onEditSlot={(v) => handleSetSlot(i, v)}
                         />
                       ))}
@@ -1508,8 +1510,8 @@ function Page() {
                       onDone={() => setStatusForDate(item, dateD, "done")}
                       onSkip={() => setStatusForDate(item, dateD, "skip")}
                       onClear={() => setStatusForDate(item, dateD, null)}
-                      onRename={(v) => handleRename(item.id, v)}
-                      onDelete={isSeedItem(item) ? undefined : () => handleDelete(item.id)}
+                      onRename={(v) => handleRename(item, v)}
+                      onDelete={isSeedItem(item) ? undefined : () => handleDelete(item)}
                     />
                   ))}
                 </div>

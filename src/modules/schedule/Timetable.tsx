@@ -74,6 +74,18 @@ function buildDay(
   const blocks: Block[] = [];
   const noTime: PlanItem[] = [];
   const plans: Block[] = [];
+  // 日日学是**独立版块**（2026-09-20 她点名「怎么跟学习又重叠了」）：先找出它今天的时段，
+  // 落在这个时段里的学习条目归日日学的组，时段外的「学习」即使只隔 5 分钟也不粘连
+  let dailyFrom = -1;
+  let dailyTo = -1;
+  for (const it of items) {
+    if (it.title !== "日日学" || !matchesDay(it, dayNum, date)) continue;
+    const p = parseSlot(it.time_slot);
+    if (p) {
+      dailyFrom = p.from;
+      dailyTo = p.to;
+    }
+  }
   for (const it of items) {
     if (!matchesDay(it, dayNum, date)) continue;
     const p = parseSlot(it.time_slot);
@@ -87,8 +99,12 @@ function buildDay(
     const label =
       kind === "frame" && meals[it.title] ? `${it.title}｜${meals[it.title]}` : shortTitle(it.title);
     // 分组键按 track（阅读并入养生——晚间泡脚+阅读+拉伸是同一个养生块）；
-    // 英语和学习同色不同组：周末英语块 09:40 结束、学习块 09:45 开始，不能焊成一坨
-    const grp = it.track === "reading" ? "wellness" : it.track;
+    // 英语和学习同色不同组：周末英语块 09:40 结束、学习块 09:45 开始，不能焊成一坨；
+    // 日日学时段内的学习条目单独成「daily」组（同色），和外面的学习块永不合并
+    let grp = it.track === "reading" ? "wellness" : (it.track as string);
+    if ((it.track === "ai" || it.track === "cert") && dailyTo > 0 && p.from < dailyTo && p.to > dailyFrom) {
+      grp = "daily";
+    }
     const block: Block = { ...p, kind, grp, parts: [{ label, item: it }] };
     if (kind === "frame") blocks.push(block);
     else plans.push(block);
