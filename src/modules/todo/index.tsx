@@ -19,7 +19,7 @@ import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
-import { listLatestNotes, listNotes, setNote } from "../study-plan/data";
+import { listCheckStatus, listLatestNotes, listNotes, setCheckStatus, setNote, type CheckStatus } from "../study-plan/data";
 import {
   clearDone,
   createTodo,
@@ -185,12 +185,16 @@ function Page() {
   const [filterQ, setFilterQ] = useState<Quadrant | null>(null);
   const [filterToday, setFilterToday] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({}); // 今天的「我做了什么」，存 plan_notes（可编辑）
+  // 待办的「今天做不了」（2026-09-20 Rosie：未完成点不了不合理）——借 plan_checks 存 skip
+  // （按 id+日期），明天自动回待做，零改表；与时间轴工作域共用同一份状态
+  const [skipMap, setSkipMap] = useState<Map<string, CheckStatus>>(new Map());
   const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
   useEffect(() => {
     listTodos().then(setTodos);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
+    listCheckStatus(today).then(setSkipMap);
     listLatestNotes().then(setHistNotes);
   }, [today]);
 
@@ -245,6 +249,16 @@ function Page() {
     const next = isToday(t) ? null : today;
     patch(t.id, { due_date: next });
     await setTodoDueDate(t.id, next);
+  }
+
+  async function setTodoSkip(t: Todo, skip: boolean) {
+    setSkipMap((prev) => {
+      const m = new Map(prev);
+      if (skip) m.set(t.id, "skip");
+      else m.delete(t.id);
+      return m;
+    });
+    await setCheckStatus(t.id, today, skip ? "skip" : null);
   }
 
   async function handleDetail(id: string, v: string) {
@@ -392,10 +406,13 @@ function Page() {
                 <div key={t.id} className="group rounded-lg border px-4 py-3.5 hover:bg-accent/40">
                   <div className="flex items-center gap-3">
                     <DoneToggle
-                      state={t.done ? "done" : "pending"}
-                      onDone={() => handleToggle(t)}
-                      onSkip={() => {}}
-                      onClear={() => handleToggle(t)}
+                      state={t.done ? "done" : (skipMap.get(t.id) ?? "pending")}
+                      onDone={() => {
+                        if (skipMap.get(t.id) === "skip") void setTodoSkip(t, false);
+                        handleToggle(t);
+                      }}
+                      onSkip={() => setTodoSkip(t, true)}
+                      onClear={() => (t.done ? handleToggle(t) : void setTodoSkip(t, false))}
                       size="sm"
                     />
                     <EditableText

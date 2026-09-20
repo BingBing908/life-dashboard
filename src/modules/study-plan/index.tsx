@@ -51,7 +51,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
-import { createTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
+import { createTodo, createTodoIfMissing, listTodos, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
@@ -719,7 +719,12 @@ function Page() {
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
 
   useEffect(() => {
-    seedIfEmpty().then(setItems);
+    // ⚠️ 别直接 setItems(seedIfEmpty 的返回值)：它是会话级缓存的单例 Promise（StrictMode 防双跑），
+    // 拿到的是本会话**第一次**读库的列表——她在日程页改完切回来会看到幽灵旧数据（2026-09-20 实锤）。
+    // 播种自愈归它，数据必须现查。
+    seedIfEmpty()
+      .then(() => listItems())
+      .then(setItems);
     // 全天轴（2026-09-20 J3 改版）：骨架条目 + 今天的三餐内容（饮食模块互通，只读展示）
     listAllItems().then((all) => setFrames(all.filter((i) => i.track === "frame"))).catch(() => {});
     getMeals(today)
@@ -915,7 +920,8 @@ function Page() {
     setYChecks((prev) => new Set(prev).add(item.id));
   }
 
-  async function setStatus(item: PlanItem, next: CheckStatus | null) {
+  // 只用 id ⇒ 参数收窄成 Pick，工作域的 todo 也能借它写 skip（plan_checks 按 id+日期存，不挑表）
+  async function setStatus(item: Pick<PlanItem, "id">, next: CheckStatus | null) {
     setCheckMap((prev) => {
       const m = new Map(prev);
       if (next === null) m.delete(item.id);
@@ -980,7 +986,8 @@ function Page() {
       );
       setItems((its) => [...its, created]);
       if (item.track === "english" || item.track === "ai" || item.track === "cert") {
-        await createTodo(ln, "iu", today, 500);
+        // IfMissing：同名同天不重复建——反复保存曾把待办滚成雪球（新概念学习×3）
+        await createTodoIfMissing(ln, "iu", today, 500);
       }
     }
   }
@@ -1152,7 +1159,8 @@ function Page() {
                                 {p.done}/{p.total}
                               </span>
                               {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
-                              {d.key === autoKey && <span className="ml-auto text-[11px] text-red-500">现在</span>}
+                              {/* 「现在」跟在名字后面（2026-09-20 她说 ml-auto 挤到角上位置不对） */}
+                              {d.key === autoKey && <span className="text-[11px] font-medium text-red-500">·现在</span>}
                             </span>
                             <span className="block text-xs tabular-nums text-muted-foreground">
                               {domainTimeLabel(d, todays)}
@@ -1275,14 +1283,19 @@ function Page() {
                           title={t.title}
                           detail={null}
                           url={null}
-                          state={t.done ? "done" : "pending"}
+                          state={t.done ? "done" : stateOf(t.id)}
                           noteRequired={active.noteRequired}
                           notePlaceholder={placeholderFor(active)}
                           noteVal={notes[t.id] ?? ""}
                           onNote={(v) => saveNote(t.id, v)}
-                          onDone={() => toggleWork(t)}
-                          onSkip={() => {}}
-                          onClear={() => toggleWork(t)}
+                          onDone={() => {
+                            if (stateOf(t.id) === "skip") void setStatus({ id: t.id }, null);
+                            toggleWork(t);
+                          }}
+                          // 待办也能标「今天做不了」（2026-09-20 Rosie：未完成点不了不合理）——
+                          // 借 plan_checks 存 skip（按 id+日期），明天自动回待做，零改表
+                          onSkip={() => setStatus({ id: t.id }, "skip")}
+                          onClear={() => (t.done ? toggleWork(t) : void setStatus({ id: t.id }, null))}
                         />
                       ))}
                     {(active.source === "todo" ? todoCards.length : planCards.length) === 0 && (

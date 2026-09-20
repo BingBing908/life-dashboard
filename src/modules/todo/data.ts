@@ -69,6 +69,23 @@ export async function createTodo(
   };
 }
 
+/** 同名同天的待办已存在（未删）就不再建——日程/时间轴的学习行反复保存曾把待办滚成雪球
+ *  （2026-09-20：新概念学习 ×3）。同步型创建一律走这个，手动添加仍走 createTodo（重名由她自己负责）。 */
+export async function createTodoIfMissing(
+  title: string,
+  quadrant: Quadrant,
+  dueDate: string | null,
+  sortOrder: number,
+): Promise<void> {
+  const db = await getDb();
+  const rows = await db.select<{ id: string }[]>(
+    "SELECT id FROM todos WHERE title = $1 AND due_date = $2 AND deleted_at IS NULL LIMIT 1",
+    [title, dueDate],
+  );
+  if (rows.length > 0) return;
+  await createTodo(title, quadrant, dueDate, sortOrder);
+}
+
 export async function toggleTodo(id: string, done: boolean): Promise<void> {
   const db = await getDb();
   const ts = nowIso();

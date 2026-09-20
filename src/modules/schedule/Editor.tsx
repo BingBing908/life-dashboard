@@ -14,7 +14,7 @@ import {
   type PlanItem,
   type Track,
 } from "../study-plan/data";
-import { createTodo } from "../todo/data";
+import { createTodoIfMissing } from "../todo/data";
 
 /**
  * 日程页的条目编辑区（2026-09-19，Rosie：「模块里允许自行填写内容，默认是你先行填进去的，
@@ -59,7 +59,7 @@ const ADD_CHOICES: { key: Track | "work"; name: string }[] = [
 
 /** 学习类新增行同步进待办（今天·重要紧急）——她定的：「待办仅同步工作和学习」 */
 async function syncTodoIfStudy(track: Track, line: string): Promise<void> {
-  if (track === "ai" || track === "english") await createTodo(line, "iu", todayStr(), 500);
+  if (track === "ai" || track === "english") await createTodoIfMissing(line, "iu", todayStr(), 500);
 }
 
 function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null; onChanged: () => void }) {
@@ -234,7 +234,7 @@ function AddForm({ onChanged }: { onChanged: () => void }) {
     for (const ln of lines) {
       if (track === "work") {
         // 工作＝只进待办（今天·重要紧急）；它会出现在今天的「工作」块里
-        await createTodo(ln, "iu", todayStr(), 500);
+        await createTodoIfMissing(ln, "iu", todayStr(), 500);
       } else {
         await createItem({ track, days: days.trim() || "*", time_slot: slot.trim() || null, title: ln }, 500);
         await syncTodoIfStudy(track, ln);
