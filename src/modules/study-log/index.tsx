@@ -225,9 +225,12 @@ function BoardTile({
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
   const paused = b.key === "finance";
-  // 环色随完成度反向加深（2026-09-20 Rosie：完成得越少颜色越深，全完成最浅——提醒意义）
+  // 环色随完成度反向加深（2026-09-20 Rosie：完成得越少颜色越深，全完成最浅——提醒意义）。
+  // 同日二调：档距拉大（她说英语/语文/金融肉眼区别不大）——全完成几乎隐入底色，
+  // 落后一半直接跳到深蓝，最落后是海军蓝，扫一眼就知道该补哪块。
   const p = real.length ? doneAll / real.length : 1;
-  const ringAccent = p >= 1 ? "#C9DEF3" : p >= 0.75 ? "#A6CBF1" : p >= 0.5 ? "#85B7EB" : p >= 0.25 ? "#5E9AE0" : "#2E7CD6";
+  const ringAccent =
+    p >= 1 ? "#DDEBF8" : p >= 0.8 ? "#9FC4EE" : p >= 0.6 ? "#5E9AE0" : p >= 0.4 ? "#2E7CD6" : p >= 0.2 ? "#185FA5" : "#0C447C";
   return (
     // 2026-09-20 Rosie 定稿：图标套在累计进度环里，下一行给「12/13」这种总体字样（+今日）
     <button
