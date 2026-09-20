@@ -247,6 +247,7 @@ export function Timetable({
                   )}
                   {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；标题里的手动换行
                       （编辑区 Ctrl+Enter）也各占一行；放不下的行被 overflow 裁掉，悬停 tooltip 里有全部 */}
+                  {/* 状态样式（2026-09-20 Rosie 定）：已完成＝字上绿杠；今天做不了＝红×＋红杠 */}
                   {h >= 20 &&
                     b.parts.map((p, j) => {
                       const st = stOf(p);
@@ -256,11 +257,11 @@ export function Timetable({
                           key={`${j}-${li}`}
                           className={cn(
                             "truncate",
-                            done && "opacity-70",
-                            st === "skip" && "line-through opacity-60",
+                            done && "line-through decoration-emerald-500 decoration-2",
+                            st === "skip" && "line-through decoration-red-500 decoration-2 opacity-75",
                           )}
                         >
-                          {done && li === 0 && "✓"}
+                          {st === "skip" && li === 0 && <span className="text-red-500">✗</span>}
                           {line}
                         </div>
                       ));
@@ -284,7 +285,7 @@ export function Timetable({
                   onDoubleClick={() => onSelect([it], null)}
                   className={cn(
                     "cursor-pointer select-none truncate rounded-lg border border-dashed border-[#A6CBF1] px-2 py-0.5 text-[13px] text-[#185FA5]",
-                    d.checks?.get(it.id) === "done" && "line-through opacity-55",
+                    d.checks?.get(it.id) === "done" && "line-through decoration-emerald-500 decoration-2",
                   )}
                   title={`${it.title} · 双击编辑`}
                 >
@@ -298,7 +299,9 @@ export function Timetable({
 
       <p className="pt-3 text-[13px] text-muted-foreground">
         深＝学习（AI/英语）· 中＝运动养生 · 浅＝作息骨架（不打卡）。
-        块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办（✓＝已完成）。
+        块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办。
+        状态：<span className="line-through decoration-emerald-500 decoration-2">绿杠＝已完成</span> ·{" "}
+        <span className="line-through decoration-red-500 decoration-2">✗红杠＝今天做不了</span>。
         <b>双击块＝编辑整条（一周同款一起变）；单击块出 🖊＝只改那一天</b>——行内再选「以后每个周X」或「仅这一个日期」（单次调整，过了那天自动回归）。待办去待办模块改。
       </p>
     </div>
