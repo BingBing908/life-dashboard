@@ -113,11 +113,11 @@ interface Domain {
 
 const DOMAINS: Domain[] = [
   // 养生只收上午的（泡脚/睡前拉伸这类晚间养生归到最后的「睡前」节点）
-  { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
+  { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   // 2026-09-01 新作息：07:30 先吃早餐、英语 07:50 才开始（四条合并成一条整块）；
   // 通勤 09:45–10:15，工作 10:15 起（原锚点 09:20 是旧作息的）
-  { key: "english", name: "英语", start: 470, time: "7:50", color: "#378ADD", tint: "#E6F1FB", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 615, time: "10:15", color: "#888780", tint: "#F1EFE8", textc: "#5F5E5A", source: "todo", noteRequired: false, weekdaysOnly: true },
+  { key: "english", name: "英语", start: 470, time: "7:50", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
+  { key: "work", name: "工作", start: 615, time: "10:15", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min，拆成 19:00–19:45 和 20:25–21:10 两段，
   // **中间夹着腰椎稳定(19:45)+运动(19:55–20:20)**。时间全部来自「运动槽虚胖 30min +
   // 20:40–21:00 的空档 20min」，没动早起、没砍阅读。
@@ -127,11 +127,11 @@ const DOMAINS: Domain[] = [
   //      排到最后等于既要另找时间起身、又把运动挤到了睡前。一举两失。
   // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），想恢复时
   // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
-  { key: "study", name: "学习", start: 1140, time: "19:00", color: "#7F77DD", tint: "#EEEDFE", textc: "#534AB7", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
-  { key: "sport", name: "运动", start: 1185, time: "19:45", color: "#639922", tint: "#EAF3DE", textc: "#3B6D11", source: "plan", tracks: ["sport"], noteRequired: false },
-  { key: "reading", name: "阅读", start: 1270, time: "21:10", color: "#D4537E", tint: "#FBEAF0", textc: "#993556", source: "plan", tracks: ["reading"], noteRequired: true },
+  { key: "study", name: "学习", start: 1140, time: "19:00", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
+  { key: "sport", name: "运动", start: 1185, time: "19:45", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false },
+  { key: "reading", name: "阅读", start: 1270, time: "21:10", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "plan", tracks: ["reading"], noteRequired: true },
   // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
-  { key: "bedtime", name: "睡前", start: 1310, time: "21:50", color: "#1D9E75", tint: "#E1F5EE", textc: "#0F6E56", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
+  { key: "bedtime", name: "睡前", start: 1310, time: "21:50", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
 ];
 
 function nowMinutes(): number {
@@ -401,13 +401,15 @@ function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): st
   return key;
 }
 
+// 2026-09-20 Rosie：「框全换成蓝色系，深浅不一就行，彩色太花哨」——领域/线路彩色退役，
+// 蓝一族靠深浅区分：学习最深→养生最浅（与日日学环色、日程三档蓝同族）
 const TRACK_STYLE: Record<Track, { bg: string; text: string; dot: string }> = {
-  wellness: { bg: "bg-teal-50",    text: "text-teal-800",    dot: "bg-teal-500" },
-  sport:    { bg: "bg-emerald-50", text: "text-emerald-800", dot: "bg-emerald-500" },
-  english:  { bg: "bg-blue-50",    text: "text-blue-800",    dot: "bg-blue-500" },
-  cert:     { bg: "bg-violet-50",  text: "text-violet-800",  dot: "bg-violet-500" },
-  ai:       { bg: "bg-amber-50",   text: "text-amber-800",   dot: "bg-amber-500" },
-  reading:  { bg: "bg-pink-50",    text: "text-pink-800",    dot: "bg-pink-500" },
+  wellness: { bg: "bg-[#F3F8FE]", text: "text-[#185FA5]", dot: "bg-[#A6CBF1]" },
+  sport:    { bg: "bg-[#EFF6FD]", text: "text-[#0C447C]", dot: "bg-[#6FA7E4]" },
+  english:  { bg: "bg-[#EFF6FD]", text: "text-[#0C447C]", dot: "bg-[#5E9AE0]" },
+  cert:     { bg: "bg-[#F0F6FD]", text: "text-[#185FA5]", dot: "bg-[#85B7EB]" },
+  ai:       { bg: "bg-[#E6F1FB]", text: "text-[#042C53]", dot: "bg-[#2E7CD6]" },
+  reading:  { bg: "bg-[#F0F6FD]", text: "text-[#185FA5]", dot: "bg-[#85B7EB]" },
   // frame＝作息骨架：listItems 已滤掉、时间轴根本渲染不到它，这行只为满足 Record<Track,…> 的类型
   frame:    { bg: "bg-gray-50",    text: "text-gray-500",    dot: "bg-gray-400" },
 };
