@@ -187,10 +187,15 @@ function EditableParagraph({
   value,
   onSave,
   placeholder,
+  className,
+  inputClassName,
 }: {
   value: string;
   onSave: (v: string) => void;
   placeholder: string;
+  /** 传了就整体替换默认样式（标题复用这个组件时用） */
+  className?: string;
+  inputClassName?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -224,7 +229,10 @@ function EditableParagraph({
           }
         }}
         rows={Math.max(2, draft.split("\n").length)}
-        className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none ring-1 ring-primary/30"
+        className={
+          inputClassName ??
+          "mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none ring-1 ring-primary/30"
+        }
       />
     );
   }
@@ -237,7 +245,7 @@ function EditableParagraph({
         setDraft(value);
         setEditing(true);
       }}
-      className="mt-2 cursor-text text-sm leading-relaxed whitespace-pre-line text-muted-foreground"
+      className={className ?? "mt-2 cursor-text text-sm leading-relaxed whitespace-pre-line text-muted-foreground"}
     >
       {value || <span className="opacity-60">{placeholder}</span>}
     </p>
@@ -604,11 +612,14 @@ function ThreeRowCard({
           )
         )}
         {onEditTitle ? (
-          <EditableText
+          // 标题用多行组件（2026-09-20 修）：原来是单行 EditableText，她粘贴三行会被浏览器
+          // 压成一行。现在 Ctrl+Enter 换行、Enter 保存，保存时 Page 按行拆成多条（一行一个事件）
+          <EditableParagraph
             value={title}
             onSave={onEditTitle}
-            className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}
-            inputClassName="flex-1 text-base"
+            placeholder="条目名"
+            className={cn("min-w-0 flex-1 cursor-text text-base font-medium whitespace-pre-line", done && "line-through")}
+            inputClassName="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-base font-medium outline-none ring-1 ring-primary/30"
           />
         ) : (
           <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
@@ -952,6 +963,27 @@ function Page() {
     await updateItemUrl(id, url);
   }
 
+  /** 标题多行拆分（2026-09-20 她定的连贯流程：时间轴只放空框架、内容去日日学写）：
+   *  第一行改在原条目上，后面每行各成一条新条目（同时段同 track 同 days），
+   *  英语/学习的新行照规矩同步一条今天·重要紧急待办。 */
+  async function handleRenameMulti(item: PlanItem, text: string) {
+    const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+    const [first, ...rest] = lines;
+    if (first !== item.title) await handleRename(item.id, first);
+    let order = Math.max(0, ...items.map((x) => x.sort_order));
+    for (const ln of rest) {
+      const created = await createItem(
+        { track: item.track, days: item.days, time_slot: item.time_slot, title: ln },
+        ++order,
+      );
+      setItems((its) => [...its, created]);
+      if (item.track === "english" || item.track === "ai" || item.track === "cert") {
+        await createTodo(ln, "iu", today, 500);
+      }
+    }
+  }
+
   // 2026-09-20 起计划卡的详解/时间也可就地改（她按自己的思路学，内容她说了算）
   async function handleSetDetail(id: string, detail: string) {
     setItems((its) => its.map((i) => (i.id === id ? { ...i, detail: detail || null } : i)));
@@ -1230,7 +1262,7 @@ function Page() {
                           onClear={() => setStatus(i, null)}
                           onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
                           onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
-                          onEditTitle={(v) => handleRename(i.id, v)}
+                          onEditTitle={(v) => handleRenameMulti(i, v)}
                           onEditDetail={(v) => handleSetDetail(i.id, v)}
                           onEditSlot={(v) => handleSetSlot(i, v)}
                         />

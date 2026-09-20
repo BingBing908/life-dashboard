@@ -87,12 +87,21 @@ function buildDay(
   if (work) work.parts.push(...todosForDay.map((t) => ({ label: t.title, todoDone: t.done === 1 })));
 
   plans.sort((a, b) => a.from - b.from || a.to - b.to);
-  /** ⚠️ 挨着的（间隔≤10min，含同时段重叠的泡脚+阅读）「其他计划」合并成一个块、块内一项一行。
-   *  不合并的话晨间养生全是 10–20 分钟的矮条，字放不下——就是 09-19 Rosie 问
-   *  「五脏逼毒八段锦咋没了」的原因：块在，字被藏了。学习/英语块时长够，不参与合并。 */
+  /** ⚠️ 合并规则（块内一项一行）：
+   *  · plan（运动养生阅读）：间隔≤10min 就合并——晨间养生全是 10–20 分钟矮条，不合并字放不下
+   *    （09-19「五脏逼毒八段锦咋没了」）；
+   *  · study（学习/英语）：**只合并时间重叠的**——09-20 她把英语拆成三条同时段（新概念/口语/单词），
+   *    绝对定位完全重叠、只看得见最上面一条，她以为保存失败又建一遍造成重复。
+   *    刻意不用 ≤10min 规则：周末英语 09:40 结束 AI 正好 09:40 开始，按间隔合并会把
+   *    两个不同的大块焊成一坨。 */
   for (const b of plans) {
     const prev = blocks[blocks.length - 1];
-    if (prev && prev.kind === "plan" && b.kind === "plan" && b.from <= prev.to + 10) {
+    const mergeable =
+      prev &&
+      prev.kind === b.kind &&
+      prev.kind !== "frame" &&
+      (b.kind === "plan" ? b.from <= prev.to + 10 : b.from < prev.to);
+    if (mergeable) {
       prev.to = Math.max(prev.to, b.to);
       prev.parts.push(...b.parts);
     } else {
