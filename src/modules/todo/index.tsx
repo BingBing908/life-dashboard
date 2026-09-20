@@ -19,7 +19,17 @@ import { todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
-import { listCheckStatus, listLatestNotes, listNotes, setCheckStatus, setNote, type CheckStatus } from "../study-plan/data";
+import {
+  dayNumOf,
+  listCheckStatus,
+  listItems,
+  listLatestNotes,
+  listNotes,
+  matchesDay,
+  setCheckStatus,
+  setNote,
+  type CheckStatus,
+} from "../study-plan/data";
 import {
   clearDone,
   createTodo,
@@ -35,7 +45,6 @@ import {
   type Quadrant,
   type Todo,
 } from "./data";
-import { ReviewBanner, WeeklyReviewDialog } from "./WeeklyReview";
 
 /** 四象限配色（bg 底 / text 字 / dot 圆点） */
 const Q_STYLE: Record<Quadrant, { bg: string; text: string; dot: string }> = {
@@ -190,6 +199,9 @@ function Page() {
   // 待办的「今天做不了」（2026-09-20 Rosie：未完成点不了不合理）——借 plan_checks 存 skip
   // （按 id+日期），明天自动回待做，零改表；与时间轴工作域共用同一份状态
   const [skipMap, setSkipMap] = useState<Map<string, CheckStatus>>(new Map());
+  // 今天排了的学习条目 标题→计划id：同名待办的 skip **共用计划条目那条打卡记录**，
+  // 时间轴点「未完成」这里同亮、这里点了那边也亮（2026-09-20 Rosie 报的不同步）
+  const [planIdByTitle, setPlanIdByTitle] = useState<Map<string, string>>(new Map());
   const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
@@ -197,8 +209,21 @@ function Page() {
     listTodos().then(setTodos);
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listCheckStatus(today).then(setSkipMap);
+    listItems()
+      .then((its) => {
+        const dn = dayNumOf(today);
+        const m = new Map<string, string>();
+        for (const i of its) {
+          if (["english", "ai", "cert"].includes(i.track) && matchesDay(i, dn, today)) m.set(i.title, i.id);
+        }
+        setPlanIdByTitle(m);
+      })
+      .catch(() => {});
     listLatestNotes().then(setHistNotes);
   }, [today]);
+
+  /** skip 的读写键：学习类待办若与今天某条计划同名，就用计划条目的 id（两边一条记录） */
+  const skipKey = (t: Todo) => planIdByTitle.get(t.title) ?? t.id;
 
   function saveTodoNote(id: string, v: string) {
     setNotes((s) => ({ ...s, [id]: v }));
@@ -256,13 +281,14 @@ function Page() {
   }
 
   async function setTodoSkip(t: Todo, skip: boolean) {
+    const key = skipKey(t);
     setSkipMap((prev) => {
       const m = new Map(prev);
-      if (skip) m.set(t.id, "skip");
-      else m.delete(t.id);
+      if (skip) m.set(key, "skip");
+      else m.delete(key);
       return m;
     });
-    await setCheckStatus(t.id, today, skip ? "skip" : null);
+    await setCheckStatus(key, today, skip ? "skip" : null);
   }
 
   async function handleDetail(id: string, v: string) {
@@ -320,21 +346,14 @@ function Page() {
 
   return (
     <div className={PAGE}>
-      <ReviewBanner />
-
+      {/* 本周复盘（横幅+按钮）2026-09-20 撤掉——Rosie：「后续需要复盘完成情况我直接找你复盘」。
+          WeeklyReview.tsx 文件保留（想恢复把这两处加回来即可）。 */}
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
         <section className={CARD}>
           <div className="mb-3 flex items-baseline gap-2">
             <h2 className={CARD_TITLE}>待办</h2>
             <span className="text-xs text-muted-foreground">点小框筛选，点「今天」标记当天要做</span>
-            <WeeklyReviewDialog
-              trigger={
-                <Button variant="ghost" size="sm" className="ml-auto text-muted-foreground">
-                  本周复盘
-                </Button>
-              }
-            />
           </div>
 
           {/* 五个筛选框 */}
@@ -410,9 +429,9 @@ function Page() {
                 <div key={t.id} className="group rounded-lg border px-4 py-3.5 hover:bg-accent/40">
                   <div className="flex items-center gap-3">
                     <DoneToggle
-                      state={t.done ? "done" : (skipMap.get(t.id) ?? "pending")}
+                      state={t.done ? "done" : (skipMap.get(skipKey(t)) ?? "pending")}
                       onDone={() => {
-                        if (skipMap.get(t.id) === "skip") void setTodoSkip(t, false);
+                        if (skipMap.get(skipKey(t)) === "skip") void setTodoSkip(t, false);
                         handleToggle(t);
                       }}
                       onSkip={() => setTodoSkip(t, true)}

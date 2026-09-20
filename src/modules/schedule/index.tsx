@@ -122,7 +122,7 @@ function Page() {
         <span className="text-sm text-muted-foreground">
           {tab === "roadmap"
             ? "冲刺 AI PM 的阶段路线（从时间轴搬来）"
-            : "一周全览 · 和时间轴/待办同一份数据 · 点任意块可直接编辑"}
+            : "一周全览"}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <div className="flex overflow-hidden rounded-md border">

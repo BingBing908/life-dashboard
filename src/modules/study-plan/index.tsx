@@ -378,6 +378,26 @@ function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): st
       if (e > s && now >= s && now < e) return d.key;
     }
   }
+  /** 没有任何域的时段套住此刻（骨架时间：打扫/护肤/吃饭…）⇒ 挂到**时间上最近**的域
+   *  （2026-09-20 Rosie：打扫时不该显示英语，该挂最近的学习）。距离＝now 到该域今天各
+   *  条目时段的最短间隔；「接下来要做的」减半权重，平手时偏向 upcoming。 */
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const d of domains) {
+    for (const it of domainItems(d, items)) {
+      if (!matchesDay(it, dayNum, date)) continue;
+      const s = slotStartMin(it);
+      const e = slotEndMin(it);
+      if (!(e > s)) continue;
+      const dist = s > now ? (s - now) * 0.5 : now - e;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = d.key;
+      }
+    }
+  }
+  if (best) return best;
+  // 兜底（今天一个带时段的条目都没有）：老锚点规则
   let key = domains[0].key;
   for (const d of domains) if (d.start <= now) key = d.key;
   return key;

@@ -772,13 +772,14 @@ function Page() {
                                     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs transition-colors",
                                     took
                                       ? "bg-emerald-500 text-white"
-                                      : "bg-card text-violet-700 hover:ring-1 hover:ring-violet-300",
+                                      : // 补剂药丸紫→蓝（2026-09-20 Rosie：紫色跳脱）；饮品月历的酸奶紫是品类色，没动
+                                        "bg-card text-[#185FA5] hover:ring-1 hover:ring-[#A6CBF1]",
                                   )}
                                 >
                                   <span
                                     className={cn(
                                       "size-1.5 rounded-full",
-                                      took ? "bg-white/90" : "bg-violet-500",
+                                      took ? "bg-white/90" : "bg-[#2E7CD6]",
                                     )}
                                   />
                                   {name}

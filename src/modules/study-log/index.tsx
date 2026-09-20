@@ -225,6 +225,9 @@ function BoardTile({
   const todays = real.filter((e) => e.entry_date === today);
   const doneToday = todays.filter(entryDone).length;
   const paused = b.key === "finance";
+  // 环色随完成度反向加深（2026-09-20 Rosie：完成得越少颜色越深，全完成最浅——提醒意义）
+  const p = real.length ? doneAll / real.length : 1;
+  const ringAccent = p >= 1 ? "#C9DEF3" : p >= 0.75 ? "#A6CBF1" : p >= 0.5 ? "#85B7EB" : p >= 0.25 ? "#5E9AE0" : "#2E7CD6";
   return (
     // 2026-09-20 Rosie 定稿：图标套在累计进度环里，下一行给「12/13」这种总体字样（+今日）
     <button
@@ -235,7 +238,7 @@ function BoardTile({
       )}
     >
       <span className="relative">
-        <ProgressRing done={doneAll} total={real.length} accent={b.c.accent} hideText />
+        <ProgressRing done={doneAll} total={real.length} accent={ringAccent} hideText />
         <span className="absolute inset-0 flex items-center justify-center" style={{ color: b.c.sub }}>
           <b.icon className="size-7" />
         </span>
