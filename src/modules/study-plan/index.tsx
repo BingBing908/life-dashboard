@@ -42,6 +42,8 @@ import {
   setNote,
   toggleCheck,
   TRACKS,
+  updateItemDetail,
+  updateItemSlot,
   updateItemTitle,
   updateItemUrl,
   type CheckStatus,
@@ -157,6 +159,86 @@ function domainItems(d: Domain, list: PlanItem[]): PlanItem[] {
     if (d.timeMin !== undefined && s < d.timeMin) return false;
     return true;
   });
+}
+
+/** 轴节点的时段标签（2026-09-20 Rosie：只显示开始时间不清晰）：按今天该域条目的
+ *  实际时间算 min–max。周末学习域会跨午休（09:40–18:00），min–max 是粗颗粒，但仍比
+ *  单个开始时间信息多；没有带时段条目时回退 d.time。改条目时间后这里自动跟着变。 */
+function domainTimeLabel(d: Domain, list: PlanItem[]): string {
+  let from = Infinity;
+  let to = -1;
+  for (const it of domainItems(d, list)) {
+    const m = (it.time_slot ?? "").match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/);
+    if (!m) continue;
+    from = Math.min(from, Number(m[1]) * 60 + Number(m[2]));
+    to = Math.max(to, Number(m[3]) * 60 + Number(m[4]));
+  }
+  if (to < 0) return d.time;
+  const f = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+  return `${f(from)}–${f(to)}`;
+}
+
+/** 多行就地编辑（详解用；EditableText 是单行的）。键位同日程编辑区：Enter 保存、
+ *  Ctrl+Enter 换行、Esc 取消。允许存空（清掉说明后显示占位）。 */
+function EditableParagraph({
+  value,
+  onSave,
+  placeholder,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  placeholder: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const commit = () => {
+    if (draft.trim() !== value.trim()) onSave(draft.trim());
+    setEditing(false);
+  };
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setDraft(value);
+            setEditing(false);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (e.ctrlKey) {
+              const el = e.currentTarget;
+              const s = el.selectionStart;
+              setDraft(draft.slice(0, s) + "\n" + draft.slice(el.selectionEnd));
+              requestAnimationFrame(() => {
+                el.selectionStart = el.selectionEnd = s + 1;
+              });
+            } else {
+              commit();
+            }
+          }
+        }}
+        rows={Math.max(2, draft.split("\n").length)}
+        className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm leading-relaxed outline-none ring-1 ring-primary/30"
+      />
+    );
+  }
+  return (
+    <p
+      role="button"
+      tabIndex={0}
+      title="点击修改（Enter 保存 · Ctrl+Enter 换行）"
+      onClick={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      className="mt-2 cursor-text text-sm leading-relaxed whitespace-pre-line text-muted-foreground"
+    >
+      {value || <span className="opacity-60">{placeholder}</span>}
+    </p>
+  );
 }
 
 /** 细进度条（左侧时间轴每站挂一条，把「完成了多少/一共多少」画在轴上） */
@@ -460,6 +542,9 @@ function ThreeRowCard({
   onClear,
   onDelete,
   onSetUrl,
+  onEditTitle,
+  onEditDetail,
+  onEditSlot,
 }: {
   title: string;
   timeSlot?: string | null;
@@ -475,6 +560,11 @@ function ThreeRowCard({
   onClear: () => void;
   onDelete?: () => void; // 仅计划外（自己加的）传，用来删除
   onSetUrl?: (v: string) => void; // 仅计划外传，点「＋加链接」就地写链接
+  /** 2026-09-20 Rosie：「我未必按你安排的学一模一样」——计划卡的标题/详解/时间全部可就地改。
+   *  三个都可选：工作卡（来自待办）不传就保持只读。 */
+  onEditTitle?: (v: string) => void;
+  onEditDetail?: (v: string) => void;
+  onEditSlot?: (v: string) => void;
 }) {
   const done = state === "done";
   const skip = state === "skip";
@@ -495,12 +585,31 @@ function ThreeRowCard({
       {/* 一行的顺序（2026-07-29 Rosie 定）：时间 · 标题 …… 视频 · 状态键 · 删除。
           状态键从最左挪到最右——最好的位置该给标题，不该给每张卡都长一样的两个按钮。 */}
       <div className="flex items-center gap-3">
-        {timeSlot && (
-          <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-            {timeSlot}
-          </span>
+        {onEditSlot ? (
+          <EditableText
+            value={timeSlot ?? ""}
+            onSave={onEditSlot}
+            placeholder="＋时间"
+            className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground"
+            inputClassName="w-28 text-xs"
+          />
+        ) : (
+          timeSlot && (
+            <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+              {timeSlot}
+            </span>
+          )
         )}
-        <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
+        {onEditTitle ? (
+          <EditableText
+            value={title}
+            onSave={onEditTitle}
+            className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}
+            inputClassName="flex-1 text-base"
+          />
+        ) : (
+          <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
+        )}
         {url && (
           <button
             onClick={() => openLink(url)}
@@ -524,7 +633,11 @@ function ThreeRowCard({
           </button>
         )}
       </div>
-      {detail && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>}
+      {onEditDetail ? (
+        <EditableParagraph value={detail ?? ""} onSave={onEditDetail} placeholder="＋写点说明（怎么学由你定，点击编辑）" />
+      ) : (
+        detail && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+      )}
       {onSetUrl ? (
         // 计划外（自己加的）：给一行可就地编辑的链接，点一下即可写/改
         <div className="mt-1.5 flex items-center gap-2 text-xs">
@@ -793,6 +906,16 @@ function Page() {
     await updateItemUrl(id, url);
   }
 
+  // 2026-09-20 起计划卡的详解/时间也可就地改（她按自己的思路学，内容她说了算）
+  async function handleSetDetail(id: string, detail: string) {
+    setItems((its) => its.map((i) => (i.id === id ? { ...i, detail: detail || null } : i)));
+    await updateItemDetail(id, detail);
+  }
+  async function handleSetSlot(item: PlanItem, slot: string) {
+    setItems((its) => its.map((i) => (i.id === item.id ? { ...i, time_slot: slot.trim() || null } : i)));
+    await updateItemSlot(item.id, slot, item.days);
+  }
+
   async function handleCreate() {
     const title = newTitle.trim();
     if (!title) return;
@@ -958,8 +1081,8 @@ function Page() {
                             </span>
                             {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
                           </span>
-                          <span className="block text-xs text-muted-foreground">
-                            {d.time}
+                          <span className="block text-xs tabular-nums text-muted-foreground">
+                            {domainTimeLabel(d, todays)}
                             {d.key === autoKey && " · 现在"}
                           </span>
                           <MiniBar done={p.done} total={p.total} color={d.color} />
@@ -1055,6 +1178,9 @@ function Page() {
                           onClear={() => setStatus(i, null)}
                           onDelete={isSeedItem(i) ? undefined : () => handleDelete(i.id)}
                           onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
+                          onEditTitle={(v) => handleRename(i.id, v)}
+                          onEditDetail={(v) => handleSetDetail(i.id, v)}
+                          onEditSlot={(v) => handleSetSlot(i, v)}
                         />
                       ))}
                     {active.source === "todo" &&
@@ -1135,7 +1261,7 @@ function Page() {
                     <span className="text-sm font-medium" style={{ color: d.textc }}>
                       {d.name}
                     </span>
-                    <span className="text-xs tabular-nums text-muted-foreground">{d.time}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{domainTimeLabel(d, todays)}</span>
                     {isNow && <span className="text-xs text-red-500">← 现在</span>}
                     <span className="ml-auto flex items-center gap-2">
                       <span className="h-1 w-16 overflow-hidden rounded-full bg-background">
