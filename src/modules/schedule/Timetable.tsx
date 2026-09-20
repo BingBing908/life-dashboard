@@ -139,6 +139,7 @@ export function Timetable({
   weekMeals,
   todayTodos,
   onSelect,
+  onAddAt,
 }: {
   items: PlanItem[];
   weekChecks: Record<string, Map<string, CheckStatus>>;
@@ -149,6 +150,8 @@ export function Timetable({
    *  day＝null ⇒ 编辑整条（一周同款一起变，双击触发）；
    *  day＝1..7 ⇒ 只改那一天（单击块出 🖊 再点触发，编辑区负责拆分）。 */
   onSelect: (items: PlanItem[], day: number | null) => void;
+  /** 双击某天的空白处 ⇒ 唤醒顶部添加面板并预填（那一天 + 按点击高度猜的整刻时间） */
+  onAddAt: (dayNum: number, slot: string) => void;
 }) {
   // 单击选中的块（`${dayNum}-${k}`）：右上角出 🖊，点 🖊 只改这一天
   const [active, setActive] = useState<string | null>(null);
@@ -212,6 +215,13 @@ export function Timetable({
         {days.map((d) => (
           <div
             key={d.dayNum}
+            title="双击空白处＝在这个时间加新日程"
+            onDoubleClick={(e) => {
+              // 只处理列空白：块自己的双击已 stopPropagation。按点击高度换算成 15 分钟整刻，默认给 1 小时
+              const rect = e.currentTarget.getBoundingClientRect();
+              const min = AXIS_START + Math.round((e.clientY - rect.top) / PX_PER_MIN / 15) * 15;
+              onAddAt(d.dayNum, `${fmt(Math.max(AXIS_START, min))}–${fmt(Math.min(min + 60, AXIS_END))}`);
+            }}
             className={cn(
               "relative min-w-0 flex-1 border-l border-border/60",
               d.dayNum === todayNum && "bg-[#F3F8FE]",
@@ -234,8 +244,14 @@ export function Timetable({
                 <div
                   key={k}
                   title={tip}
-                  onClick={() => editable.length > 0 && setActive(active === blockKey ? null : blockKey)}
-                  onDoubleClick={() => editable.length > 0 && onSelect(editable, null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (editable.length > 0) setActive(active === blockKey ? null : blockKey);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation(); // 别冒泡到列的「双击空白加日程」
+                    if (editable.length > 0) onSelect(editable, null);
+                  }}
                   className={cn(
                     "absolute inset-x-0.5 cursor-pointer select-none overflow-hidden rounded-lg px-2 py-0.5 text-[15px] leading-[1.3]",
                     BLOCK_STYLE[b.kind],
@@ -313,7 +329,7 @@ export function Timetable({
         块高＝时长；挨着的短条目合并成一块、块内一项一行；今天的「工作」块里带今天的待办。
         状态：<span className="line-through decoration-emerald-500 decoration-2">绿杠＝已完成</span> ·{" "}
         <span className="line-through decoration-red-500 decoration-2">✗红杠＝今天做不了</span>。
-        <b>双击块＝编辑整条（一周同款一起变）；单击块出 🖊＝只改那一天</b>——行内再选「以后每个周X」或「仅这一个日期」（单次调整，过了那天自动回归）。待办去待办模块改。
+        <b>双击块＝改/删（一周同款一起变）；单击块出 🖊＝只改那一天；双击空白处或点右上 ＋＝加新日程</b>——单日改时行内再选「以后每个周X」或「仅这一个日期」（过了那天自动回归）。待办去待办模块改。
       </p>
     </div>
   );

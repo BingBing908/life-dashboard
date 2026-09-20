@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PAGE } from "@/lib/ui";
 import { useSubPath } from "@/lib/hashRoute";
@@ -21,7 +22,7 @@ import { isStaleStudyTodo, listTodos, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20 Rosie）：周历里的三餐块显示饮食模块填的内容（早餐｜茶叶蛋+豆浆）
 import { getMeals } from "../supplement/data";
 import { Timetable } from "./Timetable";
-import { EditorPanel } from "./Editor";
+import { AddPanel, EditorPanel } from "./Editor";
 // 路线 2026-09-20 从时间轴搬来（Rosie：时间轴只做一日简览，其余归日程）
 import { RoadmapStages } from "../study-plan/RoadmapStages";
 import { SEMESTER_TARGET } from "../study-plan/seed";
@@ -53,6 +54,8 @@ function Page() {
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [weekMeals, setWeekMeals] = useState<Record<string, Record<string, string>>>({});
   const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
+  // 添加面板默认藏着（2026-09-20 Rosie）：＋ 按钮或双击周历空白处唤醒；空白处双击带预填时间
+  const [addCtx, setAddCtx] = useState<{ slot?: string; days?: string } | null>(null);
   // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）。
   // ⚠️ 存 id 不存对象（2026-09-20 Rosie：「三项都想改要改三遍」）——保存单项后面板不关，
   // 条目从最新 items 里按 id 现取，保存过的行自动变回「未改动」态，其余行的草稿原样留着。
@@ -121,19 +124,31 @@ function Page() {
             ? "冲刺 AI PM 的阶段路线（从时间轴搬来）"
             : "一周全览 · 和时间轴/待办同一份数据 · 点任意块可直接编辑"}
         </span>
-        <div className="ml-auto flex overflow-hidden rounded-md border">
-          {SCHEDULE_TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => navSub(t.key === "week" ? [] : [t.key])}
-              className={cn(
-                "px-4 py-1 text-sm transition-colors",
-                tab === t.key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
-              )}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-md border">
+            {SCHEDULE_TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => navSub(t.key === "week" ? [] : [t.key])}
+                className={cn(
+                  "px-4 py-1 text-sm transition-colors",
+                  tab === t.key ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {tab === "week" && (
+            <Button
+              variant={addCtx ? "secondary" : "outline"}
+              size="icon-sm"
+              title="添加新日程（也可以双击周历的空白处）"
+              onClick={() => setAddCtx(addCtx ? null : {})}
             >
-              {t.label}
-            </button>
-          ))}
+              <Plus className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
       {tab === "roadmap" ? (
@@ -151,12 +166,22 @@ function Page() {
               作息模板有更新（晚间改版）——去<b>时间轴</b>页点顶部的「一键同步」就能换成新作息，这页会自动跟着变。
             </div>
           )}
+          {addCtx && (
+            <AddPanel
+              key={`${addCtx.slot ?? ""}|${addCtx.days ?? ""}`}
+              initSlot={addCtx.slot}
+              initDays={addCtx.days}
+              onChanged={onChanged}
+              onClose={() => setAddCtx(null)}
+            />
+          )}
           <Timetable
             items={items}
             weekChecks={weekChecks}
             weekMeals={weekMeals}
             todayTodos={todayTodos}
             onSelect={(sel, day) => setSelected({ ids: sel.map((i) => i.id), day })}
+            onAddAt={(dayNum, slot) => setAddCtx({ slot, days: String(dayNum) })}
           />
           <EditorPanel
             selected={selectedItems}

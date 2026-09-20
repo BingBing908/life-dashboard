@@ -222,11 +222,20 @@ function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null;
   );
 }
 
-function AddForm({ onChanged }: { onChanged: () => void }) {
+function AddForm({
+  onChanged,
+  initSlot = "",
+  initDays = "*",
+}: {
+  onChanged: () => void;
+  /** 双击周历空白处唤醒时的预填：那一天 + 按点击位置猜的时间段 */
+  initSlot?: string;
+  initDays?: string;
+}) {
   const [track, setTrack] = useState<Track | "work">("ai");
   const [title, setTitle] = useState("");
-  const [slot, setSlot] = useState("");
-  const [days, setDays] = useState("*");
+  const [slot, setSlot] = useState(initSlot);
+  const [days, setDays] = useState(initDays);
 
   const add = async () => {
     const lines = title.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -361,43 +370,63 @@ function BlockAdd({ template, onChanged }: { template: PlanItem; onChanged: () =
   );
 }
 
+/** 块编辑面板（2026-09-20 重排：点固定区块才唤醒，只管改和删；「加一条」搬去了顶部 AddPanel）。
+ *  没选块时返回 null——页面平时干干净净。 */
 export function EditorPanel({
   selected,
   day,
   onChanged,
   onClose,
 }: {
-  /** null＝没选块，只显示「加一条」 */
   selected: PlanItem[] | null;
   /** null＝编辑整条（一周同款一起变）；1..7＝只改那一天（拆分模式） */
   day: number | null;
   onChanged: () => void;
   onClose: () => void;
 }) {
+  if (!selected || selected.length === 0) return null;
   return (
     <div className="mt-4 space-y-3 rounded-2xl bg-card p-4">
-      {selected && selected.length > 0 && (
-        <>
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
-              {day !== null
-                ? `只改${DAY_NAMES[day - 1]}（行内可选：以后每个${DAY_NAMES[day - 1]} / 仅这一个日期）`
-                : "编辑整条（一周同款一起变）"}
-              {" · Enter 逐项保存（面板不关，可接着改下一项）· Ctrl+Enter 换行 · 垃圾桶删除点两次 · 全改完点右上 ✕ 收起"}
-            </span>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="收起">
-              <X className="size-4" />
-            </button>
-          </div>
-          {selected.map((it) => (
-            <ItemRow key={`${it.id}-${day ?? "all"}`} item={it} day={day} onChanged={onChanged} />
-          ))}
-          <BlockAdd template={selected[0]} onChanged={onChanged} />
-          <div className="border-t border-border/60" />
-        </>
-      )}
-      <span className="block text-sm font-medium">加一条（选类型；一行一个事件，Ctrl+Enter 换行）</span>
-      <AddForm onChanged={onChanged} />
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">
+          {day !== null
+            ? `只改${DAY_NAMES[day - 1]}（行内可选：以后每个${DAY_NAMES[day - 1]} / 仅这一个日期）`
+            : "编辑整条（一周同款一起变）"}
+          {" · Enter 逐项保存（面板不关，可接着改下一项）· Ctrl+Enter 换行 · 垃圾桶删除点两次 · 全改完点右上 ✕ 收起"}
+        </span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="收起">
+          <X className="size-4" />
+        </button>
+      </div>
+      {selected.map((it) => (
+        <ItemRow key={`${it.id}-${day ?? "all"}`} item={it} day={day} onChanged={onChanged} />
+      ))}
+      <BlockAdd template={selected[0]} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/** 顶部「添加新日程」面板（2026-09-20 Rosie：加一条默认藏起来，＋ 按钮或双击周历空白处唤醒） */
+export function AddPanel({
+  initSlot,
+  initDays,
+  onChanged,
+  onClose,
+}: {
+  initSlot?: string;
+  initDays?: string;
+  onChanged: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="mb-4 space-y-3 rounded-2xl bg-card p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">添加新日程（选类型；一行一个事件，Ctrl+Enter 换行）</span>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground" title="收起">
+          <X className="size-4" />
+        </button>
+      </div>
+      <AddForm onChanged={onChanged} initSlot={initSlot} initDays={initDays} />
       <p className="text-[13px] text-muted-foreground">
         这里写的直接进时间轴那份数据，云端自动同步；「工作→待办」和 AI/英语的新增会同时进待办（今天·重要紧急），
         在待办里打勾这里也跟着 ✓。星期写法：* ＝每天，1,3,5 ＝周一三五。
