@@ -23,6 +23,7 @@ import { listCheckStatus, listLatestNotes, listNotes, setCheckStatus, setNote, t
 import {
   clearDone,
   createTodo,
+  isStaleStudyTodo,
   deleteTodo,
   listTodos,
   QUADRANTS,
@@ -148,7 +149,8 @@ function Card() {
         getCheckins(1),
       ]);
       const today = todayStr();
-      const pending = todos.filter((t) => !t.done);
+      // 学习类过期不顺延（isStaleStudyTodo）：昨天的学习任务不再回到待做，今天有今天的
+      const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today));
       setSummary({
         today: pending.filter((t) => t.due_date && t.due_date <= today).length,
         total: pending.length,
@@ -208,7 +210,9 @@ function Page() {
 
   const isToday = (t: Todo) => !!t.due_date && t.due_date <= today;
   const doneDate = (t: Todo) => (t.done_at ? t.done_at.slice(0, 10) : "");
-  const pending = todos.filter((t) => !t.done);
+  // 学习类过期不顺延（2026-09-20 Rosie：「第二天有第二天的学习任务」）：
+  // 昨天同步来的学习待办不回到待做；手动建的照常逾期顺延
+  const pending = todos.filter((t) => !t.done && !isStaleStudyTodo(t, today));
   const finished = todos.filter((t) => t.done);
   const finishedToday = finished.filter((t) => doneDate(t) === today); // 今天完成的：留在待办列表最下面
   const finishedHistory = finished.filter((t) => doneDate(t) !== today); // 今天以前完成的：收进历史已完成

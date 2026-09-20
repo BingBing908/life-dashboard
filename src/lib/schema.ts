@@ -160,6 +160,7 @@ export const SCHEMA_SQL = `
         id          TEXT PRIMARY KEY,
         title       TEXT NOT NULL,
         detail      TEXT,
+        source      TEXT,
         done        INTEGER NOT NULL DEFAULT 0,
         done_at     TEXT,
         quadrant    TEXT NOT NULL DEFAULT 'nn',
@@ -209,4 +210,5 @@ export const BROWSER_MIGRATIONS = [
   "ALTER TABLE habits ADD COLUMN sort_order REAL",
   "ALTER TABLE plan_checks ADD COLUMN status TEXT",
   "ALTER TABLE todos ADD COLUMN detail TEXT",
+  "ALTER TABLE todos ADD COLUMN source TEXT",
 ];

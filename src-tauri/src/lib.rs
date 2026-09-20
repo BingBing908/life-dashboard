@@ -309,6 +309,16 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE todos ADD COLUMN detail TEXT;
         "#,
         },
+        Migration {
+            version: 14,
+            description: "todos_source",
+            kind: MigrationKind::Up,
+            // source='study'＝日程/时间轴学习行同步来的待办：只在 due_date 当天出现、
+            // 不顺延（2026-09-20 Rosie：「第二天有第二天的学习任务」）；NULL＝手动建，逾期照常顺延
+            sql: r#"
+            ALTER TABLE todos ADD COLUMN source TEXT;
+        "#,
+        },
     ]
 }
 

@@ -15,6 +15,9 @@ export interface Todo {
   title: string;
   /** G1 格式（2026-09-19）第二行小字：要做什么、怎么做（可空；「我做了什么」在 plan_notes，不在这） */
   detail: string | null;
+  /** 'study'＝日程/时间轴学习行同步来的：只在 due_date 当天出现、不顺延（2026-09-20
+   *  Rosie：「第二天有第二天的学习任务」）；NULL＝手动建的，逾期照常顺延回待做 */
+  source: string | null;
   done: number;
   done_at: string | null;
   quadrant: Quadrant;
@@ -27,7 +30,7 @@ export interface Todo {
 export async function listTodos(): Promise<Todo[]> {
   const db = await getDb();
   return db.select<Todo[]>(
-    `SELECT id, title, detail, done, done_at, quadrant, due_date, sort_order, created_at
+    `SELECT id, title, detail, source, done, done_at, quadrant, due_date, sort_order, created_at
      FROM todos WHERE deleted_at IS NULL
      ORDER BY done, CASE WHEN done = 0 THEN sort_order ELSE 0 END, done_at DESC`,
   );
@@ -60,6 +63,7 @@ export async function createTodo(
     id: f.id,
     title,
     detail: null,
+    source: null,
     done: 0,
     done_at: null,
     quadrant,
@@ -70,12 +74,14 @@ export async function createTodo(
 }
 
 /** 同名同天的待办已存在（未删）就不再建——日程/时间轴的学习行反复保存曾把待办滚成雪球
- *  （2026-09-20：新概念学习 ×3）。同步型创建一律走这个，手动添加仍走 createTodo（重名由她自己负责）。 */
+ *  （2026-09-20：新概念学习 ×3）。同步型创建一律走这个（source 标来源），
+ *  手动添加仍走 createTodo（重名由她自己负责）。 */
 export async function createTodoIfMissing(
   title: string,
   quadrant: Quadrant,
   dueDate: string | null,
   sortOrder: number,
+  source: string | null = null,
 ): Promise<void> {
   const db = await getDb();
   const rows = await db.select<{ id: string }[]>(
@@ -83,7 +89,17 @@ export async function createTodoIfMissing(
     [title, dueDate],
   );
   if (rows.length > 0) return;
-  await createTodo(title, quadrant, dueDate, sortOrder);
+  const f = newRecordFields();
+  await db.execute(
+    `INSERT INTO todos (id, title, source, quadrant, due_date, sort_order, created_at, updated_at, device_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [f.id, title, source, quadrant, dueDate, sortOrder, f.created_at, f.updated_at, f.device_id],
+  );
+}
+
+/** 过期的学习类待办（不顺延）：昨天的学习任务不进今天的任何视图，今天有今天的 */
+export function isStaleStudyTodo(t: Todo, today: string): boolean {
+  return t.source === "study" && !t.done && !!t.due_date && t.due_date < today;
 }
 
 export async function toggleTodo(id: string, done: boolean): Promise<void> {

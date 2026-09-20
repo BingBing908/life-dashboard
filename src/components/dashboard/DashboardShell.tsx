@@ -21,7 +21,7 @@ import {
   type DaySnapshot,
   type LineCell,
 } from "./fourLines";
-import { listTodos } from "@/modules/todo/data";
+import { isStaleStudyTodo, listTodos } from "@/modules/todo/data";
 import { dayCalories, getCalTarget, getMeals, getWeightLog, setWeightEntry, type DayWeight } from "@/modules/supplement/data";
 import { getCheckins, habitOnDay, listHabits } from "@/modules/habit-checkin/data";
 import { listAllEntries } from "@/modules/study-log/data";
@@ -96,7 +96,7 @@ export function DashboardShell({ onOpenModule }: Props) {
       // 分母里、还算作已完成——攒了十几条之后每天一睁眼就显示「11/11 今天要做」，
       // 看着像全做完了，实际今天一件没动（2026-07-29 Rosie 截图发现）。
       const todayTodos = todos.filter(
-        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today),
       );
       const todoDone = todayTodos.filter((t) => t.done).length;
       const todoAll = todos.filter((t) => !t.done).length;

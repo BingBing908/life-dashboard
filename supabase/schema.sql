@@ -54,7 +54,7 @@ create table if not exists public.meal_log (
   created_at text, updated_at text, device_id text, deleted_at text
 );
 create table if not exists public.todos (
-  id text primary key, title text, detail text, done integer, done_at text, quadrant text, due_date text,
+  id text primary key, title text, detail text, source text, done integer, done_at text, quadrant text, due_date text,
   sort_order real, created_at text, updated_at text, device_id text, deleted_at text
 );
 create table if not exists public.app_settings (
@@ -86,3 +86,7 @@ end $$;
 -- 2026-09-19 待办 G1 格式：todos 加 detail（第二行小字「要做什么怎么做」）。
 -- 已有库在 SQL Editor 跑这一句（新库上面的 create table 已含）：
 -- alter table public.todos add column if not exists detail text;
+
+-- 2026-09-20 学习类待办不顺延：todos 加 source（'study'=日程/时间轴同步来的，只在当天出现）。
+-- 已有库在 SQL Editor 跑：
+-- alter table public.todos add column if not exists source text;

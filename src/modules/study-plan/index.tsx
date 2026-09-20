@@ -51,7 +51,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
-import { createTodo, createTodoIfMissing, listTodos, toggleTodo, type Todo } from "../todo/data";
+import { createTodo, createTodoIfMissing, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
 import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
@@ -851,7 +851,7 @@ function Page() {
   function todaysWorkTodos(): Todo[] {
     return todos
       .filter(
-        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today),
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today),
       )
       .sort((a, b) => Number(!!a.done) - Number(!!b.done)); // 今天完成的沉到最下，不消失
   }
@@ -987,7 +987,7 @@ function Page() {
       setItems((its) => [...its, created]);
       if (item.track === "english" || item.track === "ai" || item.track === "cert") {
         // IfMissing：同名同天不重复建——反复保存曾把待办滚成雪球（新概念学习×3）
-        await createTodoIfMissing(ln, "iu", today, 500);
+        await createTodoIfMissing(ln, "iu", today, 500, "study");
       }
     }
   }
@@ -1159,8 +1159,7 @@ function Page() {
                                 {p.done}/{p.total}
                               </span>
                               {allDone && <span className="text-[11px] text-emerald-600">✓</span>}
-                              {/* 「现在」跟在名字后面（2026-09-20 她说 ml-auto 挤到角上位置不对） */}
-                              {d.key === autoKey && <span className="text-[11px] font-medium text-red-500">·现在</span>}
+                              {/* 「现在」文字撤了（2026-09-20 Rosie：位置怎么摆都别扭，红虚线足够判断） */}
                             </span>
                             <span className="block text-xs tabular-nums text-muted-foreground">
                               {domainTimeLabel(d, todays)}

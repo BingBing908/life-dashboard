@@ -15,7 +15,7 @@ import {
   type CheckStatus,
   type PlanItem,
 } from "../study-plan/data";
-import { listTodos, type Todo } from "../todo/data";
+import { isStaleStudyTodo, listTodos, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20 Rosie）：周历里的三餐块显示饮食模块填的内容（早餐｜茶叶蛋+豆浆）
 import { getMeals } from "../supplement/data";
 import { Timetable } from "./Timetable";

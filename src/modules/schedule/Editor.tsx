@@ -59,7 +59,7 @@ const ADD_CHOICES: { key: Track | "work"; name: string }[] = [
 
 /** 学习类新增行同步进待办（今天·重要紧急）——她定的：「待办仅同步工作和学习」 */
 async function syncTodoIfStudy(track: Track, line: string): Promise<void> {
-  if (track === "ai" || track === "english") await createTodoIfMissing(line, "iu", todayStr(), 500);
+  if (track === "ai" || track === "english") await createTodoIfMissing(line, "iu", todayStr(), 500, "study");
 }
 
 function ItemRow({ item, day, onChanged }: { item: PlanItem; day: number | null; onChanged: () => void }) {
