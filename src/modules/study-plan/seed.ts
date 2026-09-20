@@ -80,7 +80,6 @@ export const SEED_ITEMS: {
     days: "*",
     time_slot: "07:50–09:40",
     title: "英语（新概念整块：复习→新课→朗读→单词）",
-    detail: "①复习昨课·出声跟读 ≈10′ ②学新课（刘羽Leo：单词→语法→文章，奇数课=新课文、偶数课=练习留次日）≈55′ ⏸中途起身5分钟 ③朗读+跟读今天课文（站着做）≈25′ ④不背单词 PEP ≈20′（没背完的挪到通勤/到公司后）。进度自己走、学完一课才进下一课，不赶日期。纯动画备用 BV1MT4y1o7Cv",
     url: "https://www.bilibili.com/video/BV1xa411J7jJ/",
   },
   // ---------- 周末上午：AI（主线）。2026-09-01 新作息：英语 09:40 结束，
@@ -90,7 +89,6 @@ export const SEED_ITEMS: {
     days: "6,7",
     time_slot: "09:40–12:00",
     title: "AI 项目完善（周末大块·主线）",
-    detail: "给 NOC Sentinel 补评测(evals)+使用数据、给 life-dashboard 加 AI 功能，查漏补缺做完善；每完善一块就想「怎么写进简历」——量化影响+evals+迭代故事。前期还没上手时，先跟吴恩达《AI for Everyone》把概念看懂",
     url: "https://www.bilibili.com/video/BV1yC4y127uj/",
   },
   // 周六下午整块五小时（原来只排了 14:00–16:00 两小时，2026-09-01 按她的新作息
@@ -129,7 +127,6 @@ export const SEED_ITEMS: {
     days: "1,2,3,5,7",
     time_slot: "19:50–20:30",
     title: "瑜伽/芭蕾把杆 40 分钟",
-    detail: "2026-09-19 起替换原来的按天轮换（瘦斜方肌/芭杆/太极/骨盆/泡沫轴），具体跟练视频她自己选",
     period_action: "swap",
     period_detail: "🩸 经期：跳过卷腹/平板/倒立类动作，其余照做",
   },
