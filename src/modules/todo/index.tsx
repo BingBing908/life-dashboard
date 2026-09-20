@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
 import { useSubPath } from "@/lib/hashRoute";
-import { todayStr } from "@/lib/dates";
+import { addDays, todayStr } from "@/lib/dates";
 import type { AppModule } from "../types";
 import { HabitPanel } from "../habit-checkin";
 import { getCheckins, listHabits } from "../habit-checkin/data";
@@ -207,7 +207,7 @@ function Page() {
   /** 今天的学习条目（2026-09-20 重构：**不再复印进 todos，直接引用时间轴那份数据**——
    *  Rosie 抓到复印式同步只抄新增不抄删除：「按理说全模块化应该调用一个模块」。
    *  这一节的行=plan_items 本尊，增删改名天然同步，打卡/未完成走 plan_checks 同一条记录。 */
-  const [studyToday, setStudyToday] = useState<PlanItem[]>([]);
+  const [studyAll, setStudyAll] = useState<PlanItem[]>([]);
   const [histNotes, setHistNotes] = useState<Record<string, string>>({}); // 各条目最近一天的笔记（历史已完成回看用，只读）
   const today = todayStr();
 
@@ -216,13 +216,24 @@ function Page() {
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listCheckStatus(today).then(setSkipMap);
     listItems()
-      .then((its) => {
-        const dn = dayNumOf(today);
-        setStudyToday(its.filter((i) => ["english", "ai", "cert"].includes(i.track) && matchesDay(i, dn, today)));
-      })
+      .then((its) => setStudyAll(its.filter((i) => ["english", "ai", "cert"].includes(i.track))))
       .catch(() => {});
     listLatestNotes().then(setHistNotes);
   }, [today]);
+
+  /** 今天该做的学习条目 + 「接下来」（2026-09-20 Rosie：周一往周二写的项目要**立刻能在待办看见
+   *  但不算今天**，到周二自动变成今天）：未来 6 天内最近一次出现的条目，只读预告、不给打卡 */
+  const studyToday = studyAll.filter((i) => matchesDay(i, dayNumOf(today), today));
+  const studyUpcoming = studyAll
+    .filter((i) => !matchesDay(i, dayNumOf(today), today))
+    .flatMap((i) => {
+      for (let k = 1; k <= 6; k++) {
+        const d = addDays(today, k);
+        if (matchesDay(i, dayNumOf(d), d)) return [{ item: i, date: d }];
+      }
+      return [];
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   // 老复印件的影子（source='study' 或与今天学习条目同名的存量拷贝）不再显示，防止和引用行重复
   const studyTitles = new Set(studyToday.map((i) => i.title));
@@ -429,6 +440,26 @@ function Page() {
               })}
               {studyToday.length === 0 && (
                 <p className="py-6 text-sm text-muted-foreground">今天没有排学习任务——去日程或时间轴加。</p>
+              )}
+              {/* 接下来：提前写进日程的未来学习任务立刻可见，但不算今天；到那天自动升入上面 */}
+              {studyUpcoming.length > 0 && (
+                <div className="pt-3">
+                  <div className="mb-2 flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">接下来</span>
+                    <span className="text-xs text-muted-foreground/70">还没到日子，到那天自动进上面的今天列表</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {studyUpcoming.map(({ item: i, date }) => (
+                      <div key={`${i.id}-${date}`} className="flex items-center gap-3 rounded-lg border border-dashed border-[#C9DEF3] px-4 py-2 text-muted-foreground">
+                        <span className="shrink-0 rounded-full bg-[#F0F6FD] px-2 py-0.5 text-[11px] tabular-nums text-[#185FA5]">
+                          {["周一", "周二", "周三", "周四", "周五", "周六", "周日"][dayNumOf(date) - 1]} {date.slice(5).replace("-", "/")}
+                        </span>
+                        {i.time_slot && <span className="shrink-0 text-xs tabular-nums">{i.time_slot}</span>}
+                        <span className="min-w-0 flex-1 truncate text-[14px]">{i.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ) : (
