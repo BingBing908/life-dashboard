@@ -444,18 +444,50 @@ function RichText({
 }
 
 /**
- * 「我的备注」——每条内容底部的自留地（2026-09-21 Rosie：「不然我现在只能读，不能选择记录什么」）。
+ * 「我的备注」——每条内容里她自己的自留地（2026-09-21 Rosie：「不然我现在只能读，不能选择记录什么」）。
  *
  * ⚠️ 存 `meta.myNote`，**别跟 `meta.notes` 混**：`notes` 是我注入的学习点（英语精读卡里那行 📝），
  * 这个 myNote 才是她自己敲的。两者显示位置、颜色都不同，改的时候别串。
  *
+ * ⚠️ **入口必须在卡片顶部**（2026-09-21 当天返工）：第一版只把「加备注」放在卡片最底下，
+ * 结果素养线那些千字长文她根本滚不到底、以为功能没做——**长内容的操作入口一律放顶部**，
+ * 所以编辑状态由外层 EntryDoc/ReadingCard 持有（`noting`），顶部按钮点开、编辑框展示在正文下。
+ *
  * ⚠️ 刻意**不参与 `done` 判定**：记不记是她的自由，不该又变成一个打卡负担
  * （默写/交作业已经各自管着完成状态了）。
  */
-function MyNote({ note, accent, onSave }: { note: string; accent: string; onSave: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
+function NoteButton({ note, accent, onOpen }: { note: string; accent: string; onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      title="记一笔自己的想法：想到什么、跟工作怎么对上、哪里还没懂"
+      className="shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors hover:opacity-80"
+      style={
+        note
+          ? { background: accent + "22", color: accent }
+          : { border: "1px dashed " + accent + "77", color: accent }
+      }
+    >
+      {note ? "✎ 备注" : "✎ 加备注"}
+    </button>
+  );
+}
+
+function MyNote({
+  note,
+  accent,
+  editing,
+  setEditing,
+  onSave,
+}: {
+  note: string;
+  accent: string;
+  editing: boolean;
+  setEditing: (v: boolean) => void;
+  onSave: (v: string) => void;
+}) {
   const [draft, setDraft] = useState(note);
-  // 云端同步把这条冲回来时，草稿跟上（她没在编辑时才跟，编辑中不抢她的字）
+  // 云端同步把这条冲回来时草稿跟上；她正在编辑就别抢她的字
   useEffect(() => {
     if (!editing) setDraft(note);
   }, [note, editing]);
@@ -468,6 +500,7 @@ function MyNote({ note, accent, onSave }: { note: string; accent: string; onSave
   if (editing) {
     return (
       <div className="mt-3">
+        <p className="mb-1 text-xs font-medium" style={{ color: accent }}>✎ 我的备注</p>
         <textarea
           autoFocus
           rows={3}
@@ -509,16 +542,7 @@ function MyNote({ note, accent, onSave }: { note: string; accent: string; onSave
     );
   }
 
-  if (!note) {
-    return (
-      <button
-        onClick={() => setEditing(true)}
-        className="mt-3 rounded-md border border-dashed px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      >
-        ✎ 加备注
-      </button>
-    );
-  }
+  if (!note) return null; // 空备注不占地方，入口在顶部那枚「✎ 加备注」
 
   return (
     <div className="mt-3 rounded-lg border-l-4 p-3" style={{ borderColor: accent + "99", background: accent + "0a" }}>
@@ -536,6 +560,7 @@ function MyNote({ note, accent, onSave }: { note: string; accent: string; onSave
 function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
   const [term, setTerm] = useState<string | null>(null);
   const [dict, setDict] = useState(false);
+  const [noting, setNoting] = useState(false);
   let meta: Record<string, unknown> = {};
   try {
     meta = entry.meta ? JSON.parse(entry.meta) : {};
@@ -559,6 +584,7 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const dictKind = needsDictation(entry);
   const dictLabel = entry.kind === "古诗" ? "默写这首" : "默写这句";
   const done = entryDone(entry);
+  const myNote = (meta.myNote as string | undefined) ?? "";
   return (
     <div className={cn("group", CARD, done && "opacity-70")}>
       <div className="flex items-center gap-2">
@@ -569,6 +595,8 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
         )}
         {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
+          {/* 备注入口放这里（跟「标看完」并排）——长文滚不到底，入口必须在顶上，见 MyNote 注释 */}
+          {onPatch && <NoteButton note={myNote} accent={accent} onOpen={() => setNoting(true)} />}
           {/* 手动「标看完」只留给**没有练习题**、也不用默写的内容（成语/谚语/普通新闻/历史…）。
               带练习题的改成「交作业后算完成」，见 gradedByHomework——包括语文练笔、PM 概念课/
               产品拆解，以及**任何 `meta.exercise === true` 的条目**（AI 新闻/术语卡偶尔带一道题）。 */}
@@ -608,6 +636,10 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
           </p>
         </Blurred>
       )}
+      {/* 她的备注：紧跟正文（长文里也一眼能找到），编辑状态由顶部那枚按钮开 */}
+      {onPatch && (
+        <MyNote note={myNote} accent={accent} editing={noting} setEditing={setNoting} onSave={(v) => onPatch(entry.id, { myNote: v })} />
+      )}
       {homework && (
         <div className="mt-3 rounded-lg border-l-4 p-3" style={{ borderColor: accent, background: accent + "0e" }}>
           <p className="mb-1.5 text-xs font-medium" style={{ color: accent }}>作业</p>
@@ -639,10 +671,6 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
             />
           )}
         </div>
-      )}
-      {/* 她自己的备注（meta.myNote）——每条都能记一笔，和我写的正文/作业分开放 */}
-      {onPatch && (
-        <MyNote note={(meta.myNote as string | undefined) ?? ""} accent={accent} onSave={(v) => onPatch(entry.id, { myNote: v })} />
       )}
     </div>
   );
@@ -1186,6 +1214,8 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
   const { hasWordBook, artOk, wordOk, allOk: done } = dictState(m);
   const [showCn, setShowCn] = useState(false);
   const [mode, setMode] = useState<"none" | "word" | "article">("none");
+  const [noting, setNoting] = useState(false);
+  const myNote = (m.myNote as string | undefined) ?? "";
 
   return (
     <div className={cn("group", CARD, done && "opacity-70")}>
@@ -1193,6 +1223,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
         {entry.kind && <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>{entry.kind}</span>}
         {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
         <div className="ml-auto flex items-center gap-2">
+          <NoteButton note={myNote} accent={accent} onOpen={() => setNoting(true)} />
           {/* 顶部这枚是**总状态**（两边都齐才变绿）；文章／单词各自的勾挂在各自那一块上，见下 */}
           <span
             className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs", done ? "bg-emerald-500 text-white" : "border text-muted-foreground")}
@@ -1253,9 +1284,9 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
       {mode === "article" && (
         <ReadingDictation articleEn={articleEn} articleCn={articleCn} attempts={artAtt} accent={accent} onSave={(a) => onPatch(entry.id, { artAtt: [...artAtt, a].slice(-5) })} />
       )}
+      <MyNote note={myNote} accent={accent} editing={noting} setEditing={setNoting} onSave={(v) => onPatch(entry.id, { myNote: v })} />
       {/* 精读文章也会进复习队列，所以同样画曲线 */}
       <ReviewTrack entry={entry} accent={accent} />
-      <MyNote note={(m.myNote as string | undefined) ?? ""} accent={accent} onSave={(v) => onPatch(entry.id, { myNote: v })} />
     </div>
   );
 }
