@@ -12,8 +12,9 @@ const LOG_BOARDS: [string, string][] = [
   ["chinese", "语文"],
   ["ai", "AI"],
   ["history", "历史"],
-  ["finance", "金融"],
+  ["finance", "商金"],
   ["pm", "PM"],
+  ["fde", "FDE"],
 ];
 
 /**

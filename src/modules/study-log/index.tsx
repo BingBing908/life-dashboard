@@ -8,6 +8,7 @@ import {
   Landmark,
   Layers,
   LineChart,
+  Network,
   PenLine,
   Plus,
   RotateCcw,
@@ -69,15 +70,21 @@ const REVIEW_CFG: BoardCfg = { key: "review", name: "复习", icon: RotateCcw, h
 const BLUE_MAIN = { bg: "#E6F1FB", text: "#042C53", sub: "#185FA5", accent: "#378ADD" };
 const BLUE_SOFT = { bg: "#F0F6FD", text: "#0C447C", sub: "#4A80B0", accent: "#85B7EB" };
 
+/** 2026-09-21 七大板块定稿（她拿 Copilot 对话来的重构，目标＝AI PM / AI FDE 双线转岗）：
+ *  英语 AI 化（AI词汇1+短文≤5句+地道表达3，看懂国外 AI 文档）；语文保留成语谚语诗+练笔，
+ *  加名句赏析（她的原话「腹有诗书气自华」，兴趣线别动）；历史＝人物+事件+**决策启示**
+ *  （商鞅变法学推动改革，不背年表）；金融升级「商业金融」（ARR/LTV/SaaS/CAC 商业认知，
+ *  K线基金降级存量）；AI＝术语2+新闻5（每条带 PM 视角/FDE 视角）+趋势；
+ *  PM＝概念+产品拆解+PRD练习+面试题；**新增 FDE**＝技术知识点+架构图+实战案例+面试题
+ *  （最好与当天 PM 拆同一产品，对照双方视角）。kinds 只喂「加一条」下拉框，渲染不看它。 */
 const BOARDS: BoardCfg[] = [
-  { key: "english", name: "英语", icon: BookOpen, kinds: ["精读文章", "背诵", "谚语", "新概念练习"], hint: "报课号出题 · 谚语", c: { ...BLUE_SOFT } },
-  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔", "认字测试"], hint: "二四练笔 · 成语古诗按需", c: { ...BLUE_SOFT } },
-  // kinds 只喂「加一条」表单的下拉框（渲染不看它，LearningBoard 只筛 kind !== 'note'）。
-  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "2 深读 + 速览 + 术语卡 + 趋势", c: { ...BLUE_MAIN } },
-  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物"], hint: "周末更新 · 当故事看", c: { ...BLUE_SOFT } },
-  // 金融 2026-09-20 恢复（Rosie：「AIPM 需要较广的知识网，keep learning」），从第 7 课接着走，点名才更新
-  { key: "finance", name: "金融", icon: LineChart, kinds: ["K线基础", "基金知识", "基金新闻", "我的复盘"], hint: "第 7 课起 · 点名更新", c: { ...BLUE_SOFT } },
-  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "项目翻译", "练习"], hint: "概念 + 用自己的项目练表达", c: { ...BLUE_MAIN } },
+  { key: "english", name: "英语", icon: BookOpen, kinds: ["AI词汇", "精读文章", "地道表达", "背诵", "谚语", "新概念练习"], hint: "AI词汇 + 短文 + 表达", c: { ...BLUE_SOFT } },
+  { key: "chinese", name: "语文", icon: PenLine, kinds: ["成语", "谚语", "古诗", "练笔", "名句赏析", "认字测试"], hint: "成语谚语诗 · 练笔 · 名句", c: { ...BLUE_SOFT } },
+  { key: "ai", name: "AI", icon: Sparkles, kinds: ["新闻", "速览", "术语卡", "趋势汇总"], hint: "术语×2 + 新闻×5（PM/FDE 视角）+ 趋势", c: { ...BLUE_MAIN } },
+  { key: "history", name: "历史", icon: Landmark, kinds: ["时间线", "事件/人物", "决策启示"], hint: "人物 + 事件 + 决策启示", c: { ...BLUE_SOFT } },
+  { key: "finance", name: "商业金融", icon: LineChart, kinds: ["商业概念", "金融术语", "企业案例", "K线基础", "基金知识", "我的复盘"], hint: "ARR/LTV/SaaS · 商业思维", c: { ...BLUE_SOFT } },
+  { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "PRD练习", "面试题", "项目翻译", "练习"], hint: "概念 + 拆解 + PRD + 面试题", c: { ...BLUE_MAIN } },
+  { key: "fde", name: "AI FDE", icon: Network, kinds: ["技术知识点", "架构图", "实战案例", "面试题"], hint: "技术 + 架构 + 实战 + 面试题", c: { ...BLUE_MAIN } },
 ];
 
 /**
@@ -92,7 +99,7 @@ const BOARDS: BoardCfg[] = [
  * 生命周期完全不同。**数据没搬**（仍在 `study_entries`，board='book'/'movie'，
  * 新模块复用 `study-log/data.ts`），拆的只是入口和 UI ⇒ 零迁移。
  */
-const MAIN_BOARDS = BOARDS.filter((b) => b.key === "ai" || b.key === "pm");
+const MAIN_BOARDS = BOARDS.filter((b) => b.key === "ai" || b.key === "pm" || b.key === "fde");
 const SUB_BOARDS = BOARDS.filter((b) =>
   ["english", "chinese", "history", "finance"].includes(b.key),
 );
@@ -1755,7 +1762,7 @@ function Page() {
         <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} />
       )}
 
-      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm") && (
+      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm" || board === "fde") && (
         <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onPatch={patchEntry} />
       )}
 
