@@ -15,6 +15,9 @@ const LOG_BOARDS: [string, string][] = [
   ["finance", "商金"],
   ["pm", "PM"],
   ["fde", "FDE"],
+  ["psych", "心理"],
+  ["philo", "哲逻"],
+  ["misc", "通识"],
 ];
 
 /**

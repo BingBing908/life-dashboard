@@ -3,10 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
+  Brain,
   ChevronDown,
   ChevronRight,
+  Globe,
   Landmark,
   Layers,
+  Lightbulb,
   LineChart,
   Network,
   PenLine,
@@ -85,6 +88,10 @@ const BOARDS: BoardCfg[] = [
   { key: "finance", name: "商业金融", icon: LineChart, kinds: ["商业概念", "金融术语", "企业案例", "K线基础", "基金知识", "我的复盘"], hint: "ARR/LTV/SaaS · 商业思维", c: { ...BLUE_SOFT } },
   { key: "pm", name: "产品经理", icon: Layers, kinds: ["PM概念", "产品拆解", "PRD练习", "面试题", "项目翻译", "练习"], hint: "概念 + 拆解 + PRD + 面试题", c: { ...BLUE_MAIN } },
   { key: "fde", name: "AI FDE", icon: Network, kinds: ["技术知识点", "架构图", "实战案例", "面试题"], hint: "技术 + 架构 + 实战 + 面试题", c: { ...BLUE_MAIN } },
+  // 2026-09-21 二排素养线补齐（她要 2×5 十板块）：每天各一个概念，轻量、点名更新
+  { key: "psych", name: "心理学", icon: Brain, kinds: ["心理学概念", "案例"], hint: "懂用户 · 懂组织", c: { ...BLUE_SOFT } },
+  { key: "philo", name: "哲学逻辑", icon: Lightbulb, kinds: ["思维工具", "哲学概念", "逻辑概念"], hint: "会提问 · 会判断", c: { ...BLUE_SOFT } },
+  { key: "misc", name: "通识认知", icon: Globe, kinds: ["通识概念"], hint: "今日杂学 · 杂而不散", c: { ...BLUE_SOFT } },
 ];
 
 /**
@@ -99,10 +106,12 @@ const BOARDS: BoardCfg[] = [
  * 生命周期完全不同。**数据没搬**（仍在 `study_entries`，board='book'/'movie'，
  * 新模块复用 `study-log/data.ts`），拆的只是入口和 UI ⇒ 零迁移。
  */
-const MAIN_BOARDS = BOARDS.filter((b) => b.key === "ai" || b.key === "pm" || b.key === "fde");
-const SUB_BOARDS = BOARDS.filter((b) =>
-  ["english", "chinese", "history", "finance"].includes(b.key),
-);
+/** 2026-09-21 十板块 2×5 定稿（她的强迫症要求两排正好各五个）：
+ *  第一排＝职业能力：英语 / AI / AI PM / AI FDE / 商业金融（解决饭碗）；
+ *  第二排＝综合素养：语文 / 历史 / 心理学 / 哲学逻辑 / 通识认知（解决成长上限）。
+ *  首页顺序＝这个数组的顺序，别再拆 MAIN/SUB。 */
+const HOME_ORDER: Board[] = ["english", "ai", "pm", "fde", "finance", "chinese", "history", "psych", "philo", "misc"];
+const HOME_BOARDS = HOME_ORDER.map((k) => BOARDS.find((b) => b.key === k)!).filter(Boolean);
 
 function withMeta(e: Entry, patch: Record<string, unknown>): string {
   let m: Record<string, unknown> = {};
@@ -279,10 +288,10 @@ function Landing({
   onOpen: (b: Board) => void;
 }) {
   const today = todayStr();
-  const ordered = [...MAIN_BOARDS, ...SUB_BOARDS];
+  const ordered = HOME_BOARDS;
   return (
     // 一行 4~5 个（2026-09-20 Rosie：三个太大；后面还要加各行各业的新板块，格子小一点装得下）
-    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
       {ordered.map((b) => (
         <BoardTile key={b.key} b={b} entries={entries} today={today} onOpen={onOpen} />
       ))}
@@ -1762,7 +1771,7 @@ function Page() {
         <EnglishBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onPatch={patchEntry} />
       )}
 
-      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm" || board === "fde") && (
+      {board && cfg && (board === "chinese" || board === "ai" || board === "history" || board === "finance" || board === "pm" || board === "fde" || board === "psych" || board === "philo" || board === "misc") && (
         <LearningBoard cfg={cfg} entries={boardEntries.filter((e) => e.kind !== "note")} onAdd={addLearning} onPatch={patchEntry} />
       )}
 
