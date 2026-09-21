@@ -180,18 +180,23 @@ export function entryDone(e: Entry): boolean {
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
 /** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。
- *  hideText＝不画中间数字（首页格子把图标叠在环心，数字在环下面那行——2026-09-20 Rosie 定的样式） */
-function ProgressRing({ done, total, accent, hideText }: { done: number; total: number; accent: string; hideText?: boolean }) {
+ *  hideText＝不画中间数字（首页格子把图标叠在环心，数字在环下面那行——2026-09-20 Rosie 定的样式）。
+ *  invert＝**反向环**（2026-09-21 Rosie 四调定稿：「完成的越少就越蓝，完成的越多就越浅，按完成比率走」）：
+ *  彩弧画的是**没完成**的那部分（深蓝），完成的部分是近白淡底——蓝的面积＝欠的比例，
+ *  半没做＝半圈深蓝扎眼、全做完＝整圈近白隐形。之前的正向环坏在弧长=完成度，
+ *  完成 94% 的板块反而满圈是色、看起来最蓝。 */
+function ProgressRing({ done, total, accent, hideText, invert }: { done: number; total: number; accent: string; hideText?: boolean; invert?: boolean }) {
   const R = 30;
   const C = 2 * Math.PI * R;
   const p = total > 0 ? done / total : 0;
+  const frac = invert ? 1 - p : p; // 彩弧占比：正向=完成，反向=欠账
   return (
     <svg width="76" height="76" viewBox="0 0 76 76" role="img" aria-label={`完成 ${done}/${total}`}>
-      <circle cx="38" cy="38" r={R} fill="none" stroke="#DFEAF6" strokeWidth="8" />
-      {p > 0 && (
+      <circle cx="38" cy="38" r={R} fill="none" stroke="#E3EEF9" strokeWidth="8" />
+      {frac > 0.001 && (
         <circle
           cx="38" cy="38" r={R} fill="none" stroke={accent} strokeWidth="8"
-          strokeDasharray={`${C * p} ${C}`} strokeLinecap="round" transform="rotate(-90 38 38)"
+          strokeDasharray={`${C * frac} ${C}`} strokeLinecap="round" transform="rotate(-90 38 38)"
         />
       )}
       {!hideText && (
@@ -227,21 +232,9 @@ function BoardTile({
   const doneToday = todays.filter(entryDone).length;
   // 目前没有暂停中的板块（金融 2026-09-20 恢复）；以后要停哪个就把 key 填进来，灰环+⏸ 机制现成
   const paused = (["--none--"] as string[]).includes(b.key);
-  // 环色按「还欠几条」加深（2026-09-20 三调：百分比分档会把 83%~94% 的板块挤成同色，
-  // 她说肉眼区别小——改成绝对欠账数：欠 0 几乎隐形 → 欠 6+ 深蓝 → 欠 10+ 海军蓝，
-  // 深色直接指着「该去补哪块、欠了多少」）。暂停板块＝灰环+⏸，不再整格压暗（金融曾被冲成白板）。
-  const left = real.length - doneAll;
-  const ringAccent = paused
-    ? "#D6D3CA"
-    : left <= 0
-      ? "#E3EEF9"
-      : left <= 2
-        ? "#9FC4EE"
-        : left <= 5
-          ? "#5E9AE0"
-          : left <= 9
-            ? "#2E7CD6"
-            : "#0C447C";
+  // 2026-09-21 四调定稿（她点名「别按数量，按完成比率走」，欠账数分档已废）：
+  // 反向环——彩弧=欠的比例、固定深蓝，蓝的面积直接等于落后程度，不再需要色阶分档。
+  const ringAccent = paused ? "#D6D3CA" : "#2E7CD6";
   return (
     // 2026-09-20 Rosie 定稿：图标套在累计进度环里，下一行给「12/13」这种总体字样（+今日）
     <button
@@ -249,7 +242,7 @@ function BoardTile({
       className="flex aspect-square flex-col items-center justify-center gap-1.5 rounded-3xl bg-card p-3 text-center transition-transform hover:scale-[1.02]"
     >
       <span className="relative">
-        <ProgressRing done={doneAll} total={real.length} accent={ringAccent} hideText />
+        <ProgressRing done={doneAll} total={real.length} accent={ringAccent} hideText invert />
         <span className="absolute inset-0 flex items-center justify-center" style={{ color: paused ? "#A6A49D" : b.c.sub }}>
           <b.icon className="size-7" />
         </span>
