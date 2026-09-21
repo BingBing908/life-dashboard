@@ -443,6 +443,96 @@ function RichText({
   );
 }
 
+/**
+ * 「我的备注」——每条内容底部的自留地（2026-09-21 Rosie：「不然我现在只能读，不能选择记录什么」）。
+ *
+ * ⚠️ 存 `meta.myNote`，**别跟 `meta.notes` 混**：`notes` 是我注入的学习点（英语精读卡里那行 📝），
+ * 这个 myNote 才是她自己敲的。两者显示位置、颜色都不同，改的时候别串。
+ *
+ * ⚠️ 刻意**不参与 `done` 判定**：记不记是她的自由，不该又变成一个打卡负担
+ * （默写/交作业已经各自管着完成状态了）。
+ */
+function MyNote({ note, accent, onSave }: { note: string; accent: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+  // 云端同步把这条冲回来时，草稿跟上（她没在编辑时才跟，编辑中不抢她的字）
+  useEffect(() => {
+    if (!editing) setDraft(note);
+  }, [note, editing]);
+
+  function commit(v: string) {
+    onSave(v.trim());
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="mt-3">
+        <textarea
+          autoFocus
+          rows={3}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setDraft(note);
+              setEditing(false);
+            } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              commit(draft);
+            }
+          }}
+          placeholder="随手记：想到什么、跟工作怎么对上、哪里还没懂…"
+          className={cn("w-full resize-y rounded-lg border p-2.5 outline-none", READ_BODY)}
+          style={{ borderColor: accent + "66", background: accent + "08" }}
+        />
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => commit(draft)}
+            className="rounded-md px-2.5 py-1 text-xs text-primary-foreground"
+            style={{ background: accent }}
+          >
+            保存
+          </button>
+          <button
+            onClick={() => {
+              setDraft(note);
+              setEditing(false);
+            }}
+            className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
+          >
+            取消
+          </button>
+          <span className="text-xs text-muted-foreground">Ctrl+Enter 保存 · Esc 取消 · 换行直接回车</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!note) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="mt-3 rounded-md border border-dashed px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        ✎ 加备注
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border-l-4 p-3" style={{ borderColor: accent + "99", background: accent + "0a" }}>
+      <div className="mb-1 flex items-center gap-2">
+        <span className="text-xs font-medium" style={{ color: accent }}>✎ 我的备注</span>
+        <button onClick={() => setEditing(true)} className="ml-auto text-xs text-muted-foreground hover:text-foreground">
+          编辑
+        </button>
+      </div>
+      <p className={cn("whitespace-pre-wrap text-foreground/90", READ_BODY)}>{note}</p>
+    </div>
+  );
+}
+
 function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; onPatch?: (id: string, patch: Record<string, unknown>) => void }) {
   const [term, setTerm] = useState<string | null>(null);
   const [dict, setDict] = useState(false);
@@ -549,6 +639,10 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
             />
           )}
         </div>
+      )}
+      {/* 她自己的备注（meta.myNote）——每条都能记一笔，和我写的正文/作业分开放 */}
+      {onPatch && (
+        <MyNote note={(meta.myNote as string | undefined) ?? ""} accent={accent} onSave={(v) => onPatch(entry.id, { myNote: v })} />
       )}
     </div>
   );
@@ -1161,6 +1255,7 @@ function ReadingCard({ entry, accent, onPatch }: { entry: Entry; accent: string;
       )}
       {/* 精读文章也会进复习队列，所以同样画曲线 */}
       <ReviewTrack entry={entry} accent={accent} />
+      <MyNote note={(m.myNote as string | undefined) ?? ""} accent={accent} onSave={(v) => onPatch(entry.id, { myNote: v })} />
     </div>
   );
 }
