@@ -109,7 +109,11 @@ interface Domain {
   timeMin?: number; // 只收该时间(分钟)及以后的条目
   timeMax?: number; // 只收该时间之前的条目
   weekdaysOnly?: boolean; // 只在工作日(周一~五)出现，周末隐藏（如「工作」域）
-  timeLabel?: string; // source==="todo" 的域（工作）没有 plan_items，轴上的时段只能写死在这里
+  /** 轴上显示的时段文本。`source: "todo"` 的域（工作）没有 plan_items，时段只能写死 */
+  timeLabel?: string;
+  /** 同上：该域的结束分钟数，给红线定位算。⚠️ 和 timeLabel 是两份——一份给人看、一份给代码算，
+   *  **谁都不解析谁**（从 timeLabel 正则解析结束时间的写法当天翻车过两次，见 domainEndMin） */
+  end?: number;
 }
 
 /**
@@ -136,13 +140,13 @@ const DOMAINS: Domain[] = [
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   // 2026-09-01 新作息：07:30 先吃早餐、英语 07:55 才开始（三条合并成一条整块）
   { key: "english", name: "英语", start: 475, time: "7:55", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–12:00", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–12:00", end: 720, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // 周末上午的学习（09:45–12:00，周六日）——工作日这一段是上班，域为空自动隐藏
   { key: "studyAM", name: "学习", start: 585, time: "9:45", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 540, timeMax: 780 },
   // 日日学 13:00–14:00（周1-6，午休后那一小时）
   { key: "daily", name: "日日学", start: 780, time: "13:00", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["ai"], noteRequired: true, timeMin: 780, timeMax: 840 },
   // 下午上班（14:05–17:20，晚餐 17:25–17:45 是骨架卡，自己一行）
-  { key: "work2", name: "工作", start: 845, time: "14:05", timeLabel: "14:05–17:20", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  { key: "work2", name: "工作", start: 845, time: "14:05", timeLabel: "14:05–17:20", end: 1040, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // 周六下午的学习（14:05–17:30）——工作日为空自动隐藏
   { key: "studyPM", name: "学习", start: 845, time: "14:05", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 840, timeMax: 1080 },
   // 晚间学习 18:30–19:45（周2,4,5；周日是复盘/排课表）
@@ -184,13 +188,18 @@ function domainItems(d: Domain, list: PlanItem[]): PlanItem[] {
  *  实际时间算 min–max。周末学习域会跨午休（09:40–18:00），min–max 是粗颗粒，但仍比
  *  单个开始时间信息多；没有带时段条目时回退 d.time。改条目时间后这里自动跟着变。 */
 /** 某域今天的结束时刻（分钟）——红线定位要用：一行还没结束时，红线该画在它**上面**。
- *  plan 域取今天各条目的最晚结束；todo 域（工作）没有条目，从写死的 timeLabel 里解析。 */
+ *  plan 域取今天各条目的最晚结束；todo 域（工作）没有条目，用写死的 `end`。
+ *
+ *  ⚠️⚠️ **别再改回「从 timeLabel 里正则解析结束时间」**（2026-09-22 当天返工两次）：
+ *  第一版就是那么写的，结果用 perl 往文件里插这行代码时 `\s` `\d` 的反斜杠被吃掉，
+ *  变成 `/[–—-]s*(d{1,2}):(d{2})/` —— 永远匹配不上 "10:15–12:00"，于是工作域的结束时间
+ *  退化成了开始时间，11:13 明明在工作当中、红线却画到了工作下面（她第二次截图指出来的）。
+ *  显示文本和参与计算的数字**各存一份**：`timeLabel` 只管显示，`end` 只管算，谁都不解析谁。
+ */
 function domainEndMin(d: Domain, list: PlanItem[]): number {
   let to = -1;
   for (const it of domainItems(d, list)) to = Math.max(to, slotEndMin(it));
-  if (to > 0) return to;
-  const m = (d.timeLabel ?? "").match(/[–—-]s*(d{1,2}):(d{2})/);
-  return m ? Number(m[1]) * 60 + Number(m[2]) : d.start;
+  return to > 0 ? to : (d.end ?? d.start);
 }
 
 function domainTimeLabel(d: Domain, list: PlanItem[]): string {
@@ -384,13 +393,12 @@ function slotEndMin(item: PlanItem): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
 }
 
-/** todo 域（工作）的时段——它没有 plan_items，时间只写在 `timeLabel` 里。
+/** todo 域（工作）的时段——它没有 plan_items，时间写死在 `start`/`end` 两个数字里。
  *  ⚠️ 2026-09-22：`autoDomainKey` 原来只遍历 `domainItems`，工作域永远是空列表，
- *  于是上班时间里「当前」自动跳到上午的英语（离此刻最近的带时段条目）而不是工作。 */
+ *  于是上班时间里「当前」自动跳到上午的英语（离此刻最近的带时段条目）而不是工作。
+ *  ⚠️ **不从 timeLabel 解析**——同 domainEndMin，那条路当天翻车过两次。 */
 function labelRange(d: Domain): { s: number; e: number } | null {
-  const m = (d.timeLabel ?? "").match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  return { s: Number(m[1]) * 60 + Number(m[2]), e: Number(m[3]) * 60 + Number(m[4]) };
+  return d.end === undefined ? null : { s: d.start, e: d.end };
 }
 
 /**
