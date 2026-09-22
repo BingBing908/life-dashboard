@@ -919,12 +919,23 @@ function Page() {
       })),
   ].sort((a, b) => a.start - b.start);
   /**
-   * 红虚线＝此刻。**按「已经结束」判，不按「已经开始」判**（2026-09-22 Rosie：
-   * 10:25 明明在工作 10:15–12:00 当中，红线却画在工作卡下面，像是工作已经过去了）。
-   * 现在的规则：红线画在**最后一个已结束的行之后**，所以正在进行的那一块永远在红线**下面**
-   * ——线下就是「此刻及以后要做的」，跟「回到此刻」的语义一致。
+   * 红虚线＝此刻。**画在正在进行的那一块内部，按此刻在该时段里的比例定位**
+   * （2026-09-22 Rosie 第三次返工，原话：「我要的效果应该是红线现在正在工作框里靠下的位置，
+   * 因为快要 12 点了但是还没到十二点」）。
+   *
+   * 走过的两版都不对，别再回去：
+   *  ① 最早按「已经开始」判 ⇒ 10:25 时工作已开始，线画到工作**下面**，像是工作过去了；
+   *  ② 改按「已经结束」判 ⇒ 线画到工作**上面**，还是在框外，看不出「已经进行了多久」。
+   * 现在：`nowIn` = 此刻落在哪一块的 [start, end) 里，`nowPct` = 在这块里的百分比，
+   * 渲染时在那一行内部叠一条 absolute 的线（父容器加 relative）。
+   * 落在两块之间的空档（如 12:00–12:05 那 5 分钟）没有进行中的块，才退回用 `gapIdx`
+   * 画在上一块之后的行间线。
    */
-  const nowIdx = axisRows.reduce((acc, r, i) => (r.end <= nowMinutes() ? i : acc), -1);
+  const nowM = nowMinutes();
+  const nowIn = axisRows.findIndex((r) => r.end > r.start && nowM >= r.start && nowM < r.end);
+  const nowPct =
+    nowIn >= 0 ? ((nowM - axisRows[nowIn].start) / (axisRows[nowIn].end - axisRows[nowIn].start)) * 100 : 0;
+  const gapIdx = nowIn >= 0 ? -1 : axisRows.reduce((acc, r, i) => (r.end <= nowM ? i : acc), -1);
   /**
    * 计划里所有学习类条目的标题（英语/AI/认证）——**工作域的兜底过滤用**。
    *
@@ -1216,7 +1227,7 @@ function Page() {
             <div className="w-44 shrink-0 sm:w-52">
               <div className="flex flex-col gap-2">
                 {axisRows.map((row, idx) => (
-                  <div key={row.key}>
+                  <div key={row.key} className={idx === nowIn ? "relative" : undefined}>
                     {row.kind === "domain" ? (
                       (() => {
                         const d = row.d;
@@ -1269,7 +1280,15 @@ function Page() {
                         </span>
                       </div>
                     )}
-                    {idx === nowIdx && <div className="mt-2 border-t-2 border-dashed border-red-400" />}
+                    {/* 进行中的那一块：线叠在块内部、按比例定位（pointer-events-none 才不挡点击） */}
+                    {idx === nowIn && (
+                      <div
+                        className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-red-400"
+                        style={{ top: `${nowPct}%` }}
+                      />
+                    )}
+                    {/* 两块之间的空档：退回画在上一块之后 */}
+                    {idx === gapIdx && <div className="mt-2 border-t-2 border-dashed border-red-400" />}
                   </div>
                 ))}
               </div>
