@@ -53,6 +53,9 @@ import {
 import { createTodo, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
+// 日日学进展摘要：逻辑写在数据主人那边（study-log），这里只调用——跨模块引用不复印
+import { listAllEntries } from "../study-log/data";
+import { todayStudySummary } from "../study-log";
 import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 import { RoadmapStages } from "./RoadmapStages";
 import { Collapse } from "@/components/Collapse";
@@ -823,6 +826,8 @@ function Page() {
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(mondayOf(today), i));
   // 本周各天的打卡状态（补卡：可改「今天及以前」任意一天）
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
+  /** 日日学块的「今天进展」几行字（自动统计，见 study-log 的 todayStudySummary） */
+  const [studyLines, setStudyLines] = useState<string[]>([]);
 
   useEffect(() => {
     // ⚠️ 别直接 setItems(seedIfEmpty 的返回值)：它是会话级缓存的单例 Promise（StrictMode 防双跑），
@@ -849,6 +854,10 @@ function Page() {
     listNotes(today).then((m) => setNotes(Object.fromEntries(m)));
     listTodos().then(setTodos);
     listChecks(yesterday).then(setYChecks);
+    // 日日学块的「今天进展」：读日日学条目、算今天标完了哪些组（逻辑在 study-log，这里只调用）
+    listAllEntries()
+      .then((es) => setStudyLines(todayStudySummary(es, today)))
+      .catch(() => setStudyLines([]));
     // 载入本周「今天及以前」各天的打卡状态，供一周视图补卡
     (async () => {
       const wk: Record<string, Map<string, CheckStatus>> = {};
@@ -1366,6 +1375,23 @@ function Page() {
                   {active.source === "todo" ? "今天要做的（来自待办）" : ""}
                 </span>
               </div>
+              {/* 日日学块的详细内容＝**自动**填今天在日日学里的进展，不用她手填
+                  （2026-09-22 她点名；口径和格式见 study-log 的 todayStudySummary）。
+                  昨天欠的今天补完了会出现「09/21 语文 4/4」这样一行。 */}
+              {active.key === "daily" && (
+                <div className="mb-3 rounded-lg border bg-muted/40 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">今天的日日学进展（自动统计）</p>
+                  {studyLines.length > 0 ? (
+                    <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm tabular-nums">
+                      {studyLines.map((l) => (
+                        <li key={l} className="text-foreground/85">{l}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">今天还没标完任何一条——去日日学里看内容，标过的会自动出现在这里。</p>
+                  )}
+                </div>
+              )}
               {/* 加一行（工作域＝加待办，计划域＝加计划外）始终在最上 */}
               <div className="mb-3">
                 {active.source === "todo" && (

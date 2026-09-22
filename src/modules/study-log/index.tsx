@@ -222,6 +222,43 @@ function todayProgress(list: Entry[], today: string): { done: number; total: num
   return { done, total: inDenominator.size };
 }
 
+/**
+ * 今天在日日学里的动作摘要，给**时间轴的「日日学」块**当详细内容用
+ * （2026-09-22 Rosie：「自动填充到时间轴的日日学的详细内容里」；
+ * 她的例子＝周一语文更新四项、当天只完成一项，周二补完后要在周二看到「921 语文 4/4」）。
+ *
+ * 每行＝一个「内容日期 × 板块」分组：只要今天在这一组里标完过东西，就报**这一组现在的完成度**。
+ * 所以昨天欠的补完了显示「09/21 语文 4/4」，今天的新内容做了显示「今天 AI 3/8」。
+ * ⚠️ 报的是该组的总完成度、不是「今天标完几条」——她要看的是"补到什么程度了"，不是今天的手速。
+ * ⚠️ 判定完成一律走 `entryDone`（默写/交作业/手动标看完三种口径都在里面），
+ * **别在时间轴那边另写一套**——跨模块一律引用不复印，这个项目栽过。
+ */
+export function todayStudySummary(entries: Entry[], today: string): string[] {
+  const real = entries.filter((e) => e.kind !== "note");
+  const touched = new Set<string>(); // `${entry_date}|${board}`：今天在这组里标完过东西
+  for (const e of real) {
+    if (!entryDone(e)) continue;
+    const m = parseMetaObj(e);
+    const on = typeof m.doneOn === "string" ? (m.doneOn as string) : e.entry_date;
+    if (on === today) touched.add(`${e.entry_date}|${e.board}`);
+  }
+  const rows = [...touched].map((key) => {
+    const [date, board] = key.split("|");
+    const group = real.filter((e) => e.entry_date === date && e.board === board);
+    return { date, board, done: group.filter(entryDone).length, total: group.length };
+  });
+  const order = (b: string) => {
+    const i = (HOME_ORDER as string[]).indexOf(b);
+    return i < 0 ? 99 : i;
+  };
+  rows.sort((a, b) => (a.date === b.date ? order(a.board) - order(b.board) : a.date < b.date ? -1 : 1));
+  return rows.map((r) => {
+    const name = BOARDS.find((x) => x.key === r.board)?.name ?? r.board;
+    const when = r.date === today ? "今天" : r.date.slice(5).replace("-", "/");
+    return `${when} ${name} ${r.done}/${r.total}`;
+  });
+}
+
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
 /** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。
