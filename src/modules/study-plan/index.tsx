@@ -384,6 +384,15 @@ function slotEndMin(item: PlanItem): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
 }
 
+/** todo 域（工作）的时段——它没有 plan_items，时间只写在 `timeLabel` 里。
+ *  ⚠️ 2026-09-22：`autoDomainKey` 原来只遍历 `domainItems`，工作域永远是空列表，
+ *  于是上班时间里「当前」自动跳到上午的英语（离此刻最近的带时段条目）而不是工作。 */
+function labelRange(d: Domain): { s: number; e: number } | null {
+  const m = (d.timeLabel ?? "").match(/(\d{1,2}):(\d{2})\s*[–—-]\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return { s: Number(m[1]) * 60 + Number(m[2]), e: Number(m[3]) * 60 + Number(m[4]) };
+}
+
 /**
  * 「当前」视图该停在哪个领域。
  *
@@ -400,6 +409,9 @@ function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): st
   const now = nowMinutes();
   const date = todayStr(); // autoDomainKey 只用于今天，单次条目(@日期)按今天匹配
   for (const d of domains) {
+    // 工作这类 todo 域用写死的时段判断（见 labelRange）
+    const lr = labelRange(d);
+    if (lr && now >= lr.s && now < lr.e) return d.key;
     for (const it of domainItems(d, items)) {
       if (!matchesDay(it, dayNum, date)) continue;
       const s = slotStartMin(it);
@@ -413,6 +425,15 @@ function autoDomainKey(domains: Domain[], items: PlanItem[], dayNum: number): st
   let best: string | null = null;
   let bestDist = Infinity;
   for (const d of domains) {
+    const lr2 = labelRange(d); // 工作域同样参与「挂到最近的域」，否则午休时会挂去上午的英语
+    if (lr2) {
+      const dist2 = lr2.s > now ? (lr2.s - now) * 0.5 : now - lr2.e;
+      if (dist2 < bestDist) {
+        bestDist = dist2;
+        best = d.key;
+      }
+      continue;
+    }
     for (const it of domainItems(d, items)) {
       if (!matchesDay(it, dayNum, date)) continue;
       const s = slotStartMin(it);
