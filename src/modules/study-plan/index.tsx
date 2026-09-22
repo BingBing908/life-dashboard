@@ -498,6 +498,27 @@ function Card() {
   return <p className="text-sm text-muted-foreground">{text ?? "加载中…"}</p>;
 }
 
+/**
+ * 把 `days` 翻译成「这次写的说明会影响哪些天」的人话，给备注框的占位用。
+ *
+ * ⚠️ 2026-09-22 她确认过的预期：日程里新增时选「仅今天」就只属于那天、选「每周这一天」
+ * 就每周重复，而备注（detail）挂在条目上 ⇒ **每周那天都看得到同一段备注**。
+ * 占位文案当场把范围说出来，她写之前就知道这一笔会落到哪些天，不用去猜。
+ * 返回 "once"＝只此一天（`@日期` 那种单次条目）；否则返回「每天」/「每周二」/「周二、周四」。
+ */
+function detailScopeHint(item: PlanItem): string {
+  const pat = (item.days ?? "").split("!")[0].trim();
+  if (pat.startsWith("@")) return "once";
+  if (pat === "*") return "每天";
+  const nums = pat
+    .split(/[,，]/)
+    .map((s) => Number(s.trim()))
+    .filter((n) => n >= 1 && n <= 7);
+  if (nums.length === 0) return "once";
+  if (nums.length === 1) return `每周${DAY_NAMES[nums[0]].slice(1)}`;
+  return nums.map((n) => DAY_NAMES[n]).join("、");
+}
+
 function ItemRow({
   item,
   withCheck,
@@ -510,6 +531,7 @@ function ItemRow({
   onClear,
   onRename,
   onDelete,
+  onSetDetail,
   noteGate = true,
 }: {
   item: PlanItem;
@@ -523,6 +545,14 @@ function ItemRow({
   onClear: () => void;
   onRename: (v: string) => void;
   onDelete?: () => void; // 「今天不做这个」——所有条目都有（2026-09-22 起不再区分种子/计划外）
+  /**
+   * 写这条的「说明/备注」（plan_items.detail）。
+   * ⚠️ 2026-09-22 她要的就是这个入口：「我发现我没办法写今天以外其他计划的详细信息」。
+   * detail **挂在条目上、不挂在某一天**，所以只要这条是「每周这一天」，写一次每周都看得到
+   * ——她自己确认过这个预期（「我备注了一次后每周的这天都应该可以看到详细信息」）。
+   * 占位文案会按 days 区分「仅这一天」和「每周X」，让她当场看出这次写的会影响到哪些天。
+   */
+  onSetDetail?: (v: string) => void;
   noteGate?: boolean; // 补卡过去的天不门控笔记
 }) {
   const done = state === "done";
@@ -563,10 +593,24 @@ function ItemRow({
             className={cn("block text-[15px] font-medium", withCheck && done && "line-through")}
             inputClassName="w-full text-[15px]"
           />
-          {item.detail && (
-            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
-              {item.detail}
-            </p>
+          {onSetDetail ? (
+            <EditableParagraph
+              value={item.detail ?? ""}
+              onSave={onSetDetail}
+              placeholder={
+                detailScopeHint(item) === "once"
+                  ? "＋写点说明（只这一天看得到）"
+                  : `＋写点说明（写一次，${detailScopeHint(item)}都看得到）`
+              }
+              className="mt-0.5 block text-[13px] leading-snug text-muted-foreground"
+              inputClassName="w-full text-[13px]"
+            />
+          ) : (
+            item.detail && (
+              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground" title={item.detail}>
+                {item.detail}
+              </p>
+            )
           )}
         </div>
         {item.url && (
@@ -1075,10 +1119,11 @@ function Page() {
    * 只有**本来就只属于今天**的条目（`@今天` 建的临时项）才真删——给它挂排除会留一条
    * `@今天!今天` 的自我矛盾空壳。
    */
-  async function handleDelete(item: PlanItem) {
-    const onlyToday = (item.days ?? "").split("!")[0].trim() === `@${today}`;
-    if (onlyToday) await retireOrDeleteItem(item, today);
-    else await excludeItemDate(item, today);
+  async function handleDelete(item: PlanItem, date: string = today) {
+    // 「本周」视图里删的是那一天的格子 ⇒ 排除的必须是**那一天**，不能硬写今天
+    const onlyThat = (item.days ?? "").split("!")[0].trim() === `@${date}`;
+    if (onlyThat) await retireOrDeleteItem(item, date);
+    else await excludeItemDate(item, date);
     await refreshItems();
   }
 
@@ -1145,6 +1190,24 @@ function Page() {
       {/* 头部一行（2026-09-20 Rosie：日期/现在/今日进度/适应周提示挪到一行、居右；tab 已撤） */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">时间轴</h1>
+        {/* 当前 / 本周 两档。⚠️ 2026-09-22 把「本周」加回来（9/20 撤 tab 时连它一起撤了），
+            起因：「我发现我没办法写今天以外其他计划的详细信息」——备注（detail）挂在条目上、
+            每周共享，但只有这里能给非今天的条目写。「今天」和「路线」不恢复：前者与日程周视图重合，
+            后者已搬去日程页的 tab。 */}
+        <div className="flex gap-1">
+          {(["current", "week"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "rounded-full px-3 py-0.5 text-sm transition-colors",
+                tab === t ? "bg-primary text-primary-foreground" : "border text-muted-foreground hover:bg-accent",
+              )}
+            >
+              {t === "current" ? "当前" : "本周"}
+            </button>
+          ))}
+        </div>
         {periodOn && (
           <span className="rounded-full border border-pink-300 bg-pink-50 px-3 py-0.5 text-sm text-pink-700">
             🩸 经期中 · 已避开腹部
@@ -1579,7 +1642,10 @@ function Page() {
         </div>
       ) : (
         <div className="mt-4 space-y-6">
-          <p className="text-xs text-muted-foreground">「今天及以前」的天都能补勾（漏打卡了倒回来补）；将来的天不能勾。</p>
+          <p className="text-xs text-muted-foreground">
+            点条目下面那行灰字就能写说明——说明跟着条目走，所以「每周这一天」的活动写一次、每周那天都看得到（占位里写了影响范围）。
+            「今天及以前」的天都能补勾（漏打卡了倒回来补），将来的天不能勾；垃圾桶＝那一天不做这个，不动其它天。
+          </p>
           {[1, 2, 3, 4, 5, 6, 7].map((d) => {
             const dayItems = shown.filter((i) => matchesDay(i, d, weekDates[d - 1]));
             const dateD = weekDates[d - 1];
@@ -1611,7 +1677,8 @@ function Page() {
                       onSkip={() => setStatusForDate(item, dateD, "skip")}
                       onClear={() => setStatusForDate(item, dateD, null)}
                       onRename={(v) => handleRename(item, v)}
-                      onDelete={() => handleDelete(item)}
+                      onDelete={() => handleDelete(item, dateD)}
+                      onSetDetail={(v) => handleSetDetail(item, v)}
                     />
                   ))}
                 </div>
