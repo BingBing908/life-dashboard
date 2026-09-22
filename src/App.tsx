@@ -3,7 +3,7 @@ import { LayoutDashboard } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
-import { runSync } from "@/lib/sync";
+import { getSyncFailures, runSync } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
  *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。
@@ -18,6 +18,8 @@ export default function App() {
   const [view, setViewState] = useState(parseHash);
   const [booting, setBooting] = useState(true); // 首次同步完成前不渲染模块，避免空库重复播种
   const [syncTick, setSyncTick] = useState(0); // 拉到新数据后 +1，用作 key 强制刷新视图
+  // 同步失败的表（云端缺列/表没建时必须看得见，见 sync.ts syncFailures 注释）
+  const [syncFails, setSyncFails] = useState<{ table: string; message: string }[]>([]);
 
   // 监听前进/后退与手动改 hash
   useEffect(() => {
@@ -32,7 +34,10 @@ export default function App() {
     const bump = (changed: boolean) => {
       if (alive && changed) setSyncTick((t) => t + 1);
     };
-    const initial = runSync().then(bump);
+    const initial = runSync().then((c) => {
+      bump(c);
+      if (alive) setSyncFails(getSyncFailures());
+    });
     const timeout = new Promise((r) => setTimeout(r, 4000));
     Promise.race([initial, timeout]).then(() => {
       if (alive) setBooting(false);
@@ -40,7 +45,8 @@ export default function App() {
 
     // 后台同步只推/拉数据，不 bump（不重挂载）——否则会打断正在进行的操作（如默写）、
     // 把用户从当前板块弹回首页。拉到的新数据在下次进入页面时自然显示。
-    const onFocus = () => runSync();
+    const readFails = () => setSyncFails(getSyncFailures());
+    const onFocus = () => runSync().then(readFails);
     window.addEventListener("focus", onFocus);
     const iv = setInterval(onFocus, 30_000);
     return () => {
@@ -91,6 +97,19 @@ export default function App() {
 
       {/* 主区域（syncTick 变化＝拉到云端新数据，用 key 强制重新加载视图） */}
       <main key={syncTick} className="flex-1 overflow-y-auto">
+        {/* 同步失败横幅：某张表推不上云时必须让她看见（见 sync.ts 的 syncFailures 注释——
+            曾经云端缺列、上传每次 400，界面却一声不响，改动两天只存在本机） */}
+        {syncFails.length > 0 && (
+          <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            ⚠️ 有 {syncFails.length} 张表没能同步到云端（改动目前只在这台设备上）：
+            {syncFails.map((f) => (
+              <span key={f.table} className="ml-2 font-medium">{f.table}</span>
+            ))}
+            <span className="ml-2 text-xs text-amber-700">
+              {syncFails[0].message.includes("column") ? "云端缺字段——把 Claude 给的那句 alter table 在 Supabase 里跑一下" : syncFails[0].message}
+            </span>
+          </div>
+        )}
         {active ? <active.Page /> : <DashboardShell onOpenModule={setView} />}
       </main>
     </div>

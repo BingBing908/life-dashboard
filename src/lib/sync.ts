@@ -95,6 +95,23 @@ async function syncTable(
   return toLocal.length > 0;
 }
 
+
+
+/**
+ * 上一轮同步里**上传失败**的表（表名 → 错误消息）。
+ *
+ * ⚠️⚠️ 2026-09-22 加的，起因是一次静默丢数据：本地迁移到 v15 加了
+ * `plan_items.valid_from/valid_to` 和 `todos.source`，但云端那几句 `alter table` 一直没跑，
+ * 于是 `upsert` 每次都被 PostgREST 打回 400（"Could not find the 'valid_from' column"）——
+ * 而 `runSync` 只 `console.warn`，界面上一点提示都没有。结果她在日程/待办里的改动
+ * **两天只存在本机**，自己完全不知道。
+ * 所以：同步失败必须**看得见**（App 顶部横幅），别再让它躲在控制台里。
+ */
+const syncFailures = new Map<string, string>();
+
+export function getSyncFailures(): { table: string; message: string }[] {
+  return [...syncFailures].map(([table, message]) => ({ table, message }));
+}
 let syncing = false;
 
 /**
@@ -114,9 +131,11 @@ export async function runSync(): Promise<boolean> {
       try {
         const c = await syncTable(db, t.name, t.pk);
         changed = changed || c;
+        syncFailures.delete(t.name); // 这轮好了就把旧警报撤掉
       } catch (e) {
-        // 单表失败（表未建 / 偶发冲突）不影响其它表
+        // 单表失败（表未建 / 缺列 / 偶发冲突）不影响其它表，但**必须留痕**给界面看
         const msg = (e as { message?: string })?.message ?? String(e);
+        syncFailures.set(t.name, msg); // 留痕给 App 顶部的横幅用——别再让同步失败只躺在控制台
         console.warn(`[sync] 表 ${t.name} 同步失败：${msg}`);
       }
     }
