@@ -193,6 +193,35 @@ export function entryDone(e: Entry): boolean {
   return !!m.done;
 }
 
+/**
+ * 「今日进度」的口径：**按标记完成的那一天归属，不按内容属于哪一天**
+ * （2026-09-22 Rosie：「如果当天日日学没有学完，次日继续标记看完，就计入次日的日日学进度」）。
+ *
+ * · 分子＝今天标完的（`meta.doneOn === 今天`）——昨天欠的内容今天补完，算今天的功劳；
+ * · 分母＝今天该学的（`entry_date === 今天`）**并上**今天补完的旧条目
+ *   ——补完的必须也进分母，否则会出现 3/1 这种分子大于分母的数。
+ *
+ * ⚠️ 2026-09-22 之前完成的条目没有 `doneOn`，退回按 `entry_date` 归属；
+ * 不这么兜的话历史进度会集体清零（看起来像数据丢了）。
+ * ⚠️ 两处统计（首页格子 BoardTile、板块页头部）**必须共用这一个函数**——
+ * 同一套口径写两遍就会走偏，这个项目里已经栽过好几次（domainItems、todaysWorkTodos 都是）。
+ */
+function todayProgress(list: Entry[], today: string): { done: number; total: number } {
+  let done = 0;
+  const inDenominator = new Set<string>();
+  for (const e of list) {
+    const m = parseMetaObj(e);
+    const on = typeof m.doneOn === "string" ? (m.doneOn as string) : null;
+    const finishedToday = entryDone(e) && (on ? on === today : e.entry_date === today);
+    if (finishedToday) {
+      done++;
+      inDenominator.add(e.id);
+    }
+    if (e.entry_date === today) inDenominator.add(e.id);
+  }
+  return { done, total: inDenominator.size };
+}
+
 // ---------- 顶层组件（含输入的都在顶层，避免重渲染失焦）----------
 
 /** 进度圆环（C4 方案的核心件）。p ∈ [0,1]；分母为 0 时画空环。
@@ -244,8 +273,8 @@ function BoardTile({
 }) {
   const real = entries.filter((e) => e.board === b.key && e.kind !== "note");
   const doneAll = real.filter(entryDone).length;
-  const todays = real.filter((e) => e.entry_date === today);
-  const doneToday = todays.filter(entryDone).length;
+  // 今日进度按「哪天标完的」算（含昨天欠账今天补完的），口径见 todayProgress
+  const tp = todayProgress(real, today);
   // 目前没有暂停中的板块（金融 2026-09-20 恢复）；以后要停哪个就把 key 填进来，灰环+⏸ 机制现成
   const paused = (["--none--"] as string[]).includes(b.key);
   // 2026-09-21 四调定稿（她点名「别按数量，按完成比率走」，欠账数分档已废）：
@@ -269,7 +298,7 @@ function BoardTile({
       </div>
       <div className="text-xs leading-snug tabular-nums" style={{ color: paused ? "#A6A49D" : b.c.sub }}>
         {paused ? "暂停中 · " : ""}已看 {doneAll}/{real.length}
-        {todays.length > 0 && ` · 今日 ${doneToday}/${todays.length}`}
+        {tp.total > 0 && ` · 今日 ${tp.done}/${tp.total}`}
       </div>
     </button>
   );
@@ -1858,7 +1887,19 @@ function Page() {
       else if (k === "status") dbPatch.status = v;
       else metaPatch[k] = v;
     }
-    if (Object.keys(metaPatch).length > 0) dbPatch.meta = withMeta(cur, metaPatch);
+    if (Object.keys(metaPatch).length > 0) {
+      /**
+       * 记下「哪天做完的」（`meta.doneOn`）——今日进度按它归属，见 todayProgress。
+       * ⚠️ 判据是**完成状态是否由未完成翻成完成**，而不是"有没有点标看完"：
+       * 这样三种完成方式（手动标看完 / 默写够遍数 / 交作业被批改）全都自动记上日期，
+       * 不用在每个入口各写一遍（漏一个就会有条目永远算不进当天进度）。
+       * 取消完成时清掉它，免得下次重新完成还挂着旧日期。
+       */
+      const probe = entryDone({ ...cur, meta: withMeta(cur, metaPatch) });
+      if (!entryDone(cur) && probe) metaPatch.doneOn = todayStr();
+      else if (entryDone(cur) && !probe) metaPatch.doneOn = null;
+      dbPatch.meta = withMeta(cur, metaPatch);
+    }
     setAll((a) => a.map((e) => (e.id === id ? { ...e, ...("body" in dbPatch ? { body: dbPatch.body as string } : {}), ...("status" in dbPatch ? { status: dbPatch.status as string } : {}), ...("meta" in dbPatch ? { meta: dbPatch.meta as string } : {}) } : e)));
     await updateEntry(id, dbPatch);
   }
@@ -1870,8 +1911,8 @@ function Page() {
   // 环＝累计看完/全部（今日的环首页格子上已经有，这里给纵深），旁注今日进度
   const boardReal = boardEntries.filter((e) => e.kind !== "note");
   const boardDone = boardReal.filter(entryDone).length;
-  const boardTodays = boardReal.filter((e) => e.entry_date === todayStr());
-  const boardDoneToday = boardTodays.filter(entryDone).length;
+  // 同首页格子共用一套口径（按标完的日子归属，含补完的欠账），见 todayProgress
+  const boardTp = todayProgress(boardReal, todayStr());
 
   return (
     <div className={PAGE}>
@@ -1893,7 +1934,7 @@ function Page() {
             <span className="text-xs leading-snug" style={{ color: cfg.c.sub }}>
               累计看完
               <br />
-              今日 {boardTodays.length > 0 ? `${boardDoneToday}/${boardTodays.length}` : "无新内容"}
+              今日 {boardTp.total > 0 ? `${boardTp.done}/${boardTp.total}` : "无新内容"}
             </span>
           </span>
         )}
