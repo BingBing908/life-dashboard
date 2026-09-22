@@ -585,6 +585,19 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const dictLabel = entry.kind === "古诗" ? "默写这首" : "默写这句";
   const done = entryDone(entry);
   const myNote = (meta.myNote as string | undefined) ?? "";
+  /**
+   * 单词本（meta.words）——⚠️ **不是只有「精读文章」才配生词本**（2026-09-22 Rosie：
+   * 「日日学英语里的生词本怎么还是没有，做生词本呀」）。
+   * 起因：AI 短文刻意用 kind「地道表达」避开五遍默写（新配方要的是阅读不是默写），
+   * 可单词本面板原先只长在 `ReadingCard`（kind==='精读文章'）上，EntryDoc 压根不读 words，
+   * 于是我把 12 个生词写进了 meta.words 却一个都没显示出来。
+   * 现在：**任何条目只要 meta.words 非空就出单词本**，复用同一个 WordBook（可增删、可默写单词）。
+   * ⚠️ 这里的默写**不参与 done 判定**（「地道表达」仍是手动标看完）——别把阅读条目
+   * 变成非默写不能收工，那正是这条新配方要避开的负担。
+   */
+  const words = (meta.words as Word[] | undefined) ?? [];
+  const wordAtt = (meta.wordAtt as WordAtt[] | undefined) ?? [];
+  const [wordMode, setWordMode] = useState<"none" | "word" | "article">("none");
   return (
     <div className={cn("group", CARD, done && "opacity-70")}>
       <div className="flex items-center gap-2">
@@ -629,12 +642,41 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
           )}
         </div>
       </div>
-      {entry.body && (
-        <Blurred active={canDictate && dict}>
-          <p className={cn("mt-2 whitespace-pre-wrap text-foreground/90", READ_BODY)}>
-            <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
-          </p>
-        </Blurred>
+      {/* 正文；带生词本时右侧并排一栏（窄屏自动堆叠），版式同英语精读卡 */}
+      {entry.body &&
+        (words.length > 0 ? (
+          <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_210px]">
+            <div className="min-w-0">
+              <Blurred active={canDictate && dict}>
+                <p className={cn("whitespace-pre-wrap text-foreground/90", READ_BODY)}>
+                  <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
+                </p>
+              </Blurred>
+            </div>
+            <WordBook
+              words={words}
+              wordAtt={wordAtt}
+              dictated={wordAtt.length >= 1}
+              mode={wordMode}
+              onSetMode={setWordMode}
+              onWords={(w) => onPatch?.(entry.id, { words: w })}
+              accent={accent}
+            />
+          </div>
+        ) : (
+          <Blurred active={canDictate && dict}>
+            <p className={cn("mt-2 whitespace-pre-wrap text-foreground/90", READ_BODY)}>
+              <RichText text={entry.body} accent={accent} term={term} setTerm={setTerm} />
+            </p>
+          </Blurred>
+        ))}
+      {wordMode === "word" && onPatch && (
+        <WordDictation
+          words={words}
+          attempts={wordAtt}
+          accent={accent}
+          onSave={(a) => onPatch(entry.id, { wordAtt: [...wordAtt, a].slice(-3) })}
+        />
       )}
       {/* 她的备注：紧跟正文（长文里也一眼能找到），编辑状态由顶部那枚按钮开 */}
       {onPatch && (
