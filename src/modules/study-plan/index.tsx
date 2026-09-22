@@ -109,29 +109,50 @@ interface Domain {
   timeMin?: number; // 只收该时间(分钟)及以后的条目
   timeMax?: number; // 只收该时间之前的条目
   weekdaysOnly?: boolean; // 只在工作日(周一~五)出现，周末隐藏（如「工作」域）
+  timeLabel?: string; // source==="todo" 的域（工作）没有 plan_items，轴上的时段只能写死在这里
 }
 
+/**
+ * 时间轴的「域」＝一天里的大块（养生/英语/工作/日日学/学习/运动/阅读/睡前）。
+ *
+ * ⚠️⚠️ **2026-09-22 按 Rosie 的真实作息重切（她原话：学习 13:00–19:45 那一大段不对，
+ * 应该拆成 13:00–14:00 日日学、14:05–17:45 工作、18:30–19:45 学习）**。
+ * 之前只有一个 `study` 域收全部 ai 条目，于是 min–max 把「日日学 13:00」和「学习 19:45」
+ * 算成一整段、把下午上班时间整个吞了；下午的工作也没有自己的轴节点（work 域只有上午一个 start）。
+ *
+ * 切法＝**同一个 track 按时间窗口分成几个域**（`timeMin`/`timeMax`），这样工作日和周末
+ * 用同一套定义各自成立，不用为周末另写一份：
+ *   ai「日日学」13:00–14:00（周1-6）      → daily
+ *   ai「学习」09:45–12:00（周6,7）        → studyAM
+ *   ai「学习」14:05–17:30（周6）          → studyPM
+ *   ai「学习」18:30–19:45（周2,4,5）、周日的复盘/排课表 → study
+ * ⚠️ **今天没有条目的 plan 域不进轴**（见 `domains` 的 filter）——否则工作日会冒出
+ * 两个空的「学习」占位，跟上午的工作撞在一起。
+ * ⚠️ 工作域是 `source: "todo"`（内容来自待办、没有 plan_items），所以时段只能写死在
+ * `timeLabel` 里——**改上班时间要同时改这里和骨架 frame 那两条「工作」**，别只改一处。
+ */
 const DOMAINS: Domain[] = [
   // 养生只收上午的（泡脚/睡前拉伸这类晚间养生归到最后的「睡前」节点）
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
-  // 2026-09-01 新作息：07:30 先吃早餐、英语 07:50 才开始（四条合并成一条整块）；
-  // 通勤 09:45–10:15，工作 10:15 起（原锚点 09:20 是旧作息的）
-  { key: "english", name: "英语", start: 470, time: "7:50", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 615, time: "10:15", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
-  // ⚠️ 2026-09-01 晚间重排：学习 40min → 90min，拆成 19:00–19:45 和 20:25–21:10 两段，
-  // **中间夹着腰椎稳定(19:45)+运动(19:55–20:20)**。时间全部来自「运动槽虚胖 30min +
-  // 20:40–21:00 的空档 20min」，没动早起、没砍阅读。
-  // ⚠️⚠️ **运动必须排在两段学习中间，不能放到最后**（当天返工修的）：
-  //   ① 放最后会让运动在 20:45–21:10 结束，离睡觉不到一个半小时、紧接着泡脚上床，影响入睡；
-  //   ② 而且本来就要在两段学习之间安排一次起身护腰——**运动就是那次起身**，
-  //      排到最后等于既要另找时间起身、又把运动挤到了睡前。一举两失。
+  // 2026-09-01 新作息：07:30 先吃早餐、英语 07:55 才开始（三条合并成一条整块）
+  { key: "english", name: "英语", start: 475, time: "7:55", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
+  { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–12:00", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  // 周末上午的学习（09:45–12:00，周六日）——工作日这一段是上班，域为空自动隐藏
+  { key: "studyAM", name: "学习", start: 585, time: "9:45", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 540, timeMax: 780 },
+  // 日日学 13:00–14:00（周1-6，午休后那一小时）
+  { key: "daily", name: "日日学", start: 780, time: "13:00", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["ai"], noteRequired: true, timeMin: 780, timeMax: 840 },
+  // 下午上班（14:05–17:20，晚餐 17:25–17:45 是骨架卡，自己一行）
+  { key: "work2", name: "工作", start: 845, time: "14:05", timeLabel: "14:05–17:20", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  // 周六下午的学习（14:05–17:30）——工作日为空自动隐藏
+  { key: "studyPM", name: "学习", start: 845, time: "14:05", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 840, timeMax: 1080 },
+  // 晚间学习 18:30–19:45（周2,4,5；周日是复盘/排课表）
   // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），想恢复时
   // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
-  { key: "study", name: "学习", start: 1140, time: "19:00", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true },
-  { key: "sport", name: "运动", start: 1185, time: "19:45", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false },
-  { key: "reading", name: "阅读", start: 1270, time: "21:10", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "plan", tracks: ["reading"], noteRequired: true },
+  { key: "study", name: "学习", start: 1110, time: "18:30", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 1080 },
+  { key: "sport", name: "运动", start: 1190, time: "19:50", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false },
+  { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "plan", tracks: ["reading"], noteRequired: true },
   // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
-  { key: "bedtime", name: "睡前", start: 1310, time: "21:50", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
+  { key: "bedtime", name: "睡前", start: 1300, time: "21:40", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
 ];
 
 function nowMinutes(): number {
@@ -162,6 +183,16 @@ function domainItems(d: Domain, list: PlanItem[]): PlanItem[] {
 /** 轴节点的时段标签（2026-09-20 Rosie：只显示开始时间不清晰）：按今天该域条目的
  *  实际时间算 min–max。周末学习域会跨午休（09:40–18:00），min–max 是粗颗粒，但仍比
  *  单个开始时间信息多；没有带时段条目时回退 d.time。改条目时间后这里自动跟着变。 */
+/** 某域今天的结束时刻（分钟）——红线定位要用：一行还没结束时，红线该画在它**上面**。
+ *  plan 域取今天各条目的最晚结束；todo 域（工作）没有条目，从写死的 timeLabel 里解析。 */
+function domainEndMin(d: Domain, list: PlanItem[]): number {
+  let to = -1;
+  for (const it of domainItems(d, list)) to = Math.max(to, slotEndMin(it));
+  if (to > 0) return to;
+  const m = (d.timeLabel ?? "").match(/[–—-]s*(d{1,2}):(d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : d.start;
+}
+
 function domainTimeLabel(d: Domain, list: PlanItem[]): string {
   let from = Infinity;
   let to = -1;
@@ -171,7 +202,7 @@ function domainTimeLabel(d: Domain, list: PlanItem[]): string {
     from = Math.min(from, Number(m[1]) * 60 + Number(m[2]));
     to = Math.max(to, Number(m[3]) * 60 + Number(m[4]));
   }
-  if (to < 0) return d.time;
+  if (to < 0) return d.timeLabel ?? d.time;
   const f = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
   return `${f(from)}–${f(to)}`;
 }
@@ -822,7 +853,9 @@ function Page() {
   // 今天视图：按当前时间自动定位的领域（可手动切换查看）
   // 周末（周六/日）不上班，隐藏「工作」域，时间轴只走周末该有的
   const isWeekend = todayNum === 6 || todayNum === 7;
-  const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend));
+  const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend))
+    // ⚠️ 今天一条都没有的 plan 域不上轴（否则工作日会冒出两个空「学习」跟上午的工作撞一起）
+    .filter((d) => d.source !== "plan" || domainItems(d, todays).length > 0);
   const autoKey = autoDomainKey(domains, items, todayNum);
   const activeKey = selected ?? autoKey;
   const active = domains.find((d) => d.key === activeKey) ?? domains.find((d) => d.key === autoKey)!;
@@ -833,8 +866,8 @@ function Page() {
    *  「缓冲」不放（5 分钟填缝是噪音）。三餐卡显示饮食模块填的内容（早餐｜茶叶蛋+豆浆），
    *  点三餐跳饮食页、点日日学跳日日学。 */
   const axisRows: (
-    | { kind: "domain"; key: string; start: number; d: Domain }
-    | { kind: "frame"; key: string; start: number; it: PlanItem; label: string; jump?: string }
+    | { kind: "domain"; key: string; start: number; end: number; d: Domain }
+    | { kind: "frame"; key: string; start: number; end: number; it: PlanItem; label: string; jump?: string }
   )[] = [
     ...domains.map((d) => {
       let s = Infinity;
@@ -842,7 +875,7 @@ function Page() {
         const v = slotStartMin(it);
         if (v > 0) s = Math.min(s, v);
       }
-      return { kind: "domain" as const, key: `d-${d.key}`, start: s === Infinity ? d.start : s, d };
+      return { kind: "domain" as const, key: `d-${d.key}`, start: s === Infinity ? d.start : s, end: domainEndMin(d, todays), d };
     }),
     ...frames
       .filter((f) => matchesDay(f, todayNum, today) && f.title !== "工作" && f.title !== "缓冲")
@@ -850,12 +883,33 @@ function Page() {
         kind: "frame" as const,
         key: `f-${f.id}`,
         start: slotStartMin(f),
+        end: slotEndMin(f) > 0 ? slotEndMin(f) : slotStartMin(f),
         it: f,
         label: mealTexts[f.title] ? `${f.title}｜${mealTexts[f.title]}` : f.title,
         jump: f.title.includes("餐") ? "#/supplement" : f.title === "日日学" ? "#/study-log" : undefined,
       })),
   ].sort((a, b) => a.start - b.start);
-  const nowIdx = axisRows.reduce((acc, r, i) => (r.start <= nowMinutes() ? i : acc), -1);
+  /**
+   * 红虚线＝此刻。**按「已经结束」判，不按「已经开始」判**（2026-09-22 Rosie：
+   * 10:25 明明在工作 10:15–12:00 当中，红线却画在工作卡下面，像是工作已经过去了）。
+   * 现在的规则：红线画在**最后一个已结束的行之后**，所以正在进行的那一块永远在红线**下面**
+   * ——线下就是「此刻及以后要做的」，跟「回到此刻」的语义一致。
+   */
+  const nowIdx = axisRows.reduce((acc, r, i) => (r.end <= nowMinutes() ? i : acc), -1);
+  /**
+   * 计划里所有学习类条目的标题（英语/AI/认证）——**工作域的兜底过滤用**。
+   *
+   * ⚠️ 2026-09-22 Rosie：「工作的类目应该是待办里的工作且今天，不该包含学习」。
+   * 截图里「新概念学习／口语跟读／单词背诵」跑进了工作栏。根因有两层：
+   *  ① 它们是 9/20 在日程里写英语三行时 `createTodoIfMissing` 顺手建的复印件（现在已改引用模式，不再建）；
+   *  ② 本该被 `t.source === "study"` 挡住，但**云端 todos 表还没加 source 列**（她那句 ALTER 还没跑），
+   *     同步下来 source 恒为空 ⇒ 过滤形同不存在。
+   * 所以这里再加一道**按标题**的兜底：标题跟任一学习计划条目同名的待办，不进工作域。
+   * 待办页 `isStudyShadow` 用的是同一个思路，别只改一处。
+   */
+  const studyTitles = new Set(
+    items.filter((i) => i.track === "english" || i.track === "ai" || i.track === "cert").map((i) => i.title),
+  );
   /**
    * 工作域「今天该露面」的待办：未完成的（due≤今天，含逾期）+ **今天**完成的。
    * 今天以前就完成的不算——那些归待办页的「历史已完成」。
@@ -868,7 +922,7 @@ function Page() {
   function todaysWorkTodos(): Todo[] {
     return todos
       .filter(
-        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today) && t.source !== "study",
+        (t) => t.due_date && t.due_date <= today && (!t.done || (t.done_at ?? "").slice(0, 10) === today) && !isStaleStudyTodo(t, today) && t.source !== "study" && !studyTitles.has(t.title),
       )
       .sort((a, b) => Number(!!a.done) - Number(!!b.done)); // 今天完成的沉到最下，不消失
   }
