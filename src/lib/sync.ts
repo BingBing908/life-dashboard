@@ -85,13 +85,21 @@ async function syncTable(
     }
   }
 
+  /**
+   * ⚠️⚠️ **上传失败不能阻断下载**（2026-09-22 发现）：原来这里 `throw upErr` 直接退出，
+   * 于是云端 todos 缺 source 列、上传每次 400 的那两天里，**这张表连云端的改动也拉不下来了**
+   * ——她本地看到的是一个彻底冻结的表，而我在云端做的修正（比如软删几条脏待办）永远到不了她眼前。
+   * 所以：上传的错先记下来，**下载照做**，最后再抛出去让顶部横幅报警。
+   */
+  let upErrMsg: string | null = null;
   if (toRemote.length > 0) {
     const { error: upErr } = await supabase.from(name).upsert(toRemote, { onConflict: pk });
-    if (upErr) throw upErr;
+    if (upErr) upErrMsg = upErr.message;
   }
   for (const row of toLocal) {
     await upsertLocal(db, name, pk, row);
   }
+  if (upErrMsg) throw new Error(upErrMsg);
   return toLocal.length > 0;
 }
 

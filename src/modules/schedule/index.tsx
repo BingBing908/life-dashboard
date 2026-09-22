@@ -67,6 +67,15 @@ function Page() {
     const today = todayStr();
     const [list, periodOn, todos] = await Promise.all([listAllItems(), getPeriodOn(), listTodos()]);
     setItems(list.map((i) => applyPeriod(i, periodOn)).filter((i): i is PlanItem => i !== null));
+    // ⚠️⚠️ 工作块只放**工作**待办，学习类一律挡在外面（2026-09-22 Rosie 截图：
+    // 周二工作块里混着「新概念学习／口语跟读／单词背诵」）。两道闸：
+    //  ① `source === 'study'`——老复印件的标记；但**云端 todos 至今没有 source 列**，
+    //     同步不上去，这道闸对已有数据基本失效；
+    //  ② 按标题兜底：标题和任一学习计划条目（english/ai/cert）同名的，不进工作块。
+    // 时间轴那边（study-plan 的 todaysWorkTodos）用的是同一套判断，改一处记得对一眼另一处。
+    const studyTitles = new Set(
+      list.filter((i) => i.track === "english" || i.track === "ai" || i.track === "cert").map((i) => i.title),
+    );
     // 「今天的待办」口径与总览/时间轴一致：标过今天（含逾期未完成），已完成的只留今天完成的；
     // 学习类过期不顺延（isStaleStudyTodo）
     setTodayTodos(
@@ -77,7 +86,8 @@ function Page() {
           (!t.done || (t.done_at ?? "").slice(0, 10) === today) &&
           !isStaleStudyTodo(t, today) &&
           // 学习行已改为直接引用计划数据，老复印件（source='study'）不再进工作块
-          t.source !== "study",
+          t.source !== "study" &&
+          !studyTitles.has(t.title),
       ),
     );
     const mon = mondayOf(today);
