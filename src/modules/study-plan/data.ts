@@ -319,6 +319,24 @@ export async function updateItemTitle(id: string, title: string): Promise<void> 
   ]);
 }
 
+/**
+ * **只让某条在某一天不生效**——往 days 后面挂 `!日期`，重复规则本身一个字不动。
+ *
+ * ⚠️ 2026-09-22 Rosie 点名的语义：「如果我在时间轴里做调整，默认为当日的调整，
+ * 不影响后一天或后一周等时间，仅调整当天」。所以时间轴里的「删除」＝**今天不做这个**，
+ * 不是把这条计划从模板里拿掉：昨天的打卡照旧、明天照旧出现。
+ * 也正因为它不破坏模板，删除按钮才能对**所有**条目放开（原来只有自己加的「计划外」可删，
+ * 种子条目怕误删而锁着——那道锁现在没有存在的理由了）。
+ */
+export async function excludeItemDate(item: PlanItem, date: string): Promise<void> {
+  const db = await getDb();
+  await db.execute("UPDATE plan_items SET days = $1, updated_at = $2 WHERE id = $3", [
+    withDateExcluded(item.days, date),
+    nowIso(),
+    item.id,
+  ]);
+}
+
 /** 改时间段和星期（日程页编辑用）。days：'*' 或 '1,3,5'；timeSlot 空串存 null（当天无固定钟点） */
 export async function updateItemSlot(id: string, timeSlot: string, days: string): Promise<void> {
   const db = await getDb();

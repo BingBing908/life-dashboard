@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
-import { seedUuid } from "@/lib/db";
+
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
 import { useSubPath } from "@/lib/hashRoute";
 import { openLink } from "@/lib/openLink";
@@ -43,6 +43,7 @@ import {
   setNote,
   toggleCheck,
   TRACKS,
+  excludeItemDate,
   retireOrDeleteItem,
   updateItemUrl,
   type CheckStatus,
@@ -52,36 +53,20 @@ import {
 import { createTodo, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
-import { SEED_ITEMS, SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
+import { SEMESTER_PLAN, SEMESTER_TARGET } from "./seed";
 import { RoadmapStages } from "./RoadmapStages";
 import { Collapse } from "@/components/Collapse";
 
-/** 所有种子条目的确定性 id 集合（与 seedIfEmpty 的生成方式完全一致）。
- *  ⚠️ 用 id 判定「是否原定计划」，不用名字——名字会被经期开关换成 period_title、也会被就地改名，
- *  按名字判定会误伤（Rosie 踩过：经期版腰椎稳定被当成计划外给删了）；id 建库起就固定，最稳。 */
-const SEED_IDS = new Set(
-  SEED_ITEMS.map((s) => seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`)),
-);
-
-/** 种子的「内容指纹」，用来兜住**改过 key 的老行**：id 是播种那天按
- *  `track|title|time_slot` 算死的，后来把某条的 track/标题/时段一改，key 就变了，
- *  早先播下的那行 id 仍是老值、不在 SEED_IDS 里，于是被当成「计划外」给出删除按钮。
- *  2026-07-28 踩到：足弓重建 2026-07-20 播种（那时 key 与现在不同），成了可删的孤儿行。 */
-const SEED_KEYS = new Set(
-  SEED_ITEMS.map((s) => `${s.track}|${s.title}|${s.time_slot}`),
-);
-
-/** 是否原定计划条目——是则不允许删除，只有自己加的「计划外」（随机 id）才能删。
- *  先看 id（最稳：经期开关换名、就地改名都不影响它；Rosie 踩过按名字判定误删经期版腰椎稳定），
- *  id 认不出再退回内容指纹。两条都不中才算计划外。
- *  ⚠️ 不能反过来只留指纹——经期 swap 会把 title 换成 period_title，那时只有 id 认得出来。
- *  「计划外」是 addExtra 建的、没有 time_slot，指纹永远配不上带时段的种子，不会被误锁。 */
-function isSeedItem(item: PlanItem): boolean {
-  return (
-    SEED_IDS.has(item.id) ||
-    SEED_KEYS.has(`${item.track}|${item.title}|${item.time_slot}`)
-  );
-}
+/**
+ * ⚠️⚠️ **「原定计划不给删」那道锁 2026-09-22 拆掉了**（她原话：「为什么只有这一个是可以删掉的，
+ * 我的预期应该是全部可灵活调整，也就是全部可以删」）。
+ *
+ * 原来靠 `isSeedItem`（SEED_IDS 确定性 id + SEED_KEYS 内容指纹）挡住种子条目的删除按钮，
+ * 只放开自己加的「计划外」——**那道锁存在的唯一理由是「删除会把计划从模板里永久拿掉」**。
+ * 现在时间轴的删除改成了「今天不做这个」（`excludeItemDate` 往 days 挂 `!今天`，
+ * 重复规则和历史打卡全不动），误删模板这件事根本不会发生，锁自然没必要了。
+ * 想找那两个集合的历史原因（经期换名踩坑、足弓重建成孤儿行）翻 git log 这一行。
+ */
 
 /** 四个视图 tab，进 hash 子路径（当前＝无子段，见 lib/hashRoute.ts 的约定）。
  *  **当前 / 今天 分工**（2026-07-28 Rosie 定）：
@@ -537,7 +522,7 @@ function ItemRow({
   onSkip: () => void;
   onClear: () => void;
   onRename: (v: string) => void;
-  onDelete?: () => void; // 仅计划外（自己加的）传；原定计划不给删
+  onDelete?: () => void; // 「今天不做这个」——所有条目都有（2026-09-22 起不再区分种子/计划外）
   noteGate?: boolean; // 补卡过去的天不门控笔记
 }) {
   const done = state === "done";
@@ -596,7 +581,7 @@ function ItemRow({
         {onDelete && (
           <button
             className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
-            title="删除（计划外·自己加的）"
+            title="今天不做这个（只影响今天，明天照旧）"
             onClick={onDelete}
           >
             <Trash2 className="size-4" />
@@ -647,7 +632,7 @@ function ThreeRowCard({
   onDone: () => void;
   onSkip: () => void;
   onClear: () => void;
-  onDelete?: () => void; // 仅计划外（自己加的）传，用来删除
+  onDelete?: () => void; // 「今天不做这个」——所有条目都有
   onSetUrl?: (v: string) => void; // 仅计划外传，点「＋加链接」就地写链接
   /** 2026-09-20 Rosie：「我未必按你安排的学一模一样」——计划卡的标题/详解/时间全部可就地改。
    *  三个都可选：工作卡（来自待办）不传就保持只读。 */
@@ -720,7 +705,7 @@ function ThreeRowCard({
           disabledHint="先写「做了什么」才能标记完成"
         />
         {onDelete && (
-          <button onClick={onDelete} title="删除（计划外·自己加的）" className="shrink-0 text-muted-foreground hover:text-destructive">
+          <button onClick={onDelete} title="今天不做这个（只影响今天，明天照旧）" className="shrink-0 text-muted-foreground hover:text-destructive">
             <Trash2 className="size-4" />
           </button>
         )}
@@ -1054,10 +1039,15 @@ function Page() {
     setTodos((ts) => [...ts, t]);
   }
 
-  // 在计划领域加一条「计划外」（自己练/做的，今天该 track），可删；原定计划不可删
+  /**
+   * 在某个领域临时加一条（自己练的/临时做的）。
+   * ⚠️ 2026-09-22 起 days 用 **`@今天`＝只记今天**，不再用 `String(dayNumOf(today))`（那是"以后每个周X"、
+   * 会每周重复冒出来）。同「时间轴里的调整默认只作用于当天」这条规矩——
+   * 想让某件事每周都做，去日程页加，那里才是排模板的地方。
+   */
   async function addExtra(track: Track, title: string) {
     const order = Math.max(0, ...items.map((i) => i.sort_order)) + 1;
-    const item = await createItem({ track, days: String(dayNumOf(today)), time_slot: null, title }, order);
+    const item = await createItem({ track, days: `@${today}`, time_slot: null, title }, order);
     setItems((its) => [...its, item]);
   }
 
@@ -1078,8 +1068,17 @@ function Page() {
     await refreshItems();
   }
 
+  /**
+   * 时间轴里的删除＝**今天不做这个**，不动以后（2026-09-22 她点名：「如果我在时间轴里做调整，
+   * 默认为当日的调整，不影响后一天或后一周等时间，仅调整当天」）。
+   * 走 `excludeItemDate`：往 days 挂 `!今天`，重复规则和昨天的打卡全不动，明天照旧出现。
+   * 只有**本来就只属于今天**的条目（`@今天` 建的临时项）才真删——给它挂排除会留一条
+   * `@今天!今天` 的自我矛盾空壳。
+   */
   async function handleDelete(item: PlanItem) {
-    await retireOrDeleteItem(item, today);
+    const onlyToday = (item.days ?? "").split("!")[0].trim() === `@${today}`;
+    if (onlyToday) await retireOrDeleteItem(item, today);
+    else await excludeItemDate(item, today);
     await refreshItems();
   }
 
@@ -1311,7 +1310,7 @@ function Page() {
                 )}
                 {active.source === "plan" && active.tracks && (
                   <QuickAdd
-                    placeholder={`加一条计划外的（自己练/做的，今天记进「${active.name}」，可删）`}
+                    placeholder={`临时加一条（只记今天，不会每周重复；记进「${active.name}」）`}
                     cta="新增"
                     variant="outline"
                     onAdd={(title) => addExtra(active.tracks![0], title)}
@@ -1373,8 +1372,8 @@ function Page() {
                           onDone={() => setStatus(i, "done")}
                           onSkip={() => setStatus(i, "skip")}
                           onClear={() => setStatus(i, null)}
-                          onDelete={isSeedItem(i) ? undefined : () => handleDelete(i)}
-                          onSetUrl={isSeedItem(i) ? undefined : (v) => handleSetUrl(i.id, v)}
+                          onDelete={() => handleDelete(i)}
+                          onSetUrl={(v) => handleSetUrl(i.id, v)}
                           onEditTitle={(v) => handleRenameMulti(i, v)}
                           onEditDetail={(v) => handleSetDetail(i, v)}
                           onEditSlot={(v) => handleSetSlot(i, v)}
@@ -1612,7 +1611,7 @@ function Page() {
                       onSkip={() => setStatusForDate(item, dateD, "skip")}
                       onClear={() => setStatusForDate(item, dateD, null)}
                       onRename={(v) => handleRename(item, v)}
-                      onDelete={isSeedItem(item) ? undefined : () => handleDelete(item)}
+                      onDelete={() => handleDelete(item)}
                     />
                   ))}
                 </div>
