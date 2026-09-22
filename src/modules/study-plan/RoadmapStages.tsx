@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE } from "@/lib/ui";
 import { getRoadmapMarks, setRoadmapMark, type RoadmapMark } from "./data";
-import { ROADMAP_STAGES, type RoadmapStage } from "./roadmap";
+import { ROADMAP_STAGES, ROADMAP_THREADS, type RoadmapStage } from "./roadmap";
 
 /**
  * 冲刺路线（阶段目标 + 进度指针），渲染在「路线」tab 顶部。
@@ -135,6 +135,19 @@ export function RoadmapStages() {
           时间范围是指引不是死线——按进度走，做完一个阶段再进下一个
         </span>
       </div>
+      {/* 贯穿主线：不属于某个阶段、每个阶段都在做的三件事（见 roadmap.ts ROADMAP_THREADS 的由来） */}
+      <section className={cn(CARD, "border-blue-200 bg-blue-50/40")}>
+        <h3 className="text-sm font-semibold text-foreground/80">贯穿全程的三条主线</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">不分阶段——每个阶段都要一直做的事</p>
+        <ul className="mt-2 space-y-2">
+          {ROADMAP_THREADS.map((t, i) => (
+            <li key={t.title} className="text-sm">
+              <span className="mr-1.5 font-medium text-primary">{i + 1}. {t.title}</span>
+              <span className="text-foreground/80">{t.body}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
       {ROADMAP_STAGES.map((s) => (
         <StageCard
           key={s.id}
