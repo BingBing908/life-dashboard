@@ -53,7 +53,8 @@ function Page() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [weekChecks, setWeekChecks] = useState<Record<string, Map<string, CheckStatus>>>({});
   const [weekMeals, setWeekMeals] = useState<Record<string, Record<string, string>>>({});
-  const [todayTodos, setTodayTodos] = useState<Todo[]>([]);
+  /** 过滤掉学习类之后的全部待办（哪天显示哪条交给 todosOnDate 按天算） */
+  const [workTodos, setWorkTodos] = useState<Todo[]>([]);
   // 添加面板默认藏着（2026-09-20 Rosie）：＋ 按钮或双击周历空白处唤醒；空白处双击带预填时间
   const [addCtx, setAddCtx] = useState<{ slot?: string; days?: string } | null>(null);
   // day＝null ⇒ 编辑整条；day＝1..7 ⇒ 只改那一天（编辑区拆分）。
@@ -76,14 +77,13 @@ function Page() {
     const studyTitles = new Set(
       list.filter((i) => i.track === "english" || i.track === "ai" || i.track === "cert").map((i) => i.title),
     );
-    // 「今天的待办」口径与总览/时间轴一致：标过今天（含逾期未完成），已完成的只留今天完成的；
-    // 学习类过期不顺延（isStaleStudyTodo）
-    setTodayTodos(
+
+    // ⚠️ 2026-10-13 起这里只做**学习类过滤**，不再限定「今天」——
+    // 哪天的工作显示在哪天由 `todosOnDate` 按天算（周一做完的留在周一那格，见它的注释）。
+    // 原来在这里就把范围掐成今天，导致历史格子里永远看不到干过的活。
+    setWorkTodos(
       todos.filter(
         (t) =>
-          t.due_date &&
-          t.due_date <= today &&
-          (!t.done || (t.done_at ?? "").slice(0, 10) === today) &&
           !isStaleStudyTodo(t, today) &&
           // 学习行已改为直接引用计划数据，老复印件（source='study'）不再进工作块
           t.source !== "study" &&
@@ -191,7 +191,7 @@ function Page() {
             items={items}
             weekChecks={weekChecks}
             weekMeals={weekMeals}
-            todayTodos={todayTodos}
+            workTodos={workTodos}
             onSelect={(sel, day) => setSelected({ ids: sel.map((i) => i.id), day })}
             onAddAt={(dayNum, slot) => setAddCtx({ slot, days: String(dayNum) })}
           />

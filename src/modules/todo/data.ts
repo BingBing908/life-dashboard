@@ -102,6 +102,31 @@ export function isStaleStudyTodo(t: Todo, today: string): boolean {
   return t.source === "study" && !t.done && !!t.due_date && t.due_date < today;
 }
 
+/**
+ * 某一天的「工作」块该显示哪些待办——**按天归属，不是只给今天看**
+ * （2026-10-13 Rosie：「昨天被创建的工作昨天还在日程和时间轴里，但今天就看不到了，
+ * 且在本周的时间轴里消失了，其实应该保留已完成状态并可在日程表被看见已完成来着」）。
+ *
+ * 原来日程周视图只给今天那一列塞待办、其余六天一律空数组，所以周一做完的工作在周一那格
+ * 永远是空的——干过的活在日历上不留痕，跟她「一段时间属于一个区块」的用法冲突。
+ *
+ * 归属规则：
+ * · 已完成 ⇒ 落在**完成那天**（`done_at` 的日期），历史格子里留痕、带删除线；
+ * · 未完成 + 今天 ⇒ 今天要做的（`due_date <= 今天`，含逾期顺延过来的）；
+ * · 未完成 + 将来某天 ⇒ `due_date` 正好是那天才显示（提前安排的活）。
+ * 过去的天刻意不显示未完成项：那天没做成就是没做成，不该在历史格子里装作"还要做"。
+ *
+ * ⚠️ 学习类的过滤（`source==='study'`／同名计划条目）留给调用方——那是各页面的显示口径，
+ * 这里只管"哪天的事"。
+ */
+export function todosOnDate(todos: Todo[], date: string, today: string): Todo[] {
+  return todos.filter((t) => {
+    if (t.done) return (t.done_at ?? "").slice(0, 10) === date;
+    if (date === today) return !!t.due_date && t.due_date <= today;
+    return date > today && t.due_date === date;
+  });
+}
+
 export async function toggleTodo(id: string, done: boolean): Promise<void> {
   const db = await getDb();
   const ts = nowIso();

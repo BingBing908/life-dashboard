@@ -50,7 +50,7 @@ import {
   type PlanItem,
   type Track,
 } from "./data";
-import { createTodo, isStaleStudyTodo, listTodos, toggleTodo, type Todo } from "../todo/data";
+import { createTodo, isStaleStudyTodo, listTodos, todosOnDate, toggleTodo, type Todo } from "../todo/data";
 // 三餐互通（2026-09-20）：全天轴上的三餐卡显示饮食模块填的内容，只读——填写去饮食页
 import { getMeals } from "../supplement/data";
 // 日日学进展摘要：逻辑写在数据主人那边（study-log），这里只调用——跨模块引用不复印
@@ -988,6 +988,10 @@ function Page() {
   const studyTitles = new Set(
     items.filter((i) => i.track === "english" || i.track === "ai" || i.track === "cert").map((i) => i.title),
   );
+  /** 工作待办（滤掉学习类）全集——「本周」视图按天分配时用，口径同日程周视图 */
+  const workTodos = todos.filter(
+    (t) => !isStaleStudyTodo(t, today) && t.source !== "study" && !studyTitles.has(t.title),
+  );
   /**
    * 工作域「今天该露面」的待办：未完成的（due≤今天，含逾期）+ **今天**完成的。
    * 今天以前就完成的不算——那些归待办页的「历史已完成」。
@@ -1706,6 +1710,25 @@ function Page() {
                       onDelete={() => handleDelete(item, dateD)}
                       onSetDetail={(v) => handleSetDetail(item, v)}
                     />
+                  ))}
+                  {/* 那天的工作待办（2026-10-13 她：「在本周的时间轴里消失了」）。
+                      只读一行——工作的勾在待办页和「当前」里打，这里只是让干过的活在本周留下痕迹。
+                      哪天显示哪条走 todosOnDate（和日程周视图同一个口径）。 */}
+                  {todosOnDate(workTodos, dateD, today).map((t) => (
+                    <div
+                      key={`${d}-todo-${t.id}`}
+                      className="flex items-center gap-3 rounded-lg border border-dashed px-4 py-2.5 text-sm"
+                    >
+                      <span className="w-28 shrink-0 text-muted-foreground">工作</span>
+                      <span className={cn("min-w-0 flex-1 truncate", t.done && "text-muted-foreground line-through")}>
+                        {t.title}
+                      </span>
+                      {t.done ? (
+                        <span className="shrink-0 text-xs text-emerald-600">✓ 已完成</span>
+                      ) : (
+                        <span className="shrink-0 text-xs text-muted-foreground">待做</span>
+                      )}
+                    </div>
                   ))}
                 </div>
               </section>

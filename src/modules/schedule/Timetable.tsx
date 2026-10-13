@@ -3,7 +3,7 @@ import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayNumOf, matchesDay, type CheckStatus, type PlanItem } from "../study-plan/data";
-import type { Todo } from "../todo/data";
+import { todosOnDate, type Todo } from "../todo/data";
 
 /**
  * 「日程」＝一周全览，F1 竖排周历（2026-09-19 Rosie 选定）：
@@ -153,7 +153,7 @@ export function Timetable({
   items,
   weekChecks,
   weekMeals,
-  todayTodos,
+  workTodos,
   onSelect,
   onAddAt,
 }: {
@@ -161,7 +161,8 @@ export function Timetable({
   weekChecks: Record<string, Map<string, CheckStatus>>;
   /** date → { 早餐/午餐/晚餐 → 饮食里填的内容 }，三餐块显示用 */
   weekMeals: Record<string, Record<string, string>>;
-  todayTodos: Todo[];
+  /** 过滤掉学习类之后的**全部**待办；哪天显示哪条由 todosOnDate 按天算（见它的注释） */
+  workTodos: Todo[];
   /** 把块里的计划条目交给日程页的编辑区（待办条目不在内，去待办模块改）。
    *  day＝null ⇒ 编辑整条（一周同款一起变，双击触发）；
    *  day＝1..7 ⇒ 只改那一天（单击块出 🖊 再点触发，编辑区负责拆分）。 */
@@ -183,7 +184,7 @@ export function Timetable({
       name,
       dayNum,
       date,
-      ...buildDay(dayNum, date, items, dayNum === todayNum ? todayTodos : [], weekMeals[date] ?? {}),
+      ...buildDay(dayNum, date, items, todosOnDate(workTodos, date, today), weekMeals[date] ?? {}),
       checks: weekChecks[date],
     };
   });
