@@ -194,32 +194,41 @@ export function entryDone(e: Entry): boolean {
 }
 
 /**
- * 「今日进度」的口径：**按标记完成的那一天归属，不按内容属于哪一天**
- * （2026-09-22 Rosie：「如果当天日日学没有学完，次日继续标记看完，就计入次日的日日学进度」）。
+ * 「今日」这一格要回答两个**不同**的问题，所以返回两组数、**不要再合成一个分数**：
  *
- * · 分子＝今天标完的（`meta.doneOn === 今天`）——昨天欠的内容今天补完，算今天的功劳；
- * · 分母＝今天该学的（`entry_date === 今天`）**并上**今天补完的旧条目
- *   ——补完的必须也进分母，否则会出现 3/1 这种分子大于分母的数。
+ * · `done/total`＝**今天更新的内容**（`entry_date === 今天`）学完了多少 ⇒ 显示「今日 1/1」；
+ * · `backfilled`＝**旧内容今天才补完的**条数（`doneOn === 今天` 且不是今天的内容）⇒ 显示「补旧 3」。
  *
- * ⚠️ 2026-09-22 之前完成的条目没有 `doneOn`，退回按 `entry_date` 归属；
- * 不这么兜的话历史进度会集体清零（看起来像数据丢了）。
+ * ⚠️⚠️ **2026-10-19 返工，别再合并回去**：原先把两者并进一个分数（分母＝今天的 ∪ 补完的），
+ * 数字其实是准的，但她一眼就看出不对——那天我只注入了英语 1 条，首页却显示
+ * 「英语 今日 3/3、语文 3/3、商金 3/3…」（因为她当天在 app 里补标了 14 条旧内容）。
+ * 她的原话：「这个今天的参考依据是不是不对，实际上今天应该只更新了英语 1/1」。
+ * **根因不是算错，是一个标签扛了两个含义**：9/22 她要的是「昨天没学完今天补上要算今天的功劳」，
+ * 而她平时看这一格是想知道「今天有什么新内容、学完没」。两个需求都真实，所以拆成两个数各自显示，
+ * 谁也不污染谁。
+ * ⚠️ 2026-09-22 之前完成的老条目没有 `doneOn`，它们只会算进自己那天的 `done/total`、
+ * 不会进任何一天的 `backfilled`（没有日期就无从归属，宁可不算也别乱算）。
  * ⚠️ 两处统计（首页格子 BoardTile、板块页头部）**必须共用这一个函数**——
  * 同一套口径写两遍就会走偏，这个项目里已经栽过好几次（domainItems、todaysWorkTodos 都是）。
  */
-function todayProgress(list: Entry[], today: string): { done: number; total: number } {
+function todayProgress(list: Entry[], today: string): { done: number; total: number; backfilled: number } {
   let done = 0;
-  const inDenominator = new Set<string>();
+  let total = 0;
+  let backfilled = 0;
   for (const e of list) {
     const m = parseMetaObj(e);
     const on = typeof m.doneOn === "string" ? (m.doneOn as string) : null;
-    const finishedToday = entryDone(e) && (on ? on === today : e.entry_date === today);
-    if (finishedToday) {
-      done++;
-      inDenominator.add(e.id);
+    const fin = entryDone(e);
+    if (e.entry_date === today) {
+      // 今天更新的内容：不管哪天标完的都算进今日的分母
+      total++;
+      if (fin) done++;
+    } else if (fin && on === today) {
+      // 旧内容今天才补完的 ⇒ 单独计数，不混进「今日 X/Y」
+      backfilled++;
     }
-    if (e.entry_date === today) inDenominator.add(e.id);
   }
-  return { done, total: inDenominator.size };
+  return { done, total, backfilled };
 }
 
 /**
@@ -336,6 +345,7 @@ function BoardTile({
       <div className="text-xs leading-snug tabular-nums" style={{ color: paused ? "#A6A49D" : b.c.sub }}>
         {paused ? "暂停中 · " : ""}已看 {doneAll}/{real.length}
         {tp.total > 0 && ` · 今日 ${tp.done}/${tp.total}`}
+        {tp.backfilled > 0 && ` · 补旧 ${tp.backfilled}`}
       </div>
     </button>
   );
@@ -1972,6 +1982,12 @@ function Page() {
               累计看完
               <br />
               今日 {boardTp.total > 0 ? `${boardTp.done}/${boardTp.total}` : "无新内容"}
+              {boardTp.backfilled > 0 && (
+                <>
+                  <br />
+                  补旧 {boardTp.backfilled}
+                </>
+              )}
             </span>
           </span>
         )}
