@@ -141,7 +141,14 @@ const DOMAINS: Domain[] = [
   // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），想恢复时
   // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
   { key: "study", name: "学习", start: 1110, time: "18:30", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 1080 },
-  { key: "sport", name: "运动", start: 1190, time: "19:50", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false },
+  // 2026-10-19 她：「周一和周三的内容既然是课程，那改成课程呀不要叫运动」——声乐课/太极课
+  // 确实不是运动。跟 work/study 一样**按时间窗口把同一个 track 拆成两个域**，零数据改动：
+  // 课程＝18:30 起的 sport 条目（周一声乐、周三太极，上到 20:30）；运动＝19:50 起的（热身+瑜伽，周二四六日）。
+  // ⚠️ 两边时段不重叠所以分得干净；`domainItems` 按**开始时间**归域，声乐课 18:30 不会漏进运动。
+  // ⚠️ 将来若加**早于 18:30** 的 sport 条目（早操之类），它两个域都收不到 ⇒ 那时要么放宽课程域的
+  // timeMin、要么再加一个上午的运动域，别直接把 sport 的 timeMin 删掉（那样课程会同时出现在两个域）。
+  { key: "class", name: "课程", start: 1110, time: "18:30", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false, timeMin: 1110, timeMax: 1190 },
+  { key: "sport", name: "运动", start: 1190, time: "19:50", color: "#6FA7E4", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["sport"], noteRequired: false, timeMin: 1190 },
   { key: "reading", name: "阅读", start: 1260, time: "21:00", color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "plan", tracks: ["reading"], noteRequired: true },
   // 睡前：晚间养生（泡脚 21:00、睡前拉伸 21:40），按时间收 18:00 之后的 wellness 条目
   { key: "bedtime", name: "睡前", start: 1300, time: "21:40", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMin: 1080 },
