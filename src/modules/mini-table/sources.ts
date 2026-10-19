@@ -1,6 +1,6 @@
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayCalories, getMeals, getWeightLog, listDrinks, listSnacks } from "../supplement/data";
-import { listCheckStatus, listItems } from "../study-plan/data";
+import { CLASS_SPORT_SPLIT, listCheckStatus, listItems, slotStartOf } from "../study-plan/data";
 import { listTodos } from "../todo/data";
 import { listAllEntries, type Entry } from "../study-log/data";
 import { entryDone } from "../study-log";
@@ -90,13 +90,13 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
   "tbl-plan-week": {
     itemCol: "item",
     dayCols: DAY_COLS,
-    autoItems: ["养生", "英语", "工作", "学习", "运动", "阅读", "日日学"],
+    autoItems: ["养生", "英语", "工作", "学习", "课程", "运动", "阅读", "日日学"],
     async compute(weekDates) {
       const items = await listItems();
       const todos = await listTodos();
       const logs = await listAllEntries();
       const res: Record<string, Record<string, string>> = {
-        养生: {}, 英语: {}, 工作: {}, 学习: {}, 运动: {}, 阅读: {}, 日日学: {},
+        养生: {}, 英语: {}, 工作: {}, 学习: {}, 课程: {}, 运动: {}, 阅读: {}, 日日学: {},
       };
       for (let i = 0; i < 7; i++) {
         const date = weekDates[i];
@@ -107,10 +107,26 @@ export const TABLE_SOURCES: Record<string, TableSource> = {
             .filter((it) => tracks.includes(it.track) && status.get(it.id) === "done")
             .map((it) => it.title)
             .join("、");
+        /**
+         * 课程 / 运动都是 `track='sport'`，靠**开始时间**分开（2026-10-19 她点名拆的，
+         * 跟时间轴的 class / sport 两个域同一条界线）：早于 19:50 的是课程（周一声乐、周三太极），
+         * 不早于的是运动（训练热身+瑜伽）。⚠️ 分界点用共用常量 `CLASS_SPORT_SPLIT`，
+         * **别在这里写死 1190**——时间轴那边改了这边没跟就会出现「周表说上了课、时间轴说做了运动」。
+         */
+        const doneSport = (from: number, to: number) =>
+          items
+            .filter((it) => {
+              if (it.track !== "sport" || status.get(it.id) !== "done") return false;
+              const s = slotStartOf(it.time_slot);
+              return s >= from && s < to;
+            })
+            .map((it) => it.title)
+            .join("、");
         res.养生[col] = done("wellness");
         res.英语[col] = done("english");
         res.学习[col] = done("cert", "ai");
-        res.运动[col] = done("sport");
+        res.课程[col] = doneSport(0, CLASS_SPORT_SPLIT);
+        res.运动[col] = doneSport(CLASS_SPORT_SPLIT, 24 * 60);
         res.阅读[col] = done("reading");
         res.工作[col] = todos
           .filter((t) => t.done && (t.done_at ?? "").slice(0, 10) === date)

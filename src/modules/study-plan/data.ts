@@ -37,6 +37,22 @@ export interface PlanItem {
   valid_to: string | null;
 }
 
+/**
+ * 「课程」和「运动」的分界时刻（当天分钟数，19:50）——同属 `track='sport'`，靠开始时间分开：
+ * 早于它的是课程（周一声乐、周三太极，18:30 起），不早于它的是运动（训练热身+瑜伽）。
+ *
+ * ⚠️ **两处共用这一个常量**：时间轴的 `DOMAINS`（class 的 timeMax / sport 的 timeMin）和
+ * 小表格时间轴周表的「课程」「运动」两行（`mini-table/sources.ts`）。各写一个数字迟早漂移
+ * ——这个项目里「同一套判断写两遍就会走偏」已经栽过好几次（domainItems、todaysWorkTodos）。
+ */
+export const CLASS_SPORT_SPLIT = 1190;
+
+/** `time_slot`（"18:30–20:30"）→ 开始的当天分钟数；解析不出给 -1 */
+export function slotStartOf(timeSlot: string | null): number {
+  const m = (timeSlot ?? "").match(/(\d{1,2}):(\d{2})/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
+}
+
 /** date -> 1..7（周一=1） */
 export function dayNumOf(dateStr: string): number {
   const d = new Date(dateStr + "T00:00:00");
