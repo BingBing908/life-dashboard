@@ -50,6 +50,19 @@ export interface ReviewKind {
   mode: ReviewMode;
   /** recall 型从 body 的哪一节抽题面（默认「意思」＝成语那套）。PM 概念用「一句话定义」 */
   promptSection?: string;
+  /**
+   * 这类内容是**哪天才进的复习队列**（YYYY-MM-DD）。只影响**逾期天数**的起算点
+   * （`overdueDays` 从到期日和它里面取晚的那个算起），不影响到不到期。
+   *
+   * ⚠️ **没有它的话，给一个已经存在三个月的板块开复习，存量条目会在开通当天
+   * 一起顶着「晚了 96 天」——而那个数字是假的**：她从来没被要求复习过它们，
+   * 是我今天才把这一类加进队列的。拿系统自己的改动去指责用户，跟「音标混进答案
+   * 导致十个词全判红叉」是同一类伤害：**明明没做错却被说做错了**。
+   * 开通当天它们照样到期（该复习就是该复习），只是不倒扣历史。
+   *
+   * ⚠️ 加新类型时**记得一起加它**，填加进队列的那天。存量条目越多越要紧。
+   */
+  since?: string;
 }
 
 export const REVIEW_KINDS: ReviewKind[] = [
@@ -75,7 +88,7 @@ export const REVIEW_KINDS: ReviewKind[] = [
    * ⚠️ 题面取 **【一句话定义】** 节 ⇒ **注入 PM 概念时必须写这一节**，没有就抽不出题面、
    * 这条不进队列（`isReviewable` 对 recall 型要求能抽出题面，宁可漏也别排没题目的题）。
    */
-  { board: "pm", kind: "PM概念", label: "PM 概念", mode: "recall", promptSection: "一句话定义" },
+  { board: "pm", kind: "PM概念", label: "PM 概念", mode: "recall", promptSection: "一句话定义", since: "2026-10-26" },
   /**
    * 2026-10-26 同批加：FDE 技术知识点（她：「AI FDE 我刚好还没看，你要不按照这个逻辑也改下」）。
    * 跟 PM 概念同性质——都是**术语/原理**，都属于她那句「会做但叫不出名字」，
@@ -87,7 +100,7 @@ export const REVIEW_KINDS: ReviewKind[] = [
    * · **实战案例**——偏理解和迁移，复习形式是「换个场景再套一遍」，同产品拆解。
    * · **面试题**——它本身就是题，再进队列等于一题两记；而且 PM/FDE 两边的面试题一起进会爆量。
    */
-  { board: "fde", kind: "技术知识点", label: "FDE 技术点", mode: "recall", promptSection: "一句话定义" },
+  { board: "fde", kind: "技术知识点", label: "FDE 技术点", mode: "recall", promptSection: "一句话定义", since: "2026-10-26" },
 ];
 
 export function reviewKindOf(e: Entry): ReviewKind | null {
@@ -189,11 +202,20 @@ export function isDueToday(e: Entry, today = todayStr()): boolean {
   return !!due && due <= today;
 }
 
-/** 逾期天数（0 ＝ 正好今天到期） */
+/**
+ * 逾期天数（0 ＝ 正好今天到期）。
+ *
+ * ⚠️ **进队列之前的日子不算逾期**（见 `ReviewKind.since`）：从到期日和「这类内容
+ * 进队列那天」里取晚的那个起算。没有这一条的话，10/26 给 PM 开复习，7 月学的第 1 课
+ * 会立刻顶着「晚了 96 天」——她从没被要求复习过它，那个数字纯属系统倒打一耙。
+ * 条目照样今天到期，只是不倒扣历史；她要是明天还没做，才真的开始算晚 1 天。
+ */
 export function overdueDays(e: Entry, today = todayStr()): number {
   const due = nextDue(e);
   if (!due) return 0;
-  return Math.max(0, daysBetween(due, today));
+  const since = reviewKindOf(e)?.since;
+  const from = since && since > due ? since : due;
+  return Math.max(0, daysBetween(from, today));
 }
 
 /** 从 body 里抽古诗的【原诗】段（body 常含【注释】【白话】等大段，不能拿整段当答案） */
