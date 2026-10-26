@@ -48,6 +48,8 @@ export interface ReviewKind {
   kind: string;
   label: string;
   mode: ReviewMode;
+  /** recall 型从 body 的哪一节抽题面（默认「意思」＝成语那套）。PM 概念用「一句话定义」 */
+  promptSection?: string;
 }
 
 export const REVIEW_KINDS: ReviewKind[] = [
@@ -57,6 +59,23 @@ export const REVIEW_KINDS: ReviewKind[] = [
   { board: "english", kind: "谚语", label: "英语谚语", mode: "dictation" },
   // 2026-07-28 加：成语用 recall（看意思答成语），约 25 秒
   { board: "chinese", kind: "成语", label: "成语", mode: "recall" },
+  /**
+   * 2026-10-26 加：PM 概念进队列（她点头的）。
+   *
+   * **为什么非加不可**：她 10/26 说「把产品经理 921 的四个看了，可是好像没在我脑子里留下什么」——
+   * 根因是 PM 板块原本**刻意不进复习**（旧注释说"由每日产品拆解承担"，但拆解本身也是读物、
+   * 没承担起来），于是 PM 内容读一遍再也不见，隔 35 天当然不记得。而她被诊断出的短板恰恰是
+   * **「会做但叫不出名字」**——词汇和框架不复习必忘，且这正是面试现场要当场调出来的东西。
+   *
+   * **成本算过**（按「加复习类型前先算稳态负担」那条规矩）：间隔 5 段 ⇒ 稳态每天到期
+   * ＝ 5 × 每天新进 1 条 ＝ 5 条，每条约 25 秒 ⇒ **约 2 分钟/天**，比古诗便宜得多。
+   *
+   * ⚠️ **方向必须是反向**（同成语）：给场景/定义 → 答概念名。面试考的是「遇到这事能不能
+   * 想起有个框架叫 RICE」，正向（看 RICE 答定义）只练认得出、练不出用得出。
+   * ⚠️ 题面取 **【一句话定义】** 节 ⇒ **注入 PM 概念时必须写这一节**，没有就抽不出题面、
+   * 这条不进队列（`isReviewable` 对 recall 型要求能抽出题面，宁可漏也别排没题目的题）。
+   */
+  { board: "pm", kind: "PM概念", label: "PM 概念", mode: "recall", promptSection: "一句话定义" },
 ];
 
 export function reviewKindOf(e: Entry): ReviewKind | null {
@@ -288,8 +307,19 @@ function section(e: Entry, name: string): string {
  * 这不是内容写错了——释义带上词条是正常辞书体，注入侧不用改，读的时候遮掉就行。
  */
 export function recallCard(e: Entry): { prompt: string; answer: string } | null {
-  const answer = (e.title ?? "").split("·").pop()?.trim() ?? "";
-  const raw = section(e, "意思");
+  /**
+   * 答案＝标题里 `·` 之后那截，**再砍掉副标题**——成语标题是干净的（「成语 · 纲举目张」），
+   * 但 PM 概念常带破折号或冒号的副标题（「PM 概念 · 用户故事与验收标准——PRD 的最小积木」、
+   * 「第 6 课 · 定价与商业模式：AI 产品那道…」），不砍就会要求她把整个副标题默出来。
+   * 这几个分隔符成语标题里不会出现，所以对成语无副作用。
+   */
+  const answer =
+    (e.title ?? "")
+      .split("·")
+      .pop()
+      ?.split(/——|—|：|:|（|\(/)[0]
+      .trim() ?? "";
+  const raw = section(e, reviewKindOf(e)?.promptSection ?? "意思");
   if (!answer || !raw) return null;
   // 连引号一起吃掉，否则会留下一对空引号「」把字数漏出去
   const prompt = raw
