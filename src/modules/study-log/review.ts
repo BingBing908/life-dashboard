@@ -320,17 +320,25 @@ function section(e: Entry, name: string): string {
  */
 export function recallCard(e: Entry): { prompt: string; answer: string } | null {
   /**
-   * 答案＝标题里 `·` 之后那截，**再砍掉副标题**——成语标题是干净的（「成语 · 纲举目张」），
-   * 但 PM 概念常带破折号或冒号的副标题（「PM 概念 · 用户故事与验收标准——PRD 的最小积木」、
-   * 「第 6 课 · 定价与商业模式：AI 产品那道…」），不砍就会要求她把整个副标题默出来。
-   * 这几个分隔符成语标题里不会出现，所以对成语无副作用。
+   * 答案优先取 **`meta.recallAnswer`**（显式指定），没有才从标题推。
+   *
+   * ⚠️⚠️ **PM/FDE 必须显式给**（2026-10-26 查实）：她的 PM 条目标题是「第 N 课 · 概念A + 概念B」
+   * ——一课讲两个概念，从标题推只会得到「MVP 最小可行产品 + 怎么砍需求」「北极星指标 + 看懂
+   * DAU/留存/转化」这种没法作答的东西。成语标题（「成语 · 纲举目张」）才是干净的一对一。
+   * 这跟 `meta.exercise` 立起来时定的是同一条原则：**判据要显式，别拿标题/板块去猜**。
+   *
+   * 从标题推时仍砍掉副标题（`——`/`：`/`（` 之后），那是给成语和将来格式规整的条目兜底的。
    */
+  const m = metaObj(e);
+  const explicit = typeof m.recallAnswer === "string" ? (m.recallAnswer as string).trim() : "";
   const answer =
-    (e.title ?? "")
+    explicit ||
+    ((e.title ?? "")
       .split("·")
       .pop()
       ?.split(/——|—|：|:|（|\(/)[0]
-      .trim() ?? "";
+      .trim() ??
+      "");
   const raw = section(e, reviewKindOf(e)?.promptSection ?? "意思");
   if (!answer || !raw) return null;
   // 连引号一起吃掉，否则会留下一对空引号「」把字数漏出去
