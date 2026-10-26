@@ -76,6 +76,18 @@ export const REVIEW_KINDS: ReviewKind[] = [
    * 这条不进队列（`isReviewable` 对 recall 型要求能抽出题面，宁可漏也别排没题目的题）。
    */
   { board: "pm", kind: "PM概念", label: "PM 概念", mode: "recall", promptSection: "一句话定义" },
+  /**
+   * 2026-10-26 同批加：FDE 技术知识点（她：「AI FDE 我刚好还没看，你要不按照这个逻辑也改下」）。
+   * 跟 PM 概念同性质——都是**术语/原理**，都属于她那句「会做但叫不出名字」，
+   * 也都是面试现场要当场调出来的，所以同样 recall 反向出题、同样取【一句话定义】。
+   *
+   * ⚠️ **FDE 的另外三类刻意不进队列**，理由各不相同：
+   * · **架构图**——复习形式应该是「合上页面自己重画一遍」，现有两种 mode（默写/recall）
+   *   都表达不了画图，硬塞成 recall 只会变成背名词。所以放在条目里当读后自测，不进队列。
+   * · **实战案例**——偏理解和迁移，复习形式是「换个场景再套一遍」，同产品拆解。
+   * · **面试题**——它本身就是题，再进队列等于一题两记；而且 PM/FDE 两边的面试题一起进会爆量。
+   */
+  { board: "fde", kind: "技术知识点", label: "FDE 技术点", mode: "recall", promptSection: "一句话定义" },
 ];
 
 export function reviewKindOf(e: Entry): ReviewKind | null {
