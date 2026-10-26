@@ -35,10 +35,32 @@ export function ReviewQuiz({
   const [reveal, setReveal] = useState(false);
   const [done, setDone] = useState(passed);
 
-  const norm = (s: string) => s.replace(/[\s，。,.、；;！!？?“”"'‘’（）()·]/g, "").trim();
+  /**
+   * ⚠️ **大小写要忽略**（2026-10-26 加）：成语是纯中文、全等判没问题，但 PM/FDE 的答案里
+   * 有 `MVP`、`Prompt 缓存`、`RICE` 这类英文，她打小写就会被判错——这跟「音标混进答案
+   * 导致十个词全判错」是同一类伤害：**答对了却被说错**，比答错本身打击人得多。
+   */
+  const norm = (s: string) =>
+    s.replace(/[\s，。,.、；;！!？?“”"'‘’（）()·]/g, "").trim().toLowerCase();
 
   function submit() {
-    const ok = norm(text) === norm(answer);
+    /**
+     * 判对＝全等 **或** 一方包含另一方且长度相差不大（短的 ≥ 长的 60%）。
+     *
+     * ⚠️ **为什么要放宽**：成语的答案是四字固定词，全等很公平；但概念名有通用的长短写法
+     * ——「北极星指标」答成「北极星」、「按价值定价」答成「价值定价」，意思完全正确却会被
+     * 判错。60% 这道阈值挡得住蒙混（「指标」只占「北极星指标」的 40%，不算过），
+     * 又放得过真答对的人。
+     * ⚠️ 长度 ≥2 才启用包含判定，否则单个字（「图」）会命中一大堆答案。
+     */
+    const a = norm(text);
+    const b = norm(answer);
+    const near =
+      a.length >= 2 &&
+      b.length >= 2 &&
+      (a.includes(b) || b.includes(a)) &&
+      Math.min(a.length, b.length) / Math.max(a.length, b.length) >= 0.6;
+    const ok = a === b || near;
     const t = tries + 1;
     setTries(t);
     if (wrongFirst === null && !ok) setWrongFirst(1);
