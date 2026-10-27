@@ -221,7 +221,10 @@ function MealRow({
           这样的话本周复盘又在这一页放不下了」）——上一版按钮单独占一行，
           三餐加起来多出约 120px，把本周复盘顶出了首屏。
           textarea 靠 items-stretch（flex 默认）撑满行高、右侧那两个 items-end 贴底。 */}
-      <div className="mt-2 flex flex-1 gap-2">
+      {/* ⚠️ 窄屏折成两行（2026-10-27 实测）：输入框最小 128px ＋ 热量框 80 ＋ 提交按钮 ≈ 310px，
+          而 360px 手机上这一格只有 270px 可用 ⇒ 溢出 14px、「确认提交」被切掉点不全。
+          给控件组 `w-full` 让它在 flex-wrap 下**独占第二行**，宽屏仍是一行（sm:flex-nowrap）。 */}
+      <div className="mt-2 flex flex-1 flex-wrap gap-2 sm:flex-nowrap">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -235,7 +238,7 @@ function MealRow({
           placeholder="我今天这一餐吃了……（回车提交）"
           className="min-h-9 min-w-32 flex-1 resize-none rounded-md border bg-card px-3 py-1.5 text-sm leading-relaxed outline-none focus:ring-1 focus:ring-primary/40"
         />
-        <div className="flex shrink-0 items-end gap-2">
+        <div className="flex w-full shrink-0 items-end justify-end gap-2 sm:w-auto sm:justify-start">
           <Input
             type="number"
             value={cal}
