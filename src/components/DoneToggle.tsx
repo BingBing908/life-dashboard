@@ -28,7 +28,12 @@ export function DoneToggle({
   size?: "sm" | "md";
   disabledHint?: string;
 }) {
-  const pad = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm";
+  // ⚠️ `[@media(pointer:coarse)]:py-2` ＝ 只有触屏才加高（24px→32px）。
+  // 刻意不用 Tailwind 的宽度断点：iPad 横屏有 1024px 宽，但手指还是手指。
+  const pad =
+    size === "sm"
+      ? "px-2.5 py-1 text-xs [@media(pointer:coarse)]:py-2"
+      : "px-3 py-1.5 text-sm [@media(pointer:coarse)]:py-2.5";
   const isDone = state === "done";
   const isSkip = state === "skip";
   return (

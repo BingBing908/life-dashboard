@@ -1,5 +1,6 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { addDays, todayStr } from "@/lib/dates";
+import { hasSyncedTable } from "@/lib/sync";
 
 export interface Habit {
   id: string;
@@ -51,6 +52,12 @@ export function seedHabitsIfEmpty(): Promise<Habit[]> {
     seedPromise = (async () => {
       const existing = await listHabits();
       if (existing.length > 0) return existing;
+      // ⚠️ 没同步过 habits 就别播种，否则会在云端复活她删掉的习惯——
+      // 同 study-plan 的 seedIfEmpty，原理见 sync.ts 末尾「首次同步守卫」那段
+      if (!hasSyncedTable("habits")) {
+        seedPromise = null; // 别缓存这次的失败：同步完成后还要再试
+        return [];
+      }
       const db = await getDb();
       let order = 1;
       for (const s of SEED_HABITS) {

@@ -1,5 +1,6 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
+import { hasSyncedTable } from "@/lib/sync";
 import { SEED_ITEMS, SEED_RESET_BELOW, SEED_VERSION } from "./seed";
 
 /** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读；
@@ -112,12 +113,27 @@ export async function listAllItems(): Promise<PlanItem[]> {
 // 两次并发的"查空→插种子"会各插一份；用单例 Promise 确保只播种一次。
 let seedPromise: Promise<PlanItem[]> | null = null;
 
-/** 首次使用时写入种子计划，并把周期起点定为本周一 */
-export function seedIfEmpty(): Promise<PlanItem[]> {
+/**
+ * 首次使用时写入种子计划，并把周期起点定为本周一。
+ *
+ * ⚠️⚠️ **没同步过 plan_items 就不播种**（2026-10-27 加，为手机/iPad 上线堵的坑）：
+ * 新设备（尤其手机 4G 首开）若在首次同步完成前就进了页面，本地库还是空的，
+ * 一播种就会把模板条目以「现在」的时间戳推上云，按「最后写入胜出」
+ * **把她早就删掉的旧模板整批复活**（活库与 seed 已实质分叉，见 CLAUDE.md）。
+ * 详细原理在 `sync.ts` 末尾「首次同步守卫」那段。
+ * 没同步过就返回空数组：页面暂时空着，下一轮同步拉到真数据就好了——
+ * 「看得见的空」远好过「看不见的脏」。
+ * `force=true` 只给 `resetToSeed`（她亲手点的「一键同步」）用。
+ */
+export function seedIfEmpty(force = false): Promise<PlanItem[]> {
   if (!seedPromise) {
     seedPromise = (async () => {
       const existing = await listItems();
       if (existing.length > 0) return existing;
+      if (!force && !hasSyncedTable("plan_items")) {
+        seedPromise = null; // 别把「这次没播成」缓存住：下次（同步完成后）还要再试
+        return [];
+      }
       const db = await getDb();
       let order = 1;
       for (const s of SEED_ITEMS) {
@@ -180,6 +196,9 @@ export function latestSeedVersion(): number {
  * 这里不会生效，得走横幅+resetToSeed。日程页每次加载都调它，幂等。
  */
 export async function ensureSeedAdditions(): Promise<void> {
+  // ⚠️ 同 seedIfEmpty：没同步过就别往库里塞模板行，否则会在云端复活她删掉的条目。
+  //    版本号存在 app_settings，所以两张表都同步过才算「知道云端长什么样」。
+  if (!hasSyncedTable("plan_items") || !hasSyncedTable("app_settings")) return;
   const cur = await getSeedVersion();
   if (cur >= SEED_VERSION) return;
   // 库版本太老 ⇒ 中间隔着修改型升级（如 v26 晚间改版），增量补会造成新旧条目并存，
@@ -209,7 +228,7 @@ export async function resetToSeed(): Promise<PlanItem[]> {
     [ts],
   );
   seedPromise = null;
-  const items = await seedIfEmpty();
+  const items = await seedIfEmpty(true);
   await setSeedVersion(SEED_VERSION);
   return items;
 }

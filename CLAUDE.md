@@ -316,6 +316,56 @@ HCIE 完全推掉，金融暂时搁置，AI 必须保留，英语的日日学负
 - ⚠️ **CI 报错要能不带 token 看到**（2026-07-28 加）：Actions 的原始日志下载要 token（匿名 403），`check-runs` 的 output 也是空的——没本机 Node 时（换电脑、或 Claude 在没装 Node 的机器上改代码）只能看到 success/failure，等于瞎子。所以 build 步骤改成把报错行 `echo "::error::…"` 转成 **annotation**（`/repos/…/commits/<sha>/check-runs` → `annotations_url` **公开可读**）+ 写进 `$GITHUB_STEP_SUMMARY`。查法：`curl <annotations_url> | grep message`。别把这段删了。
 - 网页版数据存各浏览器本地，与桌面端、与其他设备**不互通**（待云同步打通）
 
+## 手机 / iPad 适配（2026-10-27 落地）
+
+起因是她自己的诊断：「我回家之后就不愿意开电脑，但是个人工具在电脑上，所以我不方便看时间表，
+也就很难坚持推进」。**产品层面的结论写在 PRODUCT.md**（工具必须在她在的设备上）；这里只记实现与坑。
+
+- **网页版本来就能在 iPad/手机打开**（同一个 GitHub Pages 网址，数据走 Supabase 云同步，和电脑同一份）。
+  `index.html` 的 viewport meta 一直是对的，所以不存在「整页缩小」。真正的阻塞只有一个 ⇒ 见下。
+- **侧栏断点 `lg`（1024px）**：`App.tsx` 的 `<aside>` 固定 `w-52`＝208px，原来没有任何断点
+  ⇒ iPhone 竖屏 375px 被它吃掉 55%，内容只剩 167px。现在 `hidden … lg:flex`，窄屏走**抽屉**
+  （☰ 在 main 内的 `sticky` 顶栏里）。**iPad 竖屏 768px 也走抽屉**——日程周历是七列，宽度得全给它。
+  - ⚠️ **顶栏刻意放在 `<main>` 里面做吸顶条**，而不是在外面再包一层 flex-col：≥lg 时它 `display:none`，
+    于是整个布局盒子跟加它之前**一模一样**。包一层 flex-col 会改变 `main` 的高度来源，
+    小表格那种 `flex h-full flex-col` 的全屏表格、时间轴里靠 main 高度撑开的 `h-full` 全得重新验证。
+  - `h-dvh` 不是 `h-screen`：iOS Safari 的 `100vh` 把地址栏也算进去，底部内容会被裁掉一截。
+- ⚠️⚠️ **首次同步守卫（这条是防数据被弄脏的，别随手删）**：`App.tsx` 原来首次进入最多等 4 秒就渲染。
+  手机 4G 首开要下 sql.js 的 WASM ＋ 全量云数据，4 秒远远不够 ⇒ 本地库空着就进页面
+  ⇒ `seedIfEmpty()` 播种模板，时间戳是「现在」⇒ 推上云按「最后写入胜出」
+  **把她早就删掉的旧模板整批复活**（她的活库和 seed 已实质分叉，见上文）。两道防线：
+  - `sync.ts` 末尾：`syncEnabled()` / `hasSyncedTable(表名)`，用 localStorage 的 `pwt-synced-tables`
+    记录**每张表**至少成功同步过一次。**粒度按表**，某表 400 只锁那张表的播种。
+    `seedIfEmpty` / `seedHabitsIfEmpty` / `ensureSeedAdditions` 三处都加了守卫
+    （`seedIfEmpty(force)` 的 `force=true` 只给 `resetToSeed` 用——那是她亲手点的「一键同步」）。
+    没同步过就返回 `[]`：**「看得见的空」远好过「看不见的脏」**，何况顶部还有同步失败横幅。
+  - `bootTimeoutMs()`：没同步过的设备等到 20 秒（只是上限，`runSync` 一完就放行），
+    避免她看见空页；**离线时退回 4 秒**（`navigator.onLine`），否则断网会白等 20 秒。
+- **PWA（「添加到主屏幕」）**：`public/manifest.webmanifest` + `icon-192/512.png` + `apple-touch-icon.png`
+  （图标是 PowerShell `System.Drawing` 画的蓝底白勾，这台机器没有 Node/ImageMagick/python）。
+  - ⚠️ **manifest 里的路径必须是相对的**（`"./"`、`"./icon-192.png"`）：`public/` 是原样拷贝的，
+    Vite 不处理它的内容。相对路径在本地（`/`）和 GitHub Pages（`/life-dashboard/`）都对。
+    `index.html` 里的 `/manifest.webmanifest` 则由 Vite 按 `base` 重写，那个可以用绝对路径。
+  - ⚠️ `viewport-fit=cover` 不能省，否则 `env(safe-area-inset-*)` 恒为 0，装到 iPhone 主屏幕后顶栏被刘海压住。
+- **周历（`schedule/Timetable.tsx`）窄屏＝一次只看一天**：`useMediaQuery("(max-width: 767px)")`
+  （新增 `src/lib/useMediaQuery.ts`）+ 顶部星期选择条，`shown = narrow ? days.filter(…) : days`。
+  ⚠️ 七列挤进 375px ＝每列 47px，块里的字全被 `truncate` 吃光＝**不可用**，不是「挤一点」。
+  ⚠️ 能用 Tailwind 断点类解决的别用这个 hook——这里是两套 JSX，CSS 做不到。
+- **触屏交互（`index.css` 末尾「触屏适配」段）**，全部包在 `@media (hover:none)` / `(pointer:coarse)` 里，
+  **电脑端一个像素都不变**：
+  - ⚠️⚠️ **`group-hover` 才现身的控件在触屏上永远点不到**——全站 12 处，清一色是删除键，
+    点不到就等于手机上删不掉东西。用 `.group-hover\:visible{visibility:visible}` 翻转。
+    ⚠️ 这段**刻意不放进 `@layer`**：不分层的样式在层叠里压得过 Tailwind 的 utilities 层，
+    否则 `.invisible` 会把它盖掉。
+  - ⚠️ iOS Safari 聚焦**字号 < 16px 的输入框会自动放大整页且不缩回**（`<Input>` 带 `md:text-sm`，iPad 正中）
+    ⇒ `input,textarea,select { font-size: max(16px,1em) }`。
+  - `touch-action: manipulation` 全局：去掉 300ms 双击判定，并且**关掉双击缩放**——
+    否则日程周历的 `onDoubleClick`（改整条 / 空白处加日程）会被 Safari 抢去当缩放手势。
+  - 周历的块单击后现在出**两个**按钮（🖊只改这天 / 📅改整条）：「改整条」以前只有双击能触发，手指点不准。
+  - `DoneToggle`（她每天点得最多的控件）用 `[@media(pointer:coarse)]:py-2` 加高，**不用宽度断点**
+    ——iPad 横屏有 1024px 宽，但手指还是手指。
+- **页面留白** `PAGE` 从 `p-6` 改成 `p-4 sm:p-6`（饮食页同步 `px-4 sm:px-6`）：手机上 48px 留白太奢侈。
+
 ## 常用命令
 
 ```bash
@@ -446,6 +496,19 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
   ⚠️ 在那之前**我这边的义务是别让供给成为瓶颈**：AI/PM/FDE 三条主线每天更（见喂养纪律那条例外）。她做不做是她的事，没东西可做是我的事。
 
 
+**2026-10-27 第二批（手机 / iPad 适配，全部四档一次做完）：**
+- [x] **P0 首次同步守卫**：`hasSyncedTable()` + 三处播种守卫 + `bootTimeoutMs()`。
+      堵的是「新设备首开 ⇒ 播种 ⇒ 复活她删掉的旧模板」这条会**悄悄弄脏云端**的路径
+- [x] **P0 窄屏导航**：侧栏 `lg:` 起常驻，窄屏走抽屉（☰ 吸顶条做在 `main` 内，≥lg 布局盒子零变化）；`h-screen`→`h-dvh`
+- [x] **P1 PWA**：manifest + 三张图标 + iOS meta ⇒ Safari「添加到主屏幕」＝全屏无地址栏的图标。
+      **这一条才是真正改变「在家的默认动作」的那个**，不是锦上添花
+- [x] **P2 周历窄屏单日**（`useMediaQuery` + 星期选择条）；块单击出两个按钮，不再必须双击
+- [x] **P3 触屏规则**：hover-only 的删除键在触屏常驻 / iOS 输入框放大 / touch-action / DoneToggle 加高 / `PAGE` 留白
+- [ ] ⚠️ **本批同样没跑过构建**（公司这台没有 Node）。已手工扫过导入＋局部变量，无孤儿；
+      `Timetable.tsx` 的括号数差 1 是 HEAD 里就有的（字符串里的），不是本次引入。
+      **真实渲染一个都没看过**——靠她在 iPad/手机上实测反馈
+- [ ] 待她实测后可能要调的：周历单日模式的星期条高度、小表格在手机上的横向滚动手感、
+      日日学长文在手机上的行宽
 - [ ] **番茄钟已砍**
 （2026-07-30 Rosie：「番茄钟不做，所有电脑现在都有这个功能」）；原路线图「打卡月度热力图 + 番茄钟」只剩热力图那半
 

@@ -26,7 +26,7 @@
  * 现在它就等于约定本身：`p-6`。
  * 例外：**饮食页**是仪表型、刻意紧一档（`gap-4 px-6 py-4`），不套 PAGE。
  */
-export const PAGE = "p-6";
+export const PAGE = "p-4 sm:p-6";
 
 /** 一块卡片 */
 export const CARD = "rounded-xl border bg-card p-4";

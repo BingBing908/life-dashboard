@@ -690,7 +690,7 @@ function Page() {
     //    结论：**这一页宁可整页滚，也不要栏内滚**。真要压进一屏就得**减内容高度**
     //    （合并饮品/零食两张卡、月历做小），不是加滚动容器——加容器只是把溢出藏起来，
     //    还顺手破了卡片规格。
-    <div className="flex min-h-full flex-col gap-4 px-6 py-4">
+    <div className="flex min-h-full flex-col gap-4 px-4 py-4 sm:px-6">
       {caloriePanel}
 
       {/* 窄屏（< lg，含浏览器放大到很大时）自动塞成一栏，别硬挤成两条竖线。

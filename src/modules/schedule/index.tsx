@@ -129,9 +129,9 @@ function Page() {
 
   return (
     <div className={PAGE}>
-      <div className="mb-4 flex items-baseline gap-3">
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold">日程</h1>
-        <span className="text-sm text-muted-foreground">
+        <span className="hidden text-sm text-muted-foreground sm:inline">
           {tab === "roadmap"
             ? "冲刺 AI PM 的阶段路线（从时间轴搬来）"
             : "一周全览"}

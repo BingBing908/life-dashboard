@@ -138,3 +138,32 @@
     font-family: var(--font-sans);
     }
 }
+/* ═══════════ 触屏适配（2026-10-27 加，为 iPad / 手机上线） ═══════════
+   全部包在「没有 hover」或「指针很粗」的条件里，**电脑端一个像素都不变**。
+   ⚠️ 刻意不放进 @layer：不分层的样式在 CSS 层叠里压得过 Tailwind 的 utilities 层，
+   否则 .invisible / .text-sm 这些工具类会把下面这些规则盖掉。 */
+
+@media (hover: none) {
+  /* ⚠️⚠️ 触屏没有 hover，所以「鼠标移上去才出现」的控件在手机上**永远点不到**。
+     全站这类有 12 处，清一色是删除键——点不到就等于手机上删不掉东西。
+     这里只翻转那几个本来就打算在 hover 时现身的 Tailwind 类，
+     不去动别的 .invisible（那些是真要藏起来的）。 */
+  .group-hover\:visible { visibility: visible; }
+  .group-hover\:opacity-100 { opacity: 1; }
+}
+
+@media (pointer: coarse) {
+  /* ⚠️ iOS Safari 聚焦「字号小于 16px 的输入框」时会**自动放大整页**，而且不会自己缩回去，
+     之后整页就是歪的。把触屏上的输入字号兜到 16px 就不会触发这个行为。
+     （<Input> 本身是 text-base，但带 md:text-sm——iPad 上正好踩中。） */
+  input, textarea, select { font-size: max(16px, 1em); }
+
+  /* 点下去不要闪一块灰 */
+  button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+}
+
+/* 手指点击不必等 300ms 的「是不是双击」判定；顺带关掉双击缩放，
+   否则日程周历的 onDoubleClick 会被 Safari 抢去当缩放手势。 */
+button, a, [role="button"], input, textarea, select, label {
+  touch-action: manipulation;
+}

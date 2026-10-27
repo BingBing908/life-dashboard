@@ -2,9 +2,22 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover：没有它 env(safe-area-inset-*) 恒为 0，
+         装到 iPhone 主屏幕后顶栏会被刘海/状态栏压住 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>个人工具</title>
+
+    <!-- 装到 iPad / iPhone 主屏幕（Safari → 分享 → 添加到主屏幕）：
+         图标 + 全屏无地址栏。manifest 里的路径都是相对的，
+         所以本地（/）和 GitHub Pages（/life-dashboard/）都对得上。 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f6f8fc" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="个人工具" />
   </head>
 
   <body>

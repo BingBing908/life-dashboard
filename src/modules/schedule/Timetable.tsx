@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { CalendarRange, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
 import { dayNumOf, matchesDay, type CheckStatus, type PlanItem } from "../study-plan/data";
 import { todosOnDate, type Todo } from "../todo/data";
@@ -177,6 +178,17 @@ export function Timetable({
   const todayNum = dayNumOf(today);
   const hourMarks = [420, 540, 660, 780, 900, 1020, 1140, 1260]; // 07:00–21:00 每两小时
 
+  /**
+   * 窄屏（手机）＝**一次只看一天**，上面给一条星期选择条。
+   *
+   * ⚠️ 七列硬挤进 375px ＝ 每列 47px，块里的字全被 truncate 吃光，等于什么都看不见。
+   * 这不是「挤一点」而是「不可用」，所以换一套渲染：列的算法不动，只渲染选中那天。
+   * 分界取 768（md）：iPhone 竖屏走单日，iPad 竖屏 768 起仍是整周——
+   * 「一周全览」本来就是这页的意义，宽度够就别拆。
+   */
+  const narrow = useMediaQuery("(max-width: 767px)");
+  const [pickDay, setPickDay] = useState(todayNum);
+
   const days = DAY_NAMES.map((name, i) => {
     const dayNum = i + 1;
     const date = addDays(mon, i);
@@ -188,13 +200,37 @@ export function Timetable({
       checks: weekChecks[date],
     };
   });
+  const shown = narrow ? days.filter((d) => d.dayNum === pickDay) : days;
 
   return (
     <div>
-      {/* 表头：星期 + 日期，今天高亮 */}
-      <div className="flex">
+      {/* 窄屏的星期选择条（宽屏不显示，那时七列全在） */}
+      {narrow && (
+        <div className="mb-2 flex gap-1">
+          {days.map((d) => (
+            <button
+              key={d.dayNum}
+              onClick={() => setPickDay(d.dayNum)}
+              className={cn(
+                "min-w-0 flex-1 touch-manipulation rounded-lg px-1 py-2 text-[13px] leading-tight transition-colors",
+                d.dayNum === pickDay
+                  ? "bg-primary text-primary-foreground"
+                  : d.dayNum === todayNum
+                    ? "bg-[#E6F1FB] text-[#185FA5]"
+                    : "text-muted-foreground hover:bg-accent",
+              )}
+            >
+              <div>{d.name.slice(1)}</div>
+              <div className="text-[11px] opacity-70">{d.date.slice(8)}</div>
+            </button>
+          ))}
+        </div>
+      )}
+      {/* 表头：星期 + 日期，今天高亮。窄屏不要——上面的选择条已经写了同样的信息，
+          手机上每一行垂直空间都金贵 */}
+      <div className={cn("flex", narrow && "hidden")}>
         <div className="w-11 shrink-0" />
-        {days.map((d) => (
+        {shown.map((d) => (
           <div key={d.dayNum} className="min-w-0 flex-1 px-0.5 pb-2 text-center">
             <span
               className={cn(
@@ -229,7 +265,7 @@ export function Timetable({
             </span>
           ))}
         </div>
-        {days.map((d) => (
+        {shown.map((d) => (
           <div
             key={d.dayNum}
             title="双击空白处＝在这个时间加新日程"
@@ -240,7 +276,7 @@ export function Timetable({
               onAddAt(d.dayNum, `${fmt(Math.max(AXIS_START, min))}–${fmt(Math.min(min + 60, AXIS_END))}`);
             }}
             className={cn(
-              "relative min-w-0 flex-1 border-l border-border/60",
+              "relative min-w-0 flex-1 touch-manipulation border-l border-border/60",
               d.dayNum === todayNum && "bg-[#F3F8FE]",
             )}
           >
@@ -270,24 +306,41 @@ export function Timetable({
                     if (editable.length > 0) onSelect(editable, null);
                   }}
                   className={cn(
-                    "absolute inset-x-0.5 cursor-pointer select-none overflow-hidden rounded-lg px-2 py-0.5 text-[15px] leading-[1.3]",
+                    "absolute inset-x-0.5 cursor-pointer touch-manipulation select-none overflow-hidden rounded-lg px-2 py-0.5 text-[15px] leading-[1.3]",
                     BLOCK_STYLE[b.kind],
                     allDone && "opacity-60",
                   )}
                   style={{ top: y(b.from), height: h }}
                 >
+                  {/* 单击块之后出的两个编辑入口。
+                      ⚠️ 「改整条」以前**只有双击**能触发——触屏上双击既难点准、又会被
+                      Safari 当成双击缩放（已用 touch-manipulation 关掉），等于手机上根本改不了整条。
+                      所以这里补一个按钮：双击保留给鼠标，手指走按钮。 */}
                   {active === blockKey && editable.length > 0 && (
-                    <button
-                      title={`只改${d.name}这一天`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActive(null);
-                        onSelect(editable, d.dayNum);
-                      }}
-                      className="absolute right-1 top-1 rounded-md bg-white/80 p-1 text-[#185FA5] shadow-sm"
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
+                    <div className="absolute right-1 top-1 flex gap-1">
+                      <button
+                        title={`只改${d.name}这一天`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActive(null);
+                          onSelect(editable, d.dayNum);
+                        }}
+                        className="touch-manipulation rounded-md bg-white/85 p-1.5 text-[#185FA5] shadow-sm"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                      <button
+                        title="改整条（每周都变）"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActive(null);
+                          onSelect(editable, null);
+                        }}
+                        className="touch-manipulation rounded-md bg-white/85 p-1.5 text-[#185FA5] shadow-sm"
+                      >
+                        <CalendarRange className="size-4" />
+                      </button>
+                    </div>
                   )}
                   {/* 一项一行（2026-09-19 Rosie：「区块里的每一项都单开一行」）；标题里的手动换行
                       （编辑区 Ctrl+Enter）也各占一行；放不下的行被 overflow 裁掉，悬停 tooltip 里有全部 */}
@@ -318,17 +371,17 @@ export function Timetable({
       </div>
 
       {/* 没写钟点的计划（少见）：挂在对应列底下 */}
-      {days.some((d) => d.noTime.length > 0) && (
+      {shown.some((d) => d.noTime.length > 0) && (
         <div className="flex pt-2">
           <div className="w-11 shrink-0" />
-          {days.map((d) => (
+          {shown.map((d) => (
             <div key={d.dayNum} className="min-w-0 flex-1 space-y-1 px-0.5">
               {d.noTime.map((it) => (
                 <div
                   key={it.id}
                   onDoubleClick={() => onSelect([it], null)}
                   className={cn(
-                    "cursor-pointer select-none truncate rounded-lg border border-dashed border-[#A6CBF1] px-2 py-0.5 text-[13px] text-[#185FA5]",
+                    "cursor-pointer touch-manipulation select-none truncate rounded-lg border border-dashed border-[#A6CBF1] px-2 py-0.5 text-[13px] text-[#185FA5]",
                     d.checks?.get(it.id) === "done" && "line-through decoration-emerald-500 decoration-2",
                   )}
                   title={`${it.title} · 双击编辑`}

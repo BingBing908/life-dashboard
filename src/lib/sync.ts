@@ -129,7 +129,7 @@ let syncing = false;
 export async function runSync(): Promise<boolean> {
   // 开发模式默认不与线上云同步（防止本地测试数据污染 Rosie 的生产库）；
   // 要在 dev 里联云，手动 localStorage.setItem('pwt-sync-on','1')。生产永远同步。
-  if (import.meta.env.DEV && localStorage.getItem("pwt-sync-on") !== "1") return false;
+  if (!syncEnabled()) return false;
   if (syncing) return false;
   syncing = true;
   try {
@@ -140,6 +140,7 @@ export async function runSync(): Promise<boolean> {
         const c = await syncTable(db, t.name, t.pk);
         changed = changed || c;
         syncFailures.delete(t.name); // 这轮好了就把旧警报撤掉
+        markTableSynced(t.name); // 确认过云端这张表长什么样了 ⇒ 这张表允许播种（见文件末尾注释）
       } catch (e) {
         // 单表失败（表未建 / 缺列 / 偶发冲突）不影响其它表，但**必须留痕**给界面看
         const msg = (e as { message?: string })?.message ?? String(e);
@@ -154,4 +155,53 @@ export async function runSync(): Promise<boolean> {
   } finally {
     syncing = false;
   }
+}
+
+/* ───────────── 首次同步守卫（2026-10-27 加，为 iPad / 手机上线铺路） ─────────────
+ *
+ * ⚠️⚠️ 这是为了堵一个会**悄悄弄脏云端真实数据**的坑，别随手删：
+ * `App.tsx` 首次进入最多等 4 秒就渲染。手机 4G 第一次打开要下 sql.js 的 WASM + 全量云数据，
+ * 4 秒多半不够 ⇒ 本地库还是空的就进了页面 ⇒ `seedIfEmpty()` 按模板播种 39 条，
+ * 时间戳是「现在」⇒ 下一轮同步推上云 ⇒ 按「最后写入胜出」，
+ * **她早就删掉的旧模板条目会被整批复活**（她的活库和 seed 已经实质分叉，见 CLAUDE.md）。
+ *
+ * 所以规矩是：**没确认过云端是什么样，就不许播种。**
+ * 粒度按**表**记，不是一个全局开关——某张表同步失败（缺列 400）时只锁那张表的播种，
+ * 其余照常；而且失败时是「页面空着 + 顶部红字横幅」这种**看得见**的坏，
+ * 好过「悄悄把删掉的东西加回来」那种看不见的坏。
+ */
+const SYNCED_TABLES_KEY = "pwt-synced-tables";
+
+/** 当前环境是否真的会联云（dev 默认不联，见 runSync 开头） */
+export function syncEnabled(): boolean {
+  return !(import.meta.env.DEV && localStorage.getItem("pwt-sync-on") !== "1");
+}
+
+function syncedTables(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SYNCED_TABLES_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markTableSynced(table: string): void {
+  const s = syncedTables();
+  if (s.has(table)) return;
+  s.add(table);
+  try {
+    localStorage.setItem(SYNCED_TABLES_KEY, JSON.stringify([...s]));
+  } catch {
+    /* 隐私模式等写不进去：最坏退化成「每次都当首次」，只会多等一会儿，不会写坏数据 */
+  }
+}
+
+/**
+ * 这张表在这台设备上**至少成功同步过一次**吗？
+ * 播种前必须问它（见上面的注释）。不联云的环境恒为 true——本地独立库，没有可污染的云端。
+ */
+export function hasSyncedTable(table: string): boolean {
+  if (!syncEnabled()) return true;
+  return syncedTables().has(table);
 }
