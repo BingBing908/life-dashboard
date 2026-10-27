@@ -376,9 +376,9 @@ function Page() {
         <section className={CARD}>
           {/* 双界面（2026-09-20 Rosie：跟日程右上的按钮一样切换）：主界面工作、副界面学习。
               学习界面=今天的计划条目本尊（引用不复印），tab 进 URL（铁律 3：#/todo/study） */}
-          <div className="mb-3 flex items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <h2 className={CARD_TITLE}>待办</h2>
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
               {tab === "study" ? "今天的学习任务（和日程/时间轴同一份数据，增删去那边）" : "点小框筛选，点「今天」标记当天要做"}
             </span>
             <div className="ml-auto flex overflow-hidden rounded-md border">

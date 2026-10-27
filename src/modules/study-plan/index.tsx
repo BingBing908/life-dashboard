@@ -583,7 +583,7 @@ function ItemRow({
         : "看了哪个视频 / 做了什么？";
   return (
     <div className={cn("group rounded-lg border px-4 py-3.5", withCheck && decided && "opacity-60")}>
-      <div className="flex items-center gap-3.5">
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
         {withCheck && (
           <DoneToggle
             state={state}
@@ -595,9 +595,9 @@ function ItemRow({
             disabledHint="先写「做了什么」才能标记完成"
           />
         )}
-        <span className="w-28 shrink-0 text-sm text-muted-foreground">{item.time_slot}</span>
+        <span className="shrink-0 text-sm text-muted-foreground sm:w-28">{item.time_slot}</span>
         {!hideTag && <TrackTag t={item.track} />}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[7rem] flex-1">
           <EditableText
             value={item.title}
             onSave={onRename}
@@ -712,8 +712,12 @@ function ThreeRowCard({
       )}
     >
       {/* 一行的顺序（2026-07-29 Rosie 定）：时间 · 标题 …… 视频 · 状态键 · 删除。
-          状态键从最左挪到最右——最好的位置该给标题，不该给每张卡都长一样的两个按钮。 */}
-      <div className="flex items-center gap-3">
+          状态键从最左挪到最右——最好的位置该给标题，不该给每张卡都长一样的两个按钮。
+          ⚠️ `flex-wrap` + 标题 `min-w-[7rem]` 是手机上的救命稻草：时段徽标 + 两个状态键 + 垃圾桶
+          本来就占掉 272px，360px 的屏上留给标题只剩 ~30px，`min-w-0` 让它真的缩到那么窄
+          ⇒ **中文标题被压成竖排、一行一个字**。给了最小宽度，放不下的按钮会自己换到第二行。
+          宽屏上宽度绰绰有余，这两个类都不生效，桌面端一个像素不变。 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {onEditSlot ? (
           <EditableText
             value={timeSlot ?? ""}
@@ -736,11 +740,11 @@ function ThreeRowCard({
             value={title}
             onSave={onEditTitle}
             placeholder="条目名"
-            className={cn("min-w-0 flex-1 cursor-text text-base font-medium whitespace-pre-line", done && "line-through")}
+            className={cn("min-w-[7rem] flex-1 cursor-text text-base font-medium whitespace-pre-line", done && "line-through")}
             inputClassName="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-base font-medium outline-none ring-1 ring-primary/30"
           />
         ) : (
-          <span className={cn("min-w-0 flex-1 text-base font-medium", done && "line-through")}>{title}</span>
+          <span className={cn("min-w-[7rem] flex-1 text-base font-medium", done && "line-through")}>{title}</span>
         )}
         {url && (
           <button
