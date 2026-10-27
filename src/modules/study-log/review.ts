@@ -177,10 +177,19 @@ export function isGraduated(e: Entry): boolean {
   return reviewStage(e) >= REVIEW_GAPS.length;
 }
 
-/** 排程的锚点：复习过就是**最后一次复习那天**，没复习过就是学完那天。见 REVIEW_GAPS 的注释 */
+/**
+ * 排程的锚点：复习过就是**最后一次复习那天**，没复习过就是学完那天。见 REVIEW_GAPS 的注释。
+ *
+ * ⚠️ **还没复习过、且这类内容是后来才进队列的，锚点取「进队列那天」**（见 `ReviewKind.since`）。
+ * 否则 10/26 给 PM 开复习，7 月学的第 1 课会立刻顶着「晚了 96 天」——她从没被要求
+ * 复习过它，那个数字纯属系统倒打一耙。
+ */
 function anchorOf(e: Entry): string | null {
   const log = reviewDates(e);
-  return log.length ? log[log.length - 1] : (e.entry_date ?? null);
+  if (log.length) return log[log.length - 1];
+  if (!e.entry_date) return null;
+  const since = reviewKindOf(e)?.since;
+  return since && since > e.entry_date ? since : e.entry_date;
 }
 
 /** 下一次该复习的日期；已毕业/无日期返回 null */
@@ -205,17 +214,17 @@ export function isDueToday(e: Entry, today = todayStr()): boolean {
 /**
  * 逾期天数（0 ＝ 正好今天到期）。
  *
- * ⚠️ **进队列之前的日子不算逾期**（见 `ReviewKind.since`）：从到期日和「这类内容
- * 进队列那天」里取晚的那个起算。没有这一条的话，10/26 给 PM 开复习，7 月学的第 1 课
- * 会立刻顶着「晚了 96 天」——她从没被要求复习过它，那个数字纯属系统倒打一耙。
- * 条目照样今天到期，只是不倒扣历史；她要是明天还没做，才真的开始算晚 1 天。
+ * ⚠️⚠️ **「不倒扣历史」这件事必须在 `anchorOf` 里做，不能在这里做**（2026-10-27 的教训）。
+ * 10-26 我图省事只在这里把天数夹住，结果同一行里出现了
+ * 「**晚了 1 天（本该 9月22日 周二）**」——数字被我改了，日期还是从老锚点算的，
+ * 9/22 到 10/27 明明隔了 35 天。Rosie 一眼看出来，原话「你这时间是没有往下走吗」。
+ * **凡是同一个事实有多个展示口（天数 / 日期 / 曲线 / 预告），就只能改它们共同的上游**，
+ * 在某一个出口上打补丁必然跟别的出口打架。
  */
 export function overdueDays(e: Entry, today = todayStr()): number {
   const due = nextDue(e);
   if (!due) return 0;
-  const since = reviewKindOf(e)?.since;
-  const from = since && since > due ? since : due;
-  return Math.max(0, daysBetween(from, today));
+  return Math.max(0, daysBetween(due, today));
 }
 
 /** 从 body 里抽古诗的【原诗】段（body 常含【注释】【白话】等大段，不能拿整段当答案） */
