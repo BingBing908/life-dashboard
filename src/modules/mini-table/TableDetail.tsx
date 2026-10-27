@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +67,26 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   const isCurWeek = weekMon === curMon;
   const weekDates = weekDatesOf(weekMon);
 
+  /**
+   * 窄屏（手机）＝**只看一天**：标签列 + 选中那天，上面给一条星期选择条。
+   *
+   * ⚠️ 七天 × `min-w-40` ＝ 至少 1120px，360px 的手机上只能横滚着看，
+   * 而「横滚的表格」是手机上最难用的东西之一——看第四天要盲滚，还永远看不见全貌。
+   * 单日模式跟日程周历是同一个思路（她认可那个），而且复盘时本来也是一天一天看的。
+   * 宽屏不变，七列照旧——那才是「周复盘中枢」该有的样子。
+   */
+  const narrow = useMediaQuery("(max-width: 767px)");
+  const [pickCol, setPickCol] = useState<string | null>(null);
+  const dayColOfToday = source
+    ? source.dayCols[weekDates.indexOf(todayStr())] ?? source.dayCols[0]
+    : null;
+  const activeCol = pickCol ?? dayColOfToday;
+  // ⚠️ 只在「窄屏且是绑了数据源的周表」时裁列：别的表列数不定，裁了就不知道裁掉了什么
+  const shownColumns =
+    narrow && source
+      ? columns.filter((c) => c.id === source.itemCol || c.id === activeCol)
+      : columns;
+
   useEffect(() => {
     listRows(table.id).then(setRows);
   }, [table.id]);
@@ -107,7 +129,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
 
   return (
     // 打开即占满整屏：整体撑满 main 的高度，表格区域自己滚（表头吸顶）
-    <div className="flex h-full flex-col p-6">
+    <div className="flex h-full flex-col p-4 sm:p-6">
       <div className="mb-4 flex shrink-0 items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="size-4" />
@@ -160,6 +182,33 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
         </div>
       )}
 
+      {/* 窄屏的星期选择条：只在绑了数据源的周表上出现（见 shownColumns 那段注释） */}
+      {narrow && source && (
+        <div className="mb-3 flex shrink-0 gap-1">
+          {source.dayCols.map((colId, i) => {
+            const on = colId === activeCol;
+            const isToday = weekDates[i] === todayStr();
+            return (
+              <button
+                key={colId}
+                onClick={() => setPickCol(colId)}
+                className={cn(
+                  "min-w-0 flex-1 touch-manipulation rounded-lg px-1 py-2 text-[13px] leading-tight",
+                  on
+                    ? "bg-primary text-primary-foreground"
+                    : isToday
+                      ? "bg-accent text-primary"
+                      : "text-muted-foreground",
+                )}
+              >
+                <div>{"一二三四五六日"[i]}</div>
+                <div className="text-[11px] opacity-70">{weekDates[i].slice(8)}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* min-h-0 让 flex 子项能真正缩；内层 table-container 变成滚动容器，表头才吸得住 */}
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-card [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
         {/* h-full：让浏览器把剩余高度按比例摊给各行，表格顶到底、不留大片空白。
@@ -167,7 +216,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
         <Table className="h-full text-base">
           <TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_var(--border)]">
             <TableRow>
-              {columns.map((col) => (
+              {shownColumns.map((col) => (
                 <TableHead key={col.id} className="group h-12 min-w-40 px-3">
                   <span className="flex items-center gap-1">
                     {col.name}
@@ -192,7 +241,7 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id} className="group">
-                {columns.map((col) => {
+                {shownColumns.map((col) => {
                   const label = source ? (row.data[source.itemCol] as string | undefined) : undefined;
                   const isAuto =
                     !!source &&
