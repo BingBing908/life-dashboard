@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Menu, X } from "lucide-react";
+import { LayoutDashboard, MoreHorizontal, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,17 @@ function parseHash(): string {
   if (!id || id === "dashboard") return "dashboard";
   return getModule(id) ? id : "dashboard";
 }
+
+/**
+ * 窄屏底部标签栏固定放这四个 + 一个「更多」。
+ *
+ * 为什么是底部标签栏：Rosie 要求「做成手机 app 爱用的格式」，而底部 tab 是手机 app
+ * 最标志性的结构——拇指够得到，切换不用先开抽屉。选这四个的依据是她的真实使用频率：
+ * 日日学是唯一长期跑得动的（完成率 84%）、时间轴和日程是她在家要看的「现在干什么/这周怎么排」。
+ * 待办/饮食/小表格/书架都在工作时间用电脑，收进「更多」。
+ * ⚠️ 改这里只要动这个数组；「更多」永远是抽屉，抽屉里仍是全部模块。
+ */
+const TAB_IDS = ["dashboard", "study-plan", "schedule", "study-log"];
 
 /**
  * 首次同步要等多久才放行渲染。
@@ -133,20 +144,16 @@ export default function App() {
       )}
 
       {/* 主区域（syncTick 变化＝拉到云端新数据，用 key 强制重新加载视图） */}
-      <main key={syncTick} className="min-w-0 flex-1 overflow-y-auto">
+      <main
+        key={syncTick}
+        className="min-w-0 flex-1 overflow-y-auto pb-[calc(3.75rem+env(safe-area-inset-bottom))] lg:pb-0"
+      >
         {/* 窄屏顶栏：汉堡 ＋ 当前页名。
             ⚠️ 刻意放在 main **里面**做吸顶条，而不是在外面再包一层 flex-col：
             ≥lg 时它是 display:none，于是整个布局盒子跟加它之前一模一样——
             小表格的全屏表格、时间轴那些靠 main 高度撑开的 h-full 布局一个都不会被牵连。 */}
-        <header className="sticky top-0 z-30 flex items-center gap-2 border-b bg-sidebar px-2 pt-[env(safe-area-inset-top)] lg:hidden">
-          <button
-            onClick={() => setNavOpen(true)}
-            aria-label="打开菜单"
-            className="rounded-md p-2.5 text-foreground hover:bg-sidebar-accent/50"
-          >
-            <Menu className="size-5" />
-          </button>
-          <span className="truncate py-2.5 text-base font-semibold">{title}</span>
+        <header className="sticky top-0 z-30 flex items-center gap-2 border-b bg-sidebar px-4 pt-[env(safe-area-inset-top)] lg:hidden">
+          <span className="truncate py-3 text-base font-semibold">{title}</span>
         </header>
         {/* 同步失败横幅：某张表推不上云时必须让她看见（见 sync.ts 的 syncFailures 注释——
             曾经云端缺列、上传每次 400，界面却一声不响，改动两天只存在本机） */}
@@ -163,6 +170,40 @@ export default function App() {
         )}
         {active ? <active.Page /> : <DashboardShell onOpenModule={setView} />}
       </main>
+
+      {/* 窄屏底部标签栏（≥lg 隐藏，那边有常驻侧栏）。
+          ⚠️ fixed 定位是对视口的，不受 main 的滚动影响——所以 main 要留出等高的 padding-bottom。 */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-sidebar pb-[env(safe-area-inset-bottom)] lg:hidden">
+        {TAB_IDS.map((id) => {
+          const m = getModule(id);
+          const Icon = id === "dashboard" ? LayoutDashboard : m!.manifest.icon;
+          const label = id === "dashboard" ? "总览" : m!.manifest.name;
+          const on = view === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setView(id)}
+              className={cn(
+                "flex min-w-0 flex-1 touch-manipulation flex-col items-center gap-0.5 py-2",
+                on ? "text-primary" : "text-sidebar-foreground/60",
+              )}
+            >
+              <Icon className="size-5" />
+              <span className="truncate text-[11px]">{label}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setNavOpen(true)}
+          className={cn(
+            "flex min-w-0 flex-1 touch-manipulation flex-col items-center gap-0.5 py-2",
+            TAB_IDS.includes(view) ? "text-sidebar-foreground/60" : "text-primary",
+          )}
+        >
+          <MoreHorizontal className="size-5" />
+          <span className="truncate text-[11px]">更多</span>
+        </button>
+      </nav>
     </div>
   );
 }

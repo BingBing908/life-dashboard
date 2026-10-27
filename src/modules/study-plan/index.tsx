@@ -1304,10 +1304,13 @@ function Page() {
             </div>
           ))}
 
-          <div className="flex gap-6">
+          {/* ⚠️ 窄屏（<md）竖排，而且用 order 把**内容排到全天轴前面**：
+              手机上先看见「现在该干什么」，全天轴退到下面当参考。
+              横排时左轨 176px 死宽不折，360px 的手机上右栏只剩 ~100px、一行一个字。 */}
+          <div className="flex flex-col gap-4 md:flex-row md:gap-6">
             {/* 左：全天轴（J3 迷你卡，2026-09-20 Rosie 选定）：领域卡可点、骨架卡是背景，
                 按时间混排铺满一天；红虚线=现在（她点名要保留）。 */}
-            <div className="w-44 shrink-0 sm:w-52">
+            <div className="order-2 w-full shrink-0 md:order-1 md:w-44 lg:w-52">
               <div className="flex flex-col gap-2">
                 {axisRows.map((row, idx) => (
                   <div key={row.key} className={idx === nowIn ? "relative" : undefined}>
@@ -1378,7 +1381,33 @@ function Page() {
             </div>
 
             {/* 右：当前领域内容（大卡片，含详细解释） */}
-            <div className="min-w-0 flex-1 border-l pl-6">
+            <div className="order-1 min-w-0 flex-1 md:order-2 md:border-l md:pl-6">
+              {/* 窄屏的领域切换条：手机上全天轴被挪到了内容下方，这里给一排横向可滚的 chip
+                  ——手机 app 的标准做法（顶部分类条），比滚到页底去点轴卡快得多。
+                  `-mx-4 px-4` 让它贴着屏幕边滚，也是 app 的惯例。 */}
+              <div className="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 md:hidden">
+                {domains.map((d) => {
+                  const p = domainProgress(d);
+                  const on = d.key === activeKey;
+                  return (
+                    <button
+                      key={d.key}
+                      onClick={() => setSelected(d.key)}
+                      className="shrink-0 touch-manipulation rounded-full border px-3 py-1.5 text-[13px]"
+                      style={
+                        on
+                          ? { borderColor: d.color, background: d.tint, color: d.textc, fontWeight: 600 }
+                          : undefined
+                      }
+                    >
+                      {d.name}
+                      <span className="ml-1 text-[11px] tabular-nums opacity-70">
+                        {p.done}/{p.total}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
               <div className="mb-4 flex items-baseline gap-2">
                 <span className="text-xl font-semibold" style={{ color: active.textc }}>
                   {active.name}

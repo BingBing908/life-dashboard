@@ -371,7 +371,7 @@ function Page() {
     <div className={PAGE}>
       {/* 本周复盘（横幅+按钮）2026-09-20 撤掉——Rosie：「后续需要复盘完成情况我直接找你复盘」。
           WeeklyReview.tsx 文件保留（想恢复把这两处加回来即可）。 */}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* 待办：五个筛选框 + 统一列表 */}
         <section className={CARD}>
           {/* 双界面（2026-09-20 Rosie：跟日程右上的按钮一样切换）：主界面工作、副界面学习。
@@ -465,7 +465,7 @@ function Page() {
           ) : (
             <>
           {/* 五个筛选框 */}
-          <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-6">
             {tiles.map((tile) => (
               <button
                 key={tile.key}

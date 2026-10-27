@@ -58,7 +58,7 @@ export const CARD_TITLE = "text-lg font-semibold";
  * ⚠️ 必须用 minmax(0, …) 而不是裸 fr——否则长内容会把栏撑破、整页横向滚动。
  */
 export const TWO_COL =
-  "grid gap-6 lg:grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)]";
+  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.18fr)_minmax(0,1fr)]";
 
 /**
  * 阅读型正文（2026-07-30 加，Rosie：「日日学现在的文字都太小了，阅读起来对眼睛很不友好」）。
