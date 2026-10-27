@@ -676,14 +676,18 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const [wordMode, setWordMode] = useState<"none" | "word" | "article">("none");
   return (
     <div className={cn("group", CARD, done && "opacity-70")}>
-      <div className="flex items-center gap-2">
+      {/* ⚠️ 这一行必须能折：窄屏上「徽标 + 标题 + 加备注 + 标看完」挤不下，
+          不折的话标题被压成竖排一行一个字、「标看完」整个溢出到屏幕外点不到
+          （2026-10-27 实机 360px 量到：按钮组被压成 75px，内容宽 141px）。
+          `min-w-[7rem]` 给标题兜底，`shrink-0` 保住按钮组。 */}
+      <div className="flex flex-wrap items-center gap-2">
         {entry.kind && (
-          <span className="rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>
+          <span className="shrink-0 rounded-full px-2 py-0.5 text-xs" style={{ background: accent + "22", color: accent }}>
             {entry.kind}
           </span>
         )}
-        {entry.title && <span className={READ_TITLE}>{entry.title}</span>}
-        <div className="ml-auto flex items-center gap-2">
+        {entry.title && <span className={cn(READ_TITLE, "min-w-[7rem] flex-1")}>{entry.title}</span>}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* 备注入口放这里（跟「标看完」并排）——长文滚不到底，入口必须在顶上，见 MyNote 注释 */}
           {onPatch && <NoteButton note={myNote} accent={accent} onOpen={() => setNoting(true)} />}
           {/* 手动「标看完」只留给**没有练习题**、也不用默写的内容（成语/谚语/普通新闻/历史…）。
@@ -1963,18 +1967,20 @@ function Page() {
 
   return (
     <div className={PAGE}>
-      <div className="mb-4 flex items-center gap-2">
+      {/* ⚠️ 窄屏要能折，否则「产品经理」这种四字标题会被 hint 和右边的环挤成竖排 */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {/* 返回顶层只调 setBoard(null)：nav([]) 一次把板块和书 id 一起清掉。
             别再补 setOpenBookId(null)，那会 nav(["book"]) 反而跳进书籍板块。 */}
         {board && (
-          <button onClick={() => setBoard(null)} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <button onClick={() => setBoard(null)} className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" /> 日日学
           </button>
         )}
-        <h1 className="text-2xl font-semibold" style={{ color: cfg?.c.text }}>
+        <h1 className="shrink-0 text-2xl font-semibold" style={{ color: cfg?.c.text }}>
           {cfg ? cfg.name : "日日学"}
         </h1>
-        {cfg && <span className="text-sm text-muted-foreground">{cfg.hint}</span>}
+        {/* hint 是一次性的说明，手机上让位给标题和进度环 */}
+        {cfg && <span className="hidden text-sm text-muted-foreground sm:inline">{cfg.hint}</span>}
         {board && board !== "review" && cfg && (
           <span className="ml-auto flex shrink-0 items-center gap-2">
             <ProgressRing done={boardDone} total={boardReal.length} accent={cfg.c.accent} />

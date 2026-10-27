@@ -175,7 +175,10 @@ function BookNotebook({
         <ArrowLeft className="size-4" /> 书架
       </button>
       <div className="flex gap-4">
-        <div className="h-40 w-28 shrink-0 overflow-hidden rounded-lg" style={{ background: cfg.c.bg }}>
+        {/* ⚠️ 窄屏不显示封面（2026-10-27 Rosie 点名）：她在书架那面墙上已经看过封面了，
+            点进来是为了写进度和读后感。112px 的封面在 360px 屏上吃掉三分之一宽度，
+            把书名挤成窄窄一条——重复的信息不该跟正文抢地方。宽屏地方够，照旧显示。 */}
+        <div className="hidden h-40 w-28 shrink-0 overflow-hidden rounded-lg sm:block" style={{ background: cfg.c.bg }}>
           {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : (
             <div className="flex h-full items-center justify-center"><Library className="size-8" style={{ color: cfg.c.accent }} /></div>
           )}
@@ -416,9 +419,9 @@ function Page() {
 
   return (
     <div className={PAGE}>
-      <div className="mb-4 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold">书架</h1>
-        <span className="text-sm text-muted-foreground">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="shrink-0 text-2xl font-semibold">书架</h1>
+        <span className="hidden text-sm text-muted-foreground sm:inline">
           自己录入的长期收藏 · 不进复习、不出作业
         </span>
       </div>

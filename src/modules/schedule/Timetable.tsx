@@ -188,6 +188,12 @@ export function Timetable({
    */
   const narrow = useMediaQuery("(max-width: 767px)");
   const [pickDay, setPickDay] = useState(todayNum);
+  /**
+   * ⚠️ 触屏上**没有 hover**，所以块上那个写着完整时间段的 `title` tooltip 根本看不到
+   * ——手机和 iPad 上就只能靠块的高度猜它几点到几点（2026-10-27 Rosie 点名要修）。
+   * 判据用 `(hover: none)` 而不是宽度：iPad 横屏有 1024px 宽，但照样没有鼠标。
+   */
+  const touch = useMediaQuery("(hover: none)");
 
   const days = DAY_NAMES.map((name, i) => {
     const dayNum = i + 1;
@@ -201,6 +207,24 @@ export function Timetable({
     };
   });
   const shown = narrow ? days.filter((d) => d.dayNum === pickDay) : days;
+
+  /**
+   * 左侧时间列上要标哪些刻度。
+   * 鼠标端＝固定的每两小时（有 tooltip 就够了）；
+   * 触屏端＝**当前显示的每一个块的起点和终点**，这样任意一块的时间段都能从左边读出来。
+   * ⚠️ 要去重：七天视图里很多块时间相同（三餐、通勤），而且挨太近的标签会叠在一起。
+   *    12px 的字约占 14px 高，`PX_PER_MIN`＝1.15 ⇒ 相隔 13 分钟以上才留。
+   */
+  const timeMarks = (() => {
+    if (!touch) return hourMarks;
+    const mins = new Set<number>();
+    for (const d of shown) for (const b of d.blocks) mins.add(b.from), mins.add(b.to);
+    const out: number[] = [];
+    for (const m of [...mins].sort((a, z) => a - z)) {
+      if (out.length === 0 || m - out[out.length - 1] >= 13) out.push(m);
+    }
+    return out.length > 0 ? out : hourMarks;
+  })();
 
   return (
     <div>
@@ -255,10 +279,14 @@ export function Timetable({
           />
         ))}
         <div className="relative w-11 shrink-0">
-          {hourMarks.map((h) => (
+          {timeMarks.map((h) => (
             <span
               key={h}
-              className="absolute right-2 text-[12px] tabular-nums text-muted-foreground"
+              className={cn(
+                "absolute right-1.5 tabular-nums text-muted-foreground",
+                // 触屏下刻度密得多，字小一号才塞得进 44px 的时间列
+                touch ? "text-[10.5px]" : "text-[12px]",
+              )}
               style={{ top: y(h) - 8 }}
             >
               {fmt(h)}
