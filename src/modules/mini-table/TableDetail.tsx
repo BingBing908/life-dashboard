@@ -122,6 +122,11 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   }
 
   async function handleDeleteColumn(colId: string) {
+    // ⚠️⚠️ 触屏适配的副作用：hover 才出现的删除键现在在手机上**常驻**（不然点不到），
+    // 而删列会抹掉整整一列数据，手指蹭一下就没了。所以这里必须确认一次。
+    // 桌面端原本靠「要先 hover 才看得见」当保护，手机上那层保护没有了。
+    const col = columns.find((c) => c.id === colId);
+    if (!window.confirm(`删除「${col?.name ?? "这一列"}」？这一列所有格子的内容都会没掉。`)) return;
     const next = columns.filter((c) => c.id !== colId);
     onColumnsChange(next);
     await updateColumns(table.id, next);
@@ -130,15 +135,19 @@ export function TableDetail({ table, onBack, onColumnsChange }: Props) {
   return (
     // 打开即占满整屏：整体撑满 main 的高度，表格区域自己滚（表头吸顶）
     <div className="flex h-full flex-col p-4 sm:p-6">
-      <div className="mb-4 flex shrink-0 items-center gap-3">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
         <Button variant="ghost" size="icon" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
-        <div className="min-w-0">
+        <div className="min-w-[8rem] flex-1">
           <h1 className="truncate text-2xl font-semibold">{table.name}</h1>
           <p className="text-xs text-muted-foreground">
             {rows.length} 行 · {columns.length} 列
-            {source && " · 浅色格＝自动来自 饮食 / 时间轴 / 日日学，不用手填"}
+            {/* ⚠️ 这句说明在手机上会占掉四行、还把表名挤成「日程表…」。
+                它是一次性的解释，她早就看懂了，窄屏藏掉。 */}
+            {source && (
+              <span className="hidden sm:inline"> · 浅色格＝自动来自 饮食 / 时间轴 / 日日学，不用手填</span>
+            )}
           </p>
         </div>
         <div className="ml-auto flex shrink-0 gap-2">
