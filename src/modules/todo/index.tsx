@@ -119,9 +119,9 @@ function QuadrantTag({ q, onChange }: { q: Quadrant; onChange?: (next: Quadrant)
 function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo; note: string; dateLabel?: string; onClear: () => void; onDelete: () => void }) {
   return (
     <div className="group rounded-lg border px-4 py-3 hover:bg-accent/40">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <DoneToggle state="done" onDone={() => {}} onSkip={() => {}} onClear={onClear} size="sm" />
-        <span className="min-w-0 flex-1 truncate text-[15px] text-muted-foreground line-through">{todo.title}</span>
+        <span className="min-w-[8rem] flex-1 truncate text-[15px] text-muted-foreground line-through">{todo.title}</span>
         {dateLabel && <span className="shrink-0 text-[11px] text-muted-foreground/70">{dateLabel}</span>}
         <button
           className="invisible shrink-0 text-muted-foreground hover:text-destructive group-hover:visible"
@@ -409,7 +409,7 @@ function Page() {
                 const note = notes[i.id] ?? "";
                 return (
                   <div key={i.id} className="rounded-lg border border-[#C9DEF3] bg-[#F3F8FE]/60 px-4 py-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                       <DoneToggle
                         state={st}
                         canComplete={st === "done" || note.trim().length > 0}
@@ -424,7 +424,7 @@ function Page() {
                           {i.time_slot}
                         </span>
                       )}
-                      <span className={cn("min-w-0 flex-1 truncate text-[15px] font-medium", st === "done" && "line-through")}>
+                      <span className={cn("min-w-[8rem] flex-1 truncate text-[15px] font-medium", st === "done" && "line-through")}>
                         {i.title}
                       </span>
                       <span className="shrink-0 rounded-full bg-[#E6F1FB] px-2 py-0.5 text-[11px] text-[#185FA5]">学习</span>
@@ -450,12 +450,12 @@ function Page() {
                   </div>
                   <div className="space-y-1.5">
                     {studyUpcoming.map(({ item: i, date }) => (
-                      <div key={`${i.id}-${date}`} className="flex items-center gap-3 rounded-lg border border-dashed border-[#C9DEF3] px-4 py-2 text-muted-foreground">
+                      <div key={`${i.id}-${date}`} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-dashed border-[#C9DEF3] px-4 py-2 text-muted-foreground">
                         <span className="shrink-0 rounded-full bg-[#F0F6FD] px-2 py-0.5 text-[11px] tabular-nums text-[#185FA5]">
                           {["周一", "周二", "周三", "周四", "周五", "周六", "周日"][dayNumOf(date) - 1]} {date.slice(5).replace("-", "/")}
                         </span>
                         {i.time_slot && <span className="shrink-0 text-xs tabular-nums">{i.time_slot}</span>}
-                        <span className="min-w-0 flex-1 truncate text-[14px]">{i.title}</span>
+                        <span className="min-w-[8rem] flex-1 truncate text-[14px]">{i.title}</span>
                       </div>
                     ))}
                   </div>
@@ -536,7 +536,12 @@ function Page() {
               const today_ = isToday(t);
               return (
                 <div key={t.id} className="group rounded-lg border px-4 py-3.5 hover:bg-accent/40">
-                  <div className="flex items-center gap-3">
+                  {/* ⚠️ 必须能折 + 标题要有宽度下限：这一行里 DoneToggle、「今天」、象限签、垃圾桶
+                      全是 shrink-0，加起来超过 360px 手机的可用宽度，而标题写的是 `min-w-0 flex-1`
+                      ——`min-w-0` 的意思就是「允许缩到 0」，于是**标题整条被挤没了**，
+                      卡片上只剩按钮和第二行的说明文字（2026-10-27 实机截图抓到）。
+                      ⚠️ 触屏上垃圾桶是常驻的（见 index.css 触屏适配），比桌面还多占 20px，更容易触发。 */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <DoneToggle
                       state={t.done ? "done" : (skipMap.get(t.id) ?? "pending")}
                       onDone={() => {
@@ -550,7 +555,7 @@ function Page() {
                     <EditableText
                       value={t.title}
                       onSave={(v) => handleRename(t.id, v)}
-                      className="min-w-0 flex-1 truncate text-[15px] font-medium"
+                      className="min-w-[8rem] flex-1 truncate text-[15px] font-medium"
                       inputClassName="flex-1 text-[15px]"
                     />
                     <button
