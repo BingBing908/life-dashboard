@@ -397,6 +397,35 @@ function slotEndMin(item: PlanItem): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : -1;
 }
 
+/**
+ * 工作域的时段＝**日程里那条同名骨架块**（`frames` 里 title==="工作" 的 plan_item）。
+ *
+ * ⚠️⚠️ **这是 2026-09-20 定的「跨模块数据一律引用单一来源，别复印」的落实**
+ * （她当时原话：「按理说全模块化应该调用一个模块」）。
+ * 2026-10-28 翻过一次：她在日程里把下午工作改成 14:00–16:45，而 `DOMAINS` 里还写死着
+ * 14:05–17:20 ⇒ 时间轴的工作条横跨了 16:50 的晚餐。我第一反应是**手动把写死的值改成一致**
+ * ——那正是「复印」，她立刻指出来了：「我们当时针对这个问题讨论过的，改成全模块化的」。
+ * 所以现在改成**从日程读**：她改日程，时间轴自动跟着变，不需要任何人记得同步。
+ *
+ * ⚠️ 下午可能有**两块**工作（14:00–16:45 和晚餐后的 17:20–17:45）——**只取最早那一块**，
+ * 取 min–max 会让工作条又一次横跨晚餐。后面那一小块以独立骨架卡的形式显示，这是对的。
+ * ⚠️ `DOMAINS` 里那两行的 `start`/`end`/`timeLabel` 现在只是**兜底**（日程里一条工作块都没有时用）。
+ */
+function workWindowFromSchedule(d: Domain, frames: PlanItem[], dayNum: number, date: string): { s: number; e: number } | null {
+  if (d.source !== "todo") return null;
+  let best: { s: number; e: number } | null = null;
+  for (const f of frames) {
+    if (f.title !== "工作") continue;
+    if (!matchesDay(f, dayNum, date)) continue;
+    const a = slotStartMin(f);
+    const b = slotEndMin(f);
+    if (a <= 0 || b <= a) continue;
+    if ((d.key === "work") !== (a < 720)) continue; // work=上午那块，work2=下午
+    if (!best || a < best.s) best = { s: a, e: b };
+  }
+  return best;
+}
+
 /** todo 域（工作）的时段——它没有 plan_items，时间写死在 `start`/`end` 两个数字里。
  *  ⚠️ 2026-09-22：`autoDomainKey` 原来只遍历 `domainItems`，工作域永远是空列表，
  *  于是上班时间里「当前」自动跳到上午的英语（离此刻最近的带时段条目）而不是工作。
@@ -942,7 +971,15 @@ function Page() {
   const isWeekend = todayNum === 6 || todayNum === 7;
   const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend))
     // ⚠️ 今天一条都没有的 plan 域不上轴（否则工作日会冒出两个空「学习」跟上午的工作撞一起）
-    .filter((d) => d.source !== "plan" || domainItems(d, todays).length > 0);
+    .filter((d) => d.source !== "plan" || domainItems(d, todays).length > 0)
+    // ⚠️ 工作域的时段从**日程**读（单一来源，见 workWindowFromSchedule 的注释）。
+    //    在这里一次性覆盖掉 start/end/timeLabel，下游（轴排序 / 红线定位 / 时段文字）全部不用改。
+    .map((d) => {
+      const w = workWindowFromSchedule(d, frames, todayNum, today);
+      if (!w) return d;
+      const f = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+      return { ...d, start: w.s, end: w.e, time: f(w.s), timeLabel: `${f(w.s)}–${f(w.e)}` };
+    });
   const autoKey = autoDomainKey(domains, items, todayNum);
   const activeKey = selected ?? autoKey;
   const active = domains.find((d) => d.key === activeKey) ?? domains.find((d) => d.key === autoKey)!;
