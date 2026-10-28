@@ -3,6 +3,7 @@ import { LayoutDashboard, MoreHorizontal, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
+import { getPersistError } from "@/lib/db";
 import { getSyncFailures, hasSyncedTable, runSync, syncEnabled } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
@@ -50,6 +51,8 @@ export default function App() {
   const [syncTick, setSyncTick] = useState(0); // 拉到新数据后 +1，用作 key 强制刷新视图
   // 同步失败的表（云端缺列/表没建时必须看得见，见 sync.ts syncFailures 注释）
   const [syncFails, setSyncFails] = useState<{ table: string; message: string }[]>([]);
+  // 本地库写不进去（配额满/隐私模式）——比同步失败更严重：这台设备上也没留下
+  const [persistErr, setPersistErr] = useState<string | null>(null);
   // 窄屏（手机 / iPad 竖屏）的抽屉导航开关；≥lg 用常驻侧栏，这个 state 不起作用
   const [navOpen, setNavOpen] = useState(false);
 
@@ -68,22 +71,58 @@ export default function App() {
     };
     const initial = runSync().then((c) => {
       bump(c);
-      if (alive) setSyncFails(getSyncFailures());
+      if (alive) {
+        setSyncFails(getSyncFailures());
+        setPersistErr(getPersistError());
+      }
     });
     const timeout = new Promise((r) => setTimeout(r, bootTimeoutMs()));
     Promise.race([initial, timeout]).then(() => {
       if (alive) setBooting(false);
     });
 
-    // 后台同步只推/拉数据，不 bump（不重挂载）——否则会打断正在进行的操作（如默写）、
-    // 把用户从当前板块弹回首页。拉到的新数据在下次进入页面时自然显示。
-    const readFails = () => setSyncFails(getSyncFailures());
-    const onFocus = () => runSync().then(readFails);
-    window.addEventListener("focus", onFocus);
-    const iv = setInterval(onFocus, 30_000);
+    const readFails = () => {
+      setSyncFails(getSyncFailures());
+      setPersistErr(getPersistError());
+    };
+
+    /**
+     * **定时后台同步：只推拉数据、不 bump**（原规矩，保留）。
+     * 页面开着的时候重挂载会打断正在进行的操作（默写打到一半）、把人弹回板块首页。
+     */
+    const tick = () => runSync().then(readFails);
+
+    /**
+     * ⚠️⚠️ **回到前台时必须 bump**（2026-10-28 加，修她报的「iPad 上点的进度手机上看不到」）。
+     *
+     * 原来**所有**后台同步都不 bump，那条规矩是给「电脑上开一整天」设计的：页面一直亮着，
+     * 重挂载纯属打扰。但手机/iPad 装成 app 之后，**打开 app ＝ 恢复那个还活着的页面，不是重新加载**
+     * ⇒ 同步确实把别的设备的改动拉进了本地 SQLite，**React 却还拿着旧的内存数据** ⇒
+     * 她在 iPad 上点完、回手机一看还是老样子，看起来就像「没同步」。
+     * **回到前台这一刻她必然不在打字**，所以这里 bump 是安全的——原规矩想保护的场景不存在。
+     *
+     * ⚠️ 判据用 `visibilitychange`，不能只靠 `focus`：手机上切 app / 锁屏解锁
+     * 未必触发 window 的 focus，而 visibilitychange 是移动端唯一可靠的那个。
+     */
+    const onResume = () =>
+      runSync().then((changed) => {
+        readFails();
+        bump(changed);
+      });
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") onResume();
+      // 切走的那一刻再推一次：手机会冻结/回收后台页面，不趁现在推就得等下次打开
+      else void runSync();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onResume);
+    const iv = setInterval(tick, 30_000);
     return () => {
       alive = false;
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onResume);
       clearInterval(iv);
     };
   }, []);
@@ -155,6 +194,14 @@ export default function App() {
         <header className="sticky top-0 z-30 flex items-center gap-2 border-b bg-sidebar px-4 pt-[env(safe-area-inset-top)] lg:hidden">
           <span className="truncate py-3 text-base font-semibold">{title}</span>
         </header>
+        {/* ⚠️ 本地存盘失败：比同步失败更严重——**这次改动连这台设备都没留下**，
+            刷新就没了。原来这个错误是定时器里的未捕获异常，界面上一点声音都没有。 */}
+        {persistErr && (
+          <div className="border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
+            ⚠️ 这台设备存不下数据了，刚才的改动<b>没有保存</b>（{persistErr}）。
+            别继续在这台设备上录入——先去电脑上操作，并把这条告诉 Claude。
+          </div>
+        )}
         {/* 同步失败横幅：某张表推不上云时必须让她看见（见 sync.ts 的 syncFailures 注释——
             曾经云端缺列、上传每次 400，界面却一声不响，改动两天只存在本机） */}
         {syncFails.length > 0 && (
