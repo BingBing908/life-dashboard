@@ -129,13 +129,21 @@ const DOMAINS: Domain[] = [
   { key: "wellness", name: "养生", start: 370, time: "6:10", color: "#A6CBF1", tint: "#F3F8FE", textc: "#185FA5", source: "plan", tracks: ["wellness"], noteRequired: false, timeMax: 720 },
   // 2026-09-01 新作息：07:30 先吃早餐、英语 07:55 才开始（三条合并成一条整块）
   { key: "english", name: "英语", start: 475, time: "7:55", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["english"], noteRequired: true },
-  { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–12:00", end: 720, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  /**
+   * ⚠️⚠️ **工作域的时段是写死在这里的**（`source:"todo"` 没有 plan_items 可读），
+   * 所以**她在日程里改了工作块的时间，这里必须手动跟着改**，否则时间轴会画出一个
+   * 跟日程对不上的工作条。2026-10-28 就是这么翻车的：她把下午工作改成 14:00–16:45、
+   * 16:50 吃晚餐、17:20 继续工作，而这里还写着 14:05–17:20 ⇒ 工作条直接盖住了晚餐。
+   */
+  { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–11:55", end: 715, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // 周末上午的学习（09:45–12:00，周六日）——工作日这一段是上班，域为空自动隐藏
   { key: "studyAM", name: "学习", start: 585, time: "9:45", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 540, timeMax: 780 },
   // 日日学 13:00–14:00（周1-6，午休后那一小时）
   { key: "daily", name: "日日学", start: 780, time: "13:00", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["ai"], noteRequired: true, timeMin: 780, timeMax: 840 },
   // 下午上班（14:05–17:20，晚餐 17:25–17:45 是骨架卡，自己一行）
-  { key: "work2", name: "工作", start: 845, time: "14:05", timeLabel: "14:05–17:20", end: 1040, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
+  // 下午工作只到 16:45——16:50 晚餐、17:20 那一小段「继续工作」在日程里是独立的骨架块，
+  // 这里不收，否则工作条会横跨晚餐（见上面 work 的注释）
+  { key: "work2", name: "工作", start: 840, time: "14:00", timeLabel: "14:00–16:45", end: 1005, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // 周六下午的学习（14:05–17:30）——工作日为空自动隐藏
   { key: "studyPM", name: "学习", start: 845, time: "14:05", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 840, timeMax: 1080 },
   // 晚间学习 18:30–19:45（周2,4,5；周日是复盘/排课表）
