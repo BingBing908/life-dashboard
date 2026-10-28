@@ -497,6 +497,8 @@ function Page() {
   const [dSugar, setDSugar] = useState("五分糖");
   const [dCal, setDCal] = useState("");
   const [drinkDate, setDrinkDate] = useState(today); // 记到哪天（点日历改，默认今天）
+  /** 饮品 / 零食 两档切换（2026-10-28 合卡后加）——日期 `drinkDate` 是两档共用的，别拆 */
+  const [treatTab, setTreatTab] = useState<"drink" | "snack">("drink");
 
   // 今天已服用的补剂（元素形如 "morning|维D"，存 app_settings、零改库）
   const [suppTaken, setSuppTaken] = useState<Set<string>>(new Set());
@@ -854,126 +856,136 @@ function Page() {
         <div className="flex flex-col gap-4">
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
-          {/* 饮品打卡 */}
+          {/* 饮品 · 零食：2026-10-28 合成一张卡（她：「饮食的页现在一页放不下漫出来了」）。
+              ⚠️ **这是文档里早就算好、唯一够量的那一刀**：省掉一圈 p-4 + 一个标题行 +
+              一个 DateLine + 一个 gap ≈ 110px，右栏正是整页高度的瓶颈。
+              ⚠️ 它俩本来就共用 `drinkDate` / `DateLine` / `TreatRow` / 同一张 `treat_log`（靠 kind 区分），
+              拆成两张卡是「零食后加」的历史原因，不是设计。*/}
           <section className={CARD}>
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className={CARD_TITLE}>饮品打卡 🧋</h2>
-              <span className="text-sm text-muted-foreground">本月 {monthCount} 杯</span>
+              <h2 className={CARD_TITLE}>饮品 · 零食</h2>
+              <span className="text-sm text-muted-foreground">
+                本月 {monthCount} 杯 · {snackMonthCount} 次
+              </span>
             </div>
-            <div className={cn("mt-3 space-y-2", SUBCARD)}>
-              <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
-              <div className="flex flex-wrap gap-2">
-                {SUBTYPES.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setDSub(t)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-sm transition-colors",
-                      dSub === t
-                        ? DRINK_COLOR[t].chip + " font-medium"
-                        : "border bg-card text-muted-foreground",
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-28 bg-card" />
-                <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-28 flex-1 bg-card" />
-                <select
-                  value={dSugar}
-                  onChange={(e) => setDSugar(e.target.value)}
-                  className="h-9 rounded-md border bg-card px-2 text-sm"
+            {/* 两档切换：选哪档就只显示哪档的表单和清单 */}
+            <div className="mt-2 flex gap-1.5">
+              {([["drink", "🧋 饮品"], ["snack", "🥜 零食"]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setTreatTab(k)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-sm transition-colors",
+                    treatTab === k ? "bg-primary text-primary-foreground" : "border text-muted-foreground hover:bg-accent",
+                  )}
                 >
-                  {SUGARS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
-                <Button onClick={addDrink}>记一杯</Button>
-              </div>
-              {/* 「今天还没记」收进卡内，不再是裸文本贴在卡外飘着 */}
-              {/* 空态不再显示「今天还没记…」（Rosie 2026-07-29 要求删）——
-                  表单就在上面，没记这件事本身不需要一句话来说 */}
-              {shownDrinks.length > 0 && (
-                <div className="space-y-1.5">
-                  {shownDrinks.map((d) => (
-                    <TreatRow
-                      key={d.id}
-                      dot={DRINK_COLOR[d.subtype].dot}
-                      text={[d.brand, d.name].filter(Boolean).join(" ") + (d.sugar ? ` · ${d.sugar}` : "")}
-                      calories={d.calories}
-                      onDelete={async () => {
-                        await deleteTreat(d.id);
-                        reloadTreats();
-                      }}
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className={cn("mt-2 space-y-2", SUBCARD)}>
+              {/* 日期是两档共用的——点一次月历，饮品和零食都补记到那天 */}
+              <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
+              {treatTab === "drink" ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {SUBTYPES.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setDSub(t)}
+                        className={cn(
+                          "rounded-full px-3 py-1 text-sm transition-colors",
+                          dSub === t
+                            ? DRINK_COLOR[t].chip + " font-medium"
+                            : "border bg-card text-muted-foreground",
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Input value={dBrand} onChange={(e) => setDBrand(e.target.value)} placeholder="品牌（喜茶…）" className="w-28 bg-card" />
+                    <Input value={dName} onChange={(e) => setDName(e.target.value)} placeholder="名字（芝芝莓莓…）" className="min-w-28 flex-1 bg-card" />
+                    <select
+                      value={dSugar}
+                      onChange={(e) => setDSugar(e.target.value)}
+                      className="h-9 rounded-md border bg-card px-2 text-sm"
+                    >
+                      {SUGARS.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <Input type="number" value={dCal} onChange={(e) => setDCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
+                    <Button onClick={addDrink}>记一杯</Button>
+                  </div>
+                  {/* 空态不显示「今天还没记…」（Rosie 2026-07-29 要求删）——表单就在上面 */}
+                  {shownDrinks.length > 0 && (
+                    <div className="space-y-1.5">
+                      {shownDrinks.map((d) => (
+                        <TreatRow
+                          key={d.id}
+                          dot={DRINK_COLOR[d.subtype].dot}
+                          text={[d.brand, d.name].filter(Boolean).join(" ") + (d.sugar ? ` · ${d.sugar}` : "")}
+                          calories={d.calories}
+                          onDelete={async () => {
+                            await deleteTreat(d.id);
+                            reloadTreats();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {SNACK_SUBTYPES.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setSSub(t)}
+                        className={cn(
+                          "rounded-full px-3 py-1 text-sm transition-colors",
+                          sSub === t
+                            ? "bg-amber-100 font-medium text-amber-700"
+                            : "border bg-card text-muted-foreground",
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      value={sName}
+                      onChange={(e) => setSName(e.target.value)}
+                      placeholder="吃了什么（一小把巴旦木…）"
+                      className="min-w-32 flex-1 bg-card"
                     />
-                  ))}
-                </div>
+                    <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
+                    <Button onClick={addSnack}>记一笔</Button>
+                  </div>
+                  {shownSnacks.length > 0 && (
+                    <div className="space-y-1.5">
+                      {shownSnacks.map((s) => (
+                        <TreatRow
+                          key={s.id}
+                          dot="bg-amber-500"
+                          text={[s.subtype, s.name].filter(Boolean).join(" · ")}
+                          calories={s.calories}
+                          onDelete={async () => {
+                            await deleteTreat(s.id);
+                            reloadTreats();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </section>
 
-          {/* 零食打卡 */}
-          <section className={CARD}>
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className={CARD_TITLE}>零食打卡 🥜</h2>
-              <span className="text-sm text-muted-foreground">
-                本月 {snackMonthCount} 次
-                {shownSnacks.length > 0 &&
-                  ` · ${drinkDate === today ? "今天" : drinkDate.slice(5)} ${shownSnacks.length} 次`}
-              </span>
-            </div>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              顶饿又不炸：一小把坚果 / 无糖酸奶 / 黑巧 2 块 / 一个水果。热量算进上面的「已吃」。
-            </p>
-            <div className={cn("mt-3 space-y-2", SUBCARD)}>
-              <DateLine date={drinkDate} today={today} onBackToToday={() => setDrinkDate(today)} />
-              <div className="flex flex-wrap gap-2">
-                {SNACK_SUBTYPES.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setSSub(t)}
-                    className={cn(
-                      "rounded-full px-3 py-1 text-sm transition-colors",
-                      sSub === t
-                        ? "bg-amber-100 font-medium text-amber-700"
-                        : "border bg-card text-muted-foreground",
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  value={sName}
-                  onChange={(e) => setSName(e.target.value)}
-                  placeholder="吃了什么（一小把巴旦木…）"
-                  className="min-w-32 flex-1 bg-card"
-                />
-                <Input type="number" value={sCal} onChange={(e) => setSCal(e.target.value)} placeholder="kcal" className="w-20 bg-card" />
-                <Button onClick={addSnack}>记一笔</Button>
-              </div>
-              {shownSnacks.length > 0 && (
-                <div className="space-y-1.5">
-                  {shownSnacks.map((s) => (
-                    <TreatRow
-                      key={s.id}
-                      dot="bg-amber-500"
-                      text={[s.subtype, s.name].filter(Boolean).join(" · ")}
-                      calories={s.calories}
-                      onDelete={async () => {
-                        await deleteTreat(s.id);
-                        reloadTreats();
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
 
           {/* 月历：饮品零食共用（点某天两边都补记到那天）。
               flex-1＝这一栏的剩余高度归它，日历本身照旧顶对齐 */}

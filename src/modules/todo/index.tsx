@@ -135,8 +135,9 @@ function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo;
         <p className="mt-1 pl-1 text-xs leading-relaxed text-muted-foreground/80">{todo.detail}</p>
       )}
       {note.trim() && (
+        {/* ⚠️ 前面那个 ✍ 图标 2026-10-28 按她要求去掉了（「那个黄色图标早要求删了」）——
+            笔记有底色块已经够区分，再加个 emoji 只是噪音。别手贱加回来。 */}
         <p className="mt-1.5 rounded-md bg-accent/60 px-2.5 py-1.5 text-xs leading-relaxed text-accent-foreground">
-          <span className="opacity-70">✍ </span>
           {note}
         </p>
       )}
