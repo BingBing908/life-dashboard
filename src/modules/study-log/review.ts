@@ -402,6 +402,16 @@ export function recallCard(e: Entry): { prompt: string; answer: string } | null 
   // 连引号一起吃掉，否则会留下一对空引号「」把字数漏出去
   const prompt = raw
     .replace(new RegExp(`[「『“"]?${escapeRe(answer)}[」』”"]?`, "g"), "____")
+    /**
+     * ⚠️ 题面要**去掉行内标记**（2026-10-28）：body 里的 `**粗体**`／`!!红字!!`／`[[术语]]`
+     * 是给 `RichText` 解析的，而 `ReviewQuiz` 用的是朴素 `<p>` ⇒ 不去掉就会原样显示成
+     * 「用四个数给每个需求算一个分：**覆盖多少人 × …**」。复习卡是她明天要连着看 20 次的东西，
+     * 满屏星号很吵。⚠️ 顺序：先 `!!!` 再 `!!`，否则三个感叹号会被两个的规则咬掉一半。
+     */
+    .replace(/!!!/g, "")
+    .replace(/!!/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
     .trim();
   if (!prompt) return null;
   return { prompt, answer };
