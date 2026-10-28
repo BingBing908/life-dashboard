@@ -1,6 +1,6 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { addDays, mondayOf, todayStr } from "@/lib/dates";
-import { hasSyncedTable } from "@/lib/sync";
+import { hasSyncedTable, isSyncing } from "@/lib/sync";
 import { SEED_ITEMS, SEED_RESET_BELOW, SEED_VERSION } from "./seed";
 
 /** 六条线：养生 / 运动 / 英语 / HCIP / AI方向 / 阅读；
@@ -128,11 +128,34 @@ let seedPromise: Promise<PlanItem[]> | null = null;
 export function seedIfEmpty(force = false): Promise<PlanItem[]> {
   if (!seedPromise) {
     seedPromise = (async () => {
-      const existing = await listItems();
-      if (existing.length > 0) return existing;
-      if (!force && !hasSyncedTable("plan_items")) {
+      /**
+       * ⚠️⚠️⚠️ **顺序和复查都是血的教训，别动**（2026-10-28 当天事故发生了两次）。
+       *
+       * 第二次的根因是**竞态**：原来的写法是先 `await listItems()`、再查守卫。
+       * 手机那边页面先渲染出来（首次同步还在跑），此时本地确实是空的 ⇒ `existing=[]`；
+       * 等到检查守卫那一行时，同步刚好把 plan_items 跑完、标记成「已同步」⇒ 守卫放行
+       * ⇒ **拿着一份过期的「本地是空的」去播种**，36 条带着新时间戳推上云，
+       * 把当天所有修复整批盖掉（第二次）。
+       *
+       * 三条一起上：
+       * ① **守卫前置**——先问「这台设备知道云端长什么样吗」，再去读数据；
+       * ② **同步进行中一律不播**——正在拉的数据还没落地，这时的「空」没有意义；
+       * ③ **播种前再查一次**——跨过任何 await 之后，之前读到的「空」都可能已经过期。
+       */
+      if (!force && (!hasSyncedTable("plan_items") || isSyncing())) {
         seedPromise = null; // 别把「这次没播成」缓存住：下次（同步完成后）还要再试
         return [];
+      }
+      const existing = await listItems();
+      if (existing.length > 0) return existing;
+      if (!force) {
+        // ③ 复查：上面那次 await 期间同步可能刚把云端数据写进来
+        const again = await listItems();
+        if (again.length > 0) return again;
+        if (isSyncing()) {
+          seedPromise = null;
+          return [];
+        }
       }
       const db = await getDb();
       let order = 1;
@@ -198,7 +221,7 @@ export function latestSeedVersion(): number {
 export async function ensureSeedAdditions(): Promise<void> {
   // ⚠️ 同 seedIfEmpty：没同步过就别往库里塞模板行，否则会在云端复活她删掉的条目。
   //    版本号存在 app_settings，所以两张表都同步过才算「知道云端长什么样」。
-  if (!hasSyncedTable("plan_items") || !hasSyncedTable("app_settings")) return;
+  if (!hasSyncedTable("plan_items") || !hasSyncedTable("app_settings") || isSyncing()) return;
   const cur = await getSeedVersion();
   if (cur >= SEED_VERSION) return;
   // 库版本太老 ⇒ 中间隔着修改型升级（如 v26 晚间改版），增量补会造成新旧条目并存，

@@ -252,6 +252,13 @@ export function hasSyncedTable(table: string): boolean {
  * ⚠️ **只能用来决定等多久再渲染这类 UX 问题，绝不能用来决定要不要播种**——
  * 它正是 2026-10-28 那次覆盖事故的漏洞所在，原因见 `hasSyncedTable` 的注释。
  */
+/**
+ * 正在跑同步吗。⚠️ **播种前必须问它**——见 `seedIfEmpty` 里那条竞态注释。
+ */
+export function isSyncing(): boolean {
+  return syncing;
+}
+
 export function hasEverSyncedTable(table: string): boolean {
   if (!syncEnabled()) return true;
   return syncedTables().has(table);

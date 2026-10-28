@@ -1,6 +1,6 @@
 import { getDb, newRecordFields, nowIso, seedUuid } from "@/lib/db";
 import { addDays, todayStr } from "@/lib/dates";
-import { hasSyncedTable } from "@/lib/sync";
+import { hasSyncedTable, isSyncing } from "@/lib/sync";
 
 export interface Habit {
   id: string;
@@ -50,12 +50,19 @@ let seedPromise: Promise<Habit[]> | null = null;
 export function seedHabitsIfEmpty(): Promise<Habit[]> {
   if (!seedPromise) {
     seedPromise = (async () => {
+      // ⚠️⚠️ 守卫必须**前置**，而且同步进行中一律不播——原理和血的教训见
+      //     study-plan 的 seedIfEmpty（2026-10-28 那条竞态注释）。这里是同一个病。
+      if (!hasSyncedTable("habits") || isSyncing()) {
+        seedPromise = null; // 别缓存这次的失败：同步完成后还要再试
+        return [];
+      }
       const existing = await listHabits();
       if (existing.length > 0) return existing;
-      // ⚠️ 没同步过 habits 就别播种，否则会在云端复活她删掉的习惯——
-      // 同 study-plan 的 seedIfEmpty，原理见 sync.ts 末尾「首次同步守卫」那段
-      if (!hasSyncedTable("habits")) {
-        seedPromise = null; // 别缓存这次的失败：同步完成后还要再试
+      // 复查：上面那次 await 期间同步可能刚把云端数据写进来
+      const again = await listHabits();
+      if (again.length > 0) return again;
+      if (isSyncing()) {
+        seedPromise = null;
         return [];
       }
       const db = await getDb();
