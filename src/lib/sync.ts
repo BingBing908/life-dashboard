@@ -62,13 +62,33 @@ async function syncTable(
   pk: string,
 ): Promise<boolean> {
   const localRows = await db.select<Row[]>(`SELECT * FROM ${name}`);
-  const { data: remoteRows, error } = await supabase.from(name).select("*");
-  if (error) throw error;
+  /**
+   * ⚠️⚠️ **下载失败会连带把上传也堵死**（2026-10-28 查她「标了却没同步上去」时发现）：
+   * 这一行一 `throw`，下面那段 upsert **根本跑不到**。下面专门写过一条
+   * 「上传失败不能阻断下载」，反过来这条一直没人管——而被堵住的那一侧更要命：
+   * 云端的数据丢了还能从别的设备拉回来，**她在这台设备上刚标的东西是独一份**。
+   *
+   * 所以这里多试两次再放弃。这只能救「网络抖一下」，救不了结构性失败
+   * （表没建、缺列、payload 太大必然超时）——那种照旧抛给顶部横幅报警。
+   */
+  let remoteRows: Row[] = [];
+  let pullErr: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase.from(name).select("*");
+    if (!error) {
+      remoteRows = (data ?? []) as Row[];
+      pullErr = null;
+      break;
+    }
+    pullErr = error;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+  }
+  if (pullErr) throw pullErr;
 
   const localMap = new Map<string, Row>();
   for (const r of localRows) localMap.set(String(r[pk]), r);
   const remoteMap = new Map<string, Row>();
-  for (const r of (remoteRows ?? []) as Row[]) remoteMap.set(String(r[pk]), r);
+  for (const r of remoteRows) remoteMap.set(String(r[pk]), r);
 
   const toRemote: Row[] = [];
   const toLocal: Row[] = [];
