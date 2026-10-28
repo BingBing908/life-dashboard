@@ -422,7 +422,8 @@ function DrinkCalendar({
           </button>
         </span>
       </div>
-      <div className="grid grid-cols-7 gap-y-1 text-center">
+      {/* gap-y-0.5：固定 6 行之后月历成了右栏最高的一块，行距收一档省 10px */}
+      <div className="grid grid-cols-7 gap-y-0.5 text-center">
         {["一", "二", "三", "四", "五", "六", "日"].map((w) => (
           <span key={w} className="text-[10px] text-muted-foreground">{w}</span>
         ))}
@@ -461,7 +462,7 @@ function DrinkCalendar({
           );
         })}
       </div>
-      <div className="mt-1.5 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+      <div className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-red-500 align-middle" />奶茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-green-500 align-middle" />果茶</span>
         <span><span className="mr-0.5 inline-block size-2 rounded-full bg-violet-500 align-middle" />酸奶</span>
@@ -853,7 +854,9 @@ function Page() {
         {/* ───────── 右栏 ─────────
             这一栏是整页高度的**瓶颈**：体重 / 饮品 / 零食 / 月历四块都是固定高度，
             不像左栏三餐的 textarea 会自己缩。所以想让这页更短，只能从这四块里减。 */}
-        <div className="flex flex-col gap-4">
+        {/* ⚠️ gap-3 不是 gap-4：右栏是整页高度的瓶颈，三个间距省下 12px。
+            左栏（三餐）仍是 gap-4，它有 textarea 会自己缩，不参与瓶颈。*/}
+        <div className="flex flex-col gap-3">
           <WeightPair lastNight={wLastPm} thisMorning={wTodayAm} onSave={saveWeight} />
 
           {/* 饮品 · 零食：2026-10-28 合成一张卡（她：「饮食的页现在一页放不下漫出来了」）。
