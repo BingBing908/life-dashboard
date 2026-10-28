@@ -134,9 +134,11 @@ function FinishedRow({ todo, note, dateLabel, onClear, onDelete }: { todo: Todo;
       {(todo.detail ?? "").trim() && (
         <p className="mt-1 pl-1 text-xs leading-relaxed text-muted-foreground/80">{todo.detail}</p>
       )}
+      {/* ⚠️ 这一行前面原来有个 ✍ 图标，2026-10-28 按她要求去掉了（「那个黄色图标早要求删了」）——
+          笔记有底色块已经够区分，再挂个 emoji 只是噪音。别手贱加回来。
+          ⚠️ 注释只能放在这里（JSX 子节点位置），**不能塞进下面 `{… && ( … )}` 的括号里**——
+          那里面只允许一个 JSX 元素，塞一条 JSX 注释进去会直接编译失败（2026-10-28 就是这么挂的 CI）。*/}
       {note.trim() && (
-        {/* ⚠️ 前面那个 ✍ 图标 2026-10-28 按她要求去掉了（「那个黄色图标早要求删了」）——
-            笔记有底色块已经够区分，再加个 emoji 只是噪音。别手贱加回来。 */}
         <p className="mt-1.5 rounded-md bg-accent/60 px-2.5 py-1.5 text-xs leading-relaxed text-accent-foreground">
           {note}
         </p>
