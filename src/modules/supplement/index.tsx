@@ -394,6 +394,13 @@ function DrinkCalendar({
   for (let i = 0; i < lead; i++) cells.push(null);
   const daysInMonth = new Date(ym.y, ym.m, 0).getDate();
   for (let d = 1; d <= daysInMonth; d++) cells.push(toDateStr(new Date(ym.y, ym.m - 1, d)));
+  // ⚠️ 统一补满 6 行（42 格）。月历本来是 4/5/6 行浮动的（lead + 当月天数决定），
+  // 而这张卡是**整页高度的瓶颈**——翻到「1 号在周六」的月份（如 2026-08）就会突然多一行，
+  // 整页跟着长高、左栏三餐框一起变形。固定占 6 行＝翻月时页面纹丝不动
+  // （iOS/Google 日历都这么做）。代价是多数月份多一条空行（约 28px），换翻月不跳。
+  // ⚠️ 占位格必须给显式高度（下面的 h-6）：grid 的行高取该行最高的格子，
+  // 空 span 高度为 0 ⇒ 不给高度的话这条「补出来的行」根本不占位，补了等于没补。
+  while (cells.length < 42) cells.push(null);
 
   function shift(n: number) {
     const d = new Date(ym.y, ym.m - 1 + n, 1);
@@ -420,7 +427,7 @@ function DrinkCalendar({
           <span key={w} className="text-[10px] text-muted-foreground">{w}</span>
         ))}
         {cells.map((date, i) => {
-          if (!date) return <span key={`x${i}`} />;
+          if (!date) return <span key={`x${i}`} className="h-6" />;
           const day = Number(date.slice(8));
           const color = colorOf(date);
           const hasSnack = snackDays.has(date);
