@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { CARD, CARD_TITLE, PAGE } from "@/lib/ui";
 
 import { addDays, formatDateCn, mondayOf, todayStr } from "@/lib/dates";
+import { hasSyncedTable } from "@/lib/sync";
 import { useSubPath } from "@/lib/hashRoute";
 import { openLink } from "@/lib/openLink";
 import type { AppModule } from "../types";
@@ -862,6 +863,8 @@ function Page() {
   const todayNum = dayNumOf(today);
 
   const [seedOutdated, setSeedOutdated] = useState(false);
+  /** 这台设备这次从云端同步成功了吗——没成功就不给看「一键同步」按钮（见下面的注释） */
+  const syncedOk = hasSyncedTable("plan_items");
   const [periodOn, setPeriodState] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -1312,7 +1315,10 @@ function Page() {
         </span>
       </div>
 
-      {seedOutdated && (
+      {/* ⚠️ `syncedOk` 这个条件别删：没从云端同步成功时**不许出现这个按钮**。
+          2026-10-28 她手机 14 张表全拉不下来、本地 0 行，而这个按钮就摆在页面顶上——
+          一按就按老模板播种再推上云，完整重演中午那次覆盖。见 resetToSeed 的注释。*/}
+      {seedOutdated && syncedOk && (
         <div className="mb-4 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
           <p className="text-sm text-amber-800">
             <span className="font-medium">计划模板有更新</span>

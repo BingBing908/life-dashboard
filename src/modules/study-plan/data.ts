@@ -220,7 +220,18 @@ export async function ensureSeedAdditions(): Promise<void> {
 }
 
 /** 清空现有条目并重新播种（用于同步最新计划模板；已打的勾会失效） */
+/**
+ * ⚠️⚠️⚠️ **没同步成功的设备上禁止重播种**（2026-10-28 加，堵的是中午那次事故的第二条路）。
+ * 当天她手机拉不到云端（14 张表全是 `TypeError: Failed to fetch`），本地 0 行，
+ * 而时间轴顶上**正摆着「计划模板有更新 · 一键同步」那个按钮**——一按就是
+ * `seedIfEmpty(true)` 绕过守卫播 36 条老模板，等网络恢复再推上云，
+ * **完整重演中午那场覆盖**。`seedIfEmpty` 的守卫拦不住它，因为 `force=true` 就是用来绕过守卫的。
+ * 所以这道闸必须单独加在这里。
+ */
 export async function resetToSeed(): Promise<PlanItem[]> {
+  if (!hasSyncedTable("plan_items")) {
+    throw new Error("这台设备还没从云端同步成功，现在重置会把老模板推上去盖掉云端数据。先连上网等同步完成。");
+  }
   const db = await getDb();
   const ts = nowIso();
   await db.execute(
