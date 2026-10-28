@@ -1779,7 +1779,7 @@ function ReviewBoard({
   onWordPass,
 }: {
   entries: Entry[];
-  onPass: (id: string, stats: { wrong: number; rounds: number }) => void;
+  onPass: (id: string, stats: { wrong: number; rounds: number; fail?: boolean }) => void;
   onWordPass: (card: WordCard, stats: { wrong: number; rounds: number }) => void;
 }) {
   const today = todayStr();
@@ -1794,9 +1794,22 @@ function ReviewBoard({
    * 下次什么时候」还看得见。
    */
   const [passedNow, setPassedNow] = useState<{ id: string; label: string; due: string }[]>([]);
+  /**
+   * 这一轮里答错过的条目 id（答错顺序）——**它们排到列表最末尾**，别的题做完再回来答。
+   *
+   * ⚠️ 2026-10-28 加，她拍板的那档。为什么不是原地重答：答错后紧接着照抄一遍答案
+   * 几乎不产生记忆（那是抄写不是提取）。隔几道题再问一次才是真的在考"记住了没有"。
+   * 卡片的 key 是 e.id、顺序变了组件不会重挂载，所以它自己的「我刚才答错过」状态留得住。
+   */
+  const [missed, setMissed] = useState<string[]>([]);
   const items = entries
     .filter((e) => isDueToday(e, today))
-    .sort((a, b) => (a.entry_date ?? "").localeCompare(b.entry_date ?? ""));
+    .sort((a, b) => (a.entry_date ?? "").localeCompare(b.entry_date ?? ""))
+    .sort((a, b) => {
+      const ia = missed.indexOf(a.id), ib = missed.indexOf(b.id);
+      // 没答错过的排前面；都答错过的按答错先后排
+      return (ia < 0 ? -1 : ia) - (ib < 0 ? -1 : ib);
+    });
 
   /** 刚过了哪几条（条目已从列表移除，这行是唯一的完成反馈） */
   const passedLine =
@@ -1885,10 +1898,13 @@ function ReviewBoard({
             <ReviewTrack entry={e} accent={acc(e.board)} />
             {/* 两种复习形式：默写型走 ReviewDictation，成语这类 recall 型走 ReviewQuiz */}
             {(() => {
-              const pass = (stats: { wrong: number; rounds: number }) => {
+              const pass = (stats: { wrong: number; rounds: number; fail?: boolean }) => {
                 // 记一行「刚默完」再上报——上报后这条就不再到期、卡片会从列表消失，
                 // 所以完成反馈得先留下来（label 对成语用标题，此时已经可以露答案了）
-                const nextD = addDays(today, REVIEW_GAPS[stage + 1] ?? 0);
+                // ⚠️ 答错过（fail）的那条级数清零 ⇒ 下次就是 REVIEW_GAPS[0]＝明天，
+                //    别拿 stage+1 去算，不然这行绿字会报一个它自己都不信的日期
+                const nextStage = stats.fail ? 0 : stage + 1;
+                const nextD = addDays(today, REVIEW_GAPS[nextStage] ?? 0);
                 setPassedNow((p) =>
                   p.some((x) => x.id === e.id)
                     ? p
@@ -1897,7 +1913,7 @@ function ReviewBoard({
                         {
                           id: e.id,
                           label: e.title || reviewKindOf(e)?.label || "这条",
-                          due: stage + 1 >= REVIEW_GAPS.length ? "" : formatDateCn(nextD),
+                          due: nextStage >= REVIEW_GAPS.length ? "" : formatDateCn(nextD),
                         },
                       ],
                 );
@@ -1913,6 +1929,7 @@ function ReviewBoard({
                     passed={false}
                     accent={acc(e.board)}
                     onPass={pass}
+                    onMiss={() => setMissed((m) => (m.includes(e.id) ? m : [...m, e.id]))}
                   />
                 );
               }

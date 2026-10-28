@@ -101,6 +101,16 @@ export const REVIEW_KINDS: ReviewKind[] = [
    * · **面试题**——它本身就是题，再进队列等于一题两记；而且 PM/FDE 两边的面试题一起进会爆量。
    */
   { board: "fde", kind: "技术知识点", label: "FDE 技术点", mode: "recall", promptSection: "一句话定义", since: "2026-10-26" },
+  /**
+   * 2026-10-28 加：AI 术语卡。**这是她那句「记不住 AI 的知识点」的直接原因**——
+   * 查过库：AI 板块 66 条里新闻+速览+趋势占 54 条（82%，按设计就是读完即过期的），
+   * 真正该记的术语卡只有 12 张，而这 12 张**从 7 月到 10 月一次都没进过复习队列**。
+   * 她读得最多的那部分本来就不该记，该记的那部分一次都没复习过。
+   *
+   * ⚠️ 同 PM/FDE：反向出题（给定义答术语名），题面取 **【一句话定义】**，
+   * 答案用 `meta.recallAnswer` 显式给 ⇒ **注入术语卡时这两样都是必填**，少一样就进不了队列。
+   */
+  { board: "ai", kind: "术语卡", label: "AI 术语", mode: "recall", promptSection: "一句话定义", since: "2026-10-28" },
 ];
 
 export function reviewKindOf(e: Entry): ReviewKind | null {
@@ -138,6 +148,18 @@ export interface RevRecord {
   wrong?: number;
   /** 一共默了几轮才全对（1＝一次过）；老记录没有 */
   rounds?: number;
+  /**
+   * 这一次**没过**（第一遍答错、看了答案重学之后才答对）。
+   *
+   * ⚠️⚠️ 2026-10-28 加，起因是她说「你给我那些术语复习题我全错，更可怕的是我复习了之后
+   * 仍然毫无印象」。查她 10/27 的记录：8 条错 7 条，而且**全部 `rounds=2`**——
+   * 也就是「答错 → 系统直接显示答案 → 照着打一遍 → 判通过 → 和答对的卡片用同样的间隔升级」。
+   * 三个错误叠在一起：①答错和答对待遇一样（间隔按 stage 写死，`wrong` 只记录不影响排程）
+   * ②「照着答案打一遍」是抄写不是提取，几乎不产生记忆 ③于是系统在假装她学会了。
+   * **答错的卡必须回到最短间隔重来**（Anki 的 Again 就是干这个的），这就是这个字段的用处：
+   * `reviewStage` 见到 fail 就把级数清零 ⇒ 明天还会出现。
+   */
+  fail?: boolean;
 }
 
 /** 历次复习记录（升序、按日期去重）。兼容纯字符串数组和旧的 reviewedAt 单值 */
@@ -167,9 +189,14 @@ export function reviewDates(e: Entry): string[] {
   return reviewLog(e).map((r) => r.d);
 }
 
-/** 已通过几次（0 ＝ 学完还没复习过） */
+/**
+ * 已连续通过几次（0 ＝ 还没复习过，**或上一次答错被打回了**）。
+ * 答错一次就从头来过——见 `RevRecord.fail` 的注释。
+ */
 export function reviewStage(e: Entry): number {
-  return reviewDates(e).length;
+  let n = 0;
+  for (const r of reviewLog(e)) n = r.fail ? 0 : n + 1;
+  return n;
 }
 
 /** 五次全走完＝记牢了，不再进队列 */
@@ -414,11 +441,13 @@ export function upcomingByDate(
 export function passPatch(
   e: Entry,
   today = todayStr(),
-  stats?: { wrong: number; rounds: number },
+  stats?: { wrong: number; rounds: number; fail?: boolean },
 ): Record<string, unknown> {
   const log = reviewLog(e);
   if (log.some((r) => r.d === today)) return {};
-  const rec: RevRecord = stats ? { d: today, wrong: stats.wrong, rounds: stats.rounds } : { d: today };
+  const rec: RevRecord = stats
+    ? { d: today, wrong: stats.wrong, rounds: stats.rounds, ...(stats.fail ? { fail: true } : {}) }
+    : { d: today };
   return { revs: [...log, rec].sort((a, b) => a.d.localeCompare(b.d)), reviewedAt: today };
 }
 
@@ -436,7 +465,15 @@ export interface ReviewStep {
 }
 
 export function reviewSteps(e: Entry, today = todayStr()): ReviewStep[] {
-  const log = reviewLog(e);
+  /**
+   * ⚠️ **答错被打回的那几次不占格子**（2026-10-28）：曲线画的是「现在连着过了几次」，
+   * 跟 `reviewStage` 必须是同一个数。不切掉的话，一次失败会在曲线上显示成「已通过」，
+   * 而级数已经清零——又变成「同一个事实两个出口对不上」那类 bug（见 overdueDays 的注释）。
+   * 排程锚点仍然取**最后一次作答那天**（含答错那次），那是 `anchorOf` 的事，这里不碰。
+   */
+  const all = reviewLog(e);
+  const lastFail = all.map((r) => !!r.fail).lastIndexOf(true);
+  const log = lastFail < 0 ? all : all.slice(lastFail + 1);
   const out: ReviewStep[] = [];
   // 未来几格的计划日期要**顺着锚点往后推**，不能各自从 entry_date 算——
   // 否则她拖了几天，后面几格全成了"已经逾期"（就是 Rosie 说的"一直放在这"）。
