@@ -866,9 +866,51 @@ function parseMetaObj(e: Entry): Record<string, unknown> {
 }
 const normEn = (s: string) => (s || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 const normCn = (s: string) => (s || "").replace(/[\s，。,.、；;！!？?"'“”‘’（）()]/g, "").trim();
+/**
+ * 把一条中文释义拆成「可接受的答案」清单。
+ *
+ * ⚠️⚠️ **音标和括号注释绝不能进判题串**（2026-10-28 她实测撞到）：按注入规矩，
+ * `meta.words[].cn` 里会带音标和注释（`请 /pliːz/`、`衣帽寄存处 /ˈkləʊkruːm/（cloak＝斗篷）`）
+ * ——那是给**中译英**那一步当发音提示用的，而**英译中**这一步是拿 cn 当标准答案在比。
+ * 原来整串直接比，于是她答「请」被判错：`请/pliːz/` 既不包含也不等于 `请`。
+ * **这跟 2026-10-19「音标混进 en 导致十个词全判红叉」是同一个病换了一边**，
+ * 当时定的规矩「音标放 cn」只解决了一半。
+ *
+ * ⚠️ 多义词写成「票、牌子」时，**答出其中任意一个就算对**——原来是整串比，
+ * 答「票」要跟「票牌子」比，只有恰好是子串才侥幸过。
+ */
+function cnGlosses(a: string): string[] {
+  const cleaned = (a || "")
+    .replace(/\/[^/]*\//g, " ") // 音标 /ˈtɪkɪt/
+    .replace(/[（(][^）)]*[）)]/g, " ") // 括号注释
+    .replace(/\[[^\]]*\]/g, " ");
+  return cleaned
+    .split(/[、,，;；/|]+/)
+    .map((t) => normCn(t))
+    .filter(Boolean);
+}
+/** 中文连续公共子串的最长长度（只用来判「意思沾到边了没有」，不求精确） */
+function cnOverlap(x: string, y: string): number {
+  let best = 0;
+  for (let i = 0; i < x.length; i++) {
+    for (let j = i + best + 1; j <= x.length; j++) {
+      if (y.includes(x.slice(i, j))) best = j - i;
+      else break;
+    }
+  }
+  return best;
+}
+/**
+ * ⚠️ **这是自测不是考试，宁可放过也别误判**——「答对了被说错」对她的打击远大于放过一个。
+ * 所以除了「一方包含另一方」，还接受**连着两个字对上**（储物间衣帽间 ≈ 衣帽寄存处）。
+ * 两个汉字的巧合很少（号码 vs 数量 照样判错，是对的），再松就会开始放水。
+ */
 const cnOk = (u: string, a: string) => {
-  const x = normCn(u), y = normCn(a);
-  return !!x && (x === y || y.includes(x) || x.includes(y));
+  const x = normCn(u);
+  if (!x) return false;
+  const ys = cnGlosses(a);
+  if (ys.length === 0) return false;
+  return ys.some((y) => x === y || y.includes(x) || x.includes(y) || cnOverlap(x, y) >= 2);
 };
 const enOk = (u: string, a: string) => {
   const x = normEn(u), y = normEn(a);
