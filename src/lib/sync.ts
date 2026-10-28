@@ -256,3 +256,34 @@ export function hasEverSyncedTable(table: string): boolean {
   if (!syncEnabled()) return true;
   return syncedTables().has(table);
 }
+
+/**
+ * 同步诊断：每张表「本地几行 / 本次会话同步成功没有」。
+ *
+ * ⚠️ 2026-10-28 加，起因是她在手机上看到「一张表没同步」的横幅，而我连着问了四轮
+ * 「是哪张表」都没拿到——**横幅在窄屏上把表名挤没了**。靠用户转述设备状态本来就不可靠，
+ * 让 app 自己把状态摊开给她看，才是对的做法。
+ */
+export async function syncDiagnostics(): Promise<
+  { table: string; local: number; syncedNow: boolean; error: string | null }[]
+> {
+  const db = await getDb();
+  const out: { table: string; local: number; syncedNow: boolean; error: string | null }[] = [];
+  for (const t of TABLES) {
+    let local = -1;
+    try {
+      const rows = await db.select<{ n: number }[]>(`SELECT COUNT(*) AS n FROM ${t.name}`);
+      local = Number(rows[0]?.n ?? -1);
+    } catch {
+      /* 表还没建（老库）：留 -1，界面显示「—」 */
+    }
+    out.push({
+      table: t.name,
+      local,
+      syncedNow: syncedThisSession.has(t.name),
+      error: syncFailures.get(t.name) ?? null,
+    });
+  }
+  return out;
+}
+

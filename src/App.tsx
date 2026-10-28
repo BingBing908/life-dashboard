@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { LayoutDashboard, MoreHorizontal, X } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
 import { getPersistError } from "@/lib/db";
-import { getSyncFailures, hasEverSyncedTable, runSync, syncEnabled } from "@/lib/sync";
+import { getSyncFailures, hasEverSyncedTable, runSync, syncDiagnostics, syncEnabled } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
  *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。
@@ -53,6 +53,12 @@ export default function App() {
   const [syncFails, setSyncFails] = useState<{ table: string; message: string }[]>([]);
   // 本地库写不进去（配额满/隐私模式）——比同步失败更严重：这台设备上也没留下
   const [persistErr, setPersistErr] = useState<string | null>(null);
+  /**
+   * 同步诊断（2026-10-28 加）：每张表本地几行、这次会话同步成功没有。
+   * ⚠️ 起因是她手机上「一张表没同步」的横幅，我连问四轮都没拿到表名——**窄屏把表名挤没了**。
+   * 靠用户转述设备状态不可靠，让 app 自己摊开给她看。只在「有表没同步成功」时才显示，正常时不占地方。
+   */
+  const [diag, setDiag] = useState<{ table: string; local: number; syncedNow: boolean; error: string | null }[]>([]);
   // 窄屏（手机 / iPad 竖屏）的抽屉导航开关；≥lg 用常驻侧栏，这个 state 不起作用
   const [navOpen, setNavOpen] = useState(false);
 
@@ -84,6 +90,8 @@ export default function App() {
     const readFails = () => {
       setSyncFails(getSyncFailures());
       setPersistErr(getPersistError());
+      // 诊断是异步查本地行数的，失败就当没有（它只是辅助信息，不能反过来拖累同步）
+      void syncDiagnostics().then(setDiag).catch(() => {});
     };
 
     /**
@@ -204,9 +212,25 @@ export default function App() {
         )}
         {/* 同步失败横幅：某张表推不上云时必须让她看见（见 sync.ts 的 syncFailures 注释——
             曾经云端缺列、上传每次 400，界面却一声不响，改动两天只存在本机） */}
+        {diag.some((d) => !d.syncedNow) && (
+          <details className="border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer">
+              同步诊断：{diag.filter((d) => !d.syncedNow).length} 张表这次没同步成功（点开看是哪些）
+            </summary>
+            <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1">
+              {diag.map((d) => (
+                <Fragment key={d.table}>
+                  <span className={d.syncedNow ? "" : "font-medium text-amber-700"}>{d.table}</span>
+                  <span className="tabular-nums">本地 {d.local < 0 ? "—" : d.local} 行</span>
+                  <span>{d.syncedNow ? "✓" : d.error ? `✗ ${d.error.slice(0, 40)}` : "✗ 没跑到"}</span>
+                </Fragment>
+              ))}
+            </div>
+          </details>
+        )}
         {syncFails.length > 0 && (
-          <div className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-            ⚠️ 有 {syncFails.length} 张表没能同步到云端（改动目前只在这台设备上）：
+          <div className="flex flex-wrap items-baseline gap-x-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <span>⚠️ 有 {syncFails.length} 张表没能同步到云端（改动目前只在这台设备上）：</span>
             {syncFails.map((f) => (
               <span key={f.table} className="ml-2 font-medium">{f.table}</span>
             ))}
