@@ -206,7 +206,14 @@ function syncedTables(): Set<string> {
   }
 }
 
+/**
+ * 本次会话里真的拉到过云端数据的表。**内存里，刷新即清空**——这是故意的，
+ * 见下面 `hasSyncedTable` 的事故注释。
+ */
+const syncedThisSession = new Set<string>();
+
 function markTableSynced(table: string): void {
+  syncedThisSession.add(table);
   const s = syncedTables();
   if (s.has(table)) return;
   s.add(table);
@@ -218,10 +225,34 @@ function markTableSynced(table: string): void {
 }
 
 /**
- * 这张表在这台设备上**至少成功同步过一次**吗？
- * 播种前必须问它（见上面的注释）。不联云的环境恒为 true——本地独立库，没有可污染的云端。
+ * 这张表**在本次会话里**成功同步过吗？播种前必须问它。
+ *
+ * ⚠️⚠️⚠️ **2026-10-28 的真实事故，别把它改回去读 localStorage**：
+ * 原来这里读的是持久化的 `pwt-synced-tables`，结果当天 12:56:15，一台新设备把
+ * **36 条种子模板整批 upsert 覆盖了她的活数据并推上云**（`seedIfEmpty` 用的是
+ * `ON CONFLICT(id) DO UPDATE`，那是 2026-09-18 为修"一键同步全清空"加的），
+ * 她 9/20 改过的那些模板行（已知的一条：日日学 `track` 被改回 `frame`）全被打回模板值。
+ *
+ * **漏洞在于「标记」和「数据」存在两个不同的 localStorage key 里，失败方式不一样**：
+ * 数据是 `pwt-sqljs-db`（约 1.5MB，手机上最容易写失败或被回收），标记是个几十字节的小 key。
+ * 于是会出现「标记说同步过、库却是空的」⇒ 守卫放行 ⇒ 播种 ⇒ 推上云覆盖。
+ * **跨存储的两个事实不可能保证一致，所以这个判断必须只认本次会话真的拉到过云端数据。**
+ *
+ * 代价：全新设备**离线**首开不会播种，页面是空的 + 顶部同步失败横幅。
+ * 这正是这套守卫一开始就定的取舍——**「看得见的空」远好过「看不见的脏」**。
+ * `resetToSeed` 走 `seedIfEmpty(true)` 绕过本守卫，那是她亲手点的「一键同步」，不受影响。
  */
 export function hasSyncedTable(table: string): boolean {
+  if (!syncEnabled()) return true;
+  return syncedThisSession.has(table);
+}
+
+/**
+ * 这台设备**历史上**同步过这张表吗（读持久化的那份标记）。
+ * ⚠️ **只能用来决定等多久再渲染这类 UX 问题，绝不能用来决定要不要播种**——
+ * 它正是 2026-10-28 那次覆盖事故的漏洞所在，原因见 `hasSyncedTable` 的注释。
+ */
+export function hasEverSyncedTable(table: string): boolean {
   if (!syncEnabled()) return true;
   return syncedTables().has(table);
 }

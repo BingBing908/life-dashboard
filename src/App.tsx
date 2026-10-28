@@ -4,7 +4,7 @@ import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { modules, getModule } from "@/modules/registry";
 import { cn } from "@/lib/utils";
 import { getPersistError } from "@/lib/db";
-import { getSyncFailures, hasSyncedTable, runSync, syncEnabled } from "@/lib/sync";
+import { getSyncFailures, hasEverSyncedTable, runSync, syncEnabled } from "@/lib/sync";
 
 /** 从 URL hash 解析当前页（#/todo → "todo"），非法/空则回仪表盘。
  *  用 hash 路由：GitHub Pages 无需服务端配置，Tauri 单页也通用，刷新停在原页。
@@ -37,7 +37,7 @@ const TAB_IDS = ["dashboard", "study-plan", "schedule", "study-log"];
  * 同步过之后恢复 4 秒兜底：离线/弱网照常能进，先拿本地数据用。
  */
 function bootTimeoutMs(): number {
-  const firstEver = syncEnabled() && !hasSyncedTable("plan_items");
+  const firstEver = syncEnabled() && !hasEverSyncedTable("plan_items");
   // ⚠️ 离线时等再久也拉不到东西，照旧 4 秒放行、先用本地数据。
   //    不加这一条的话，她电脑断网时首次打开要白等 20 秒。
   const online = typeof navigator === "undefined" || navigator.onLine !== false;
@@ -47,7 +47,7 @@ function bootTimeoutMs(): number {
 export default function App() {
   const [view, setViewState] = useState(parseHash);
   const [booting, setBooting] = useState(true); // 首次同步完成前不渲染模块，避免空库重复播种
-  const [firstRun] = useState(() => syncEnabled() && !hasSyncedTable("plan_items"));
+  const [firstRun] = useState(() => syncEnabled() && !hasEverSyncedTable("plan_items"));
   const [syncTick, setSyncTick] = useState(0); // 拉到新数据后 +1，用作 key 强制刷新视图
   // 同步失败的表（云端缺列/表没建时必须看得见，见 sync.ts syncFailures 注释）
   const [syncFails, setSyncFails] = useState<{ table: string; message: string }[]>([]);
