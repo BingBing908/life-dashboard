@@ -95,6 +95,7 @@ interface Domain {
   timeMin?: number; // 只收该时间(分钟)及以后的条目
   timeMax?: number; // 只收该时间之前的条目
   weekdaysOnly?: boolean; // 只在工作日(周一~五)出现，周末隐藏（如「工作」域）
+  weekendOnly?: boolean; // 只在周末出现，工作日隐藏（如周末下午的「学习」域）
   /** 轴上显示的时段文本。`source: "todo"` 的域（工作）没有 plan_items，时段只能写死 */
   timeLabel?: string;
   /** 同上：该域的结束分钟数，给红线定位算。⚠️ 和 timeLabel 是两份——一份给人看、一份给代码算，
@@ -112,9 +113,9 @@ interface Domain {
  *
  * 切法＝**同一个 track 按时间窗口分成几个域**（`timeMin`/`timeMax`），这样工作日和周末
  * 用同一套定义各自成立，不用为周末另写一份：
- *   ai「日日学」13:00–14:00（周1-6）      → daily
+ *   ai「日日学」13:00–13:55（周1-5）      → daily（weekdaysOnly）
  *   ai「学习」09:45–12:00（周6,7）        → studyAM
- *   ai「学习」14:05–17:30（周6）          → studyPM
+ *   ai「学习」13:00–17:55（周6或7下午）    → studyPM（weekendOnly）
  *   ai「学习」18:30–19:45（周2,4,5）、周日的复盘/排课表 → study
  * ⚠️ **今天没有条目的 plan 域不进轴**（见 `domains` 的 filter）——否则工作日会冒出
  * 两个空的「学习」占位，跟上午的工作撞在一起。
@@ -135,14 +136,18 @@ const DOMAINS: Domain[] = [
   { key: "work", name: "工作", start: 615, time: "10:15", timeLabel: "10:15–11:55", end: 715, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
   // 周末上午的学习（09:45–12:00，周六日）——工作日这一段是上班，域为空自动隐藏
   { key: "studyAM", name: "学习", start: 585, time: "9:45", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 540, timeMax: 780 },
-  // 日日学 13:00–14:00（周1-6，午休后那一小时）
-  { key: "daily", name: "日日学", start: 780, time: "13:00", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["ai"], noteRequired: true, timeMin: 780, timeMax: 840 },
+  // 日日学 13:00–13:55（周一~周五，午休后那一小时）。
+  // ⚠️ 2026-10-29 加 weekdaysOnly（Rosie：「日日学本身就是针对周中的，周末不做的」，条目 days 确实是 1,2,3,4,5）。
+  //    不加的话，周末那条 13:00 开始的 AI 大块会掉进这个域、在时间轴上顶着「日日学」的名字。
+  { key: "daily", name: "日日学", start: 780, time: "13:00", color: "#5E9AE0", tint: "#EFF6FD", textc: "#0C447C", source: "plan", tracks: ["ai"], noteRequired: true, timeMin: 780, timeMax: 840, weekdaysOnly: true },
   // 下午上班（14:05–17:20，晚餐 17:25–17:45 是骨架卡，自己一行）
   // 下午工作只到 16:45——16:50 晚餐、17:20 那一小段「继续工作」在日程里是独立的骨架块，
   // 这里不收，否则工作条会横跨晚餐（见上面 work 的注释）
   { key: "work2", name: "工作", start: 840, time: "14:00", timeLabel: "14:00–16:45", end: 1005, color: "#85B7EB", tint: "#F0F6FD", textc: "#185FA5", source: "todo", noteRequired: false, weekdaysOnly: true },
-  // 周六下午的学习（14:05–17:30）——工作日为空自动隐藏
-  { key: "studyPM", name: "学习", start: 845, time: "14:05", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 840, timeMax: 1080 },
+  // 周末下午的学习大块（13:00–17:55）——2026-10-29 从周六对调到周日，窗口也从 14:00 放宽到 13:00。
+  // ⚠️ weekendOnly 和 daily 的 weekdaysOnly 是一对：两个域的时间窗口现在重叠（都含 13:00–14:00），
+  //    靠「工作日只出 daily、周末只出 studyPM」分开。少了任何一边，13:00 的条目都会同时进两个域。
+  { key: "studyPM", name: "学习", start: 780, time: "13:00", color: "#2E7CD6", tint: "#E6F1FB", textc: "#042C53", source: "plan", tracks: ["cert", "ai"], noteRequired: true, timeMin: 780, timeMax: 1080, weekendOnly: true },
   // 晚间学习 18:30–19:45（周2,4,5；周日是复盘/排课表）
   // ⚠️ `tracks` 里保留 "cert"：华为认证只是**暂停**（种子条目已移除），想恢复时
   // 把 seed.ts 那两条加回来就能直接归位，不用再动这里。
@@ -952,7 +957,7 @@ function Page() {
   // 今天视图：按当前时间自动定位的领域（可手动切换查看）
   // 周末（周六/日）不上班，隐藏「工作」域，时间轴只走周末该有的
   const isWeekend = todayNum === 6 || todayNum === 7;
-  const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend))
+  const domains = DOMAINS.filter((d) => !(d.weekdaysOnly && isWeekend) && !(d.weekendOnly && !isWeekend))
     // ⚠️ 今天一条都没有的 plan 域不上轴（否则工作日会冒出两个空「学习」跟上午的工作撞一起）
     .filter((d) => d.source !== "plan" || domainItems(d, todays).length > 0)
     // ⚠️ 工作域的时段从**日程**读（单一来源，见 workWindowFromSchedule 的注释）。
