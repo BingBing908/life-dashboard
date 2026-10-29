@@ -10,8 +10,6 @@ import {
   applyPeriod,
   ensureSeedAdditions,
   getPeriodOn,
-  getSeedVersion,
-  latestSeedVersion,
   listAllItems,
   listCheckStatus,
   seedIfEmpty,
@@ -61,7 +59,6 @@ function Page() {
   // ⚠️ 存 id 不存对象（2026-09-20 Rosie：「三项都想改要改三遍」）——保存单项后面板不关，
   // 条目从最新 items 里按 id 现取，保存过的行自动变回「未改动」态，其余行的草稿原样留着。
   const [selected, setSelected] = useState<{ ids: string[]; day: number | null } | null>(null);
-  const [outdated, setOutdated] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
@@ -112,8 +109,6 @@ function Page() {
       // ensureSeedAdditions：模板纯新增的升级（如 v25 作息骨架）静默补齐，不动她的编辑
       await seedIfEmpty().catch(() => {});
       await ensureSeedAdditions().catch(() => {});
-      // 修改型模板升级（SEED_RESET_BELOW 挡住增量补的那种）要她去时间轴点一键同步，这里提示
-      setOutdated((await getSeedVersion().catch(() => 0)) < latestSeedVersion());
       await reload();
     })()
       .catch(() => {})
@@ -173,11 +168,6 @@ function Page() {
         </div>
       ) : loaded ? (
         <>
-          {outdated && (
-            <div className="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-              作息模板有更新（晚间改版）——去<b>时间轴</b>页点顶部的「一键同步」就能换成新作息，这页会自动跟着变。
-            </div>
-          )}
           {addCtx && (
             <AddPanel
               key={`${addCtx.slot ?? ""}|${addCtx.days ?? ""}`}

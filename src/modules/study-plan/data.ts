@@ -123,9 +123,11 @@ let seedPromise: Promise<PlanItem[]> | null = null;
  * 详细原理在 `sync.ts` 末尾「首次同步守卫」那段。
  * 没同步过就返回空数组：页面暂时空着，下一轮同步拉到真数据就好了——
  * 「看得见的空」远好过「看不见的脏」。
- * `force=true` 只给 `resetToSeed`（她亲手点的「一键同步」）用。
+ * ⚠️ 「一键同步」/`resetToSeed` 已于 2026-10-29 整个删除（见 seed.ts 文件头）：
+ * 它是**唯一**能绕过这道守卫的入口，而她的活库和模板早已分叉，按一次就是一场事故。
+ * 以后别再加任何「用模板覆盖现有数据」的按钮。
  */
-export function seedIfEmpty(force = false): Promise<PlanItem[]> {
+export function seedIfEmpty(): Promise<PlanItem[]> {
   if (!seedPromise) {
     seedPromise = (async () => {
       /**
@@ -142,13 +144,13 @@ export function seedIfEmpty(force = false): Promise<PlanItem[]> {
        * ② **同步进行中一律不播**——正在拉的数据还没落地，这时的「空」没有意义；
        * ③ **播种前再查一次**——跨过任何 await 之后，之前读到的「空」都可能已经过期。
        */
-      if (!force && (!hasSyncedTable("plan_items") || isSyncing())) {
+      if (!hasSyncedTable("plan_items") || isSyncing()) {
         seedPromise = null; // 别把「这次没播成」缓存住：下次（同步完成后）还要再试
         return [];
       }
       const existing = await listItems();
       if (existing.length > 0) return existing;
-      if (!force) {
+      {
         // ③ 复查：上面那次 await 期间同步可能刚把云端数据写进来
         const again = await listItems();
         if (again.length > 0) return again;
@@ -164,11 +166,10 @@ export function seedIfEmpty(force = false): Promise<PlanItem[]> {
         // 确定性 id：按内容（track|title|time_slot，已验证唯一）生成，任意设备一致 → 云同步去重（#25）
         const id = seedUuid(`plan_item:${s.track}|${s.title}|${s.time_slot}`);
         // ⚠️⚠️ 必须是 upsert，不能裸 INSERT（2026-09-18 修的真事故）：
-        // 「一键同步」＝ resetToSeed 先把全部条目**软删**（行还在，只是 deleted_at 有值），
+        // 历史原因：已删除的 resetToSeed 会先把全部条目**软删**（行还在，只是 deleted_at 有值），
         // 再调这里重播。key 没变过的条目（如仙人揉腹）算出**同一个确定性 id**，
         // 裸 INSERT 撞主键 ⇒ 抛错 ⇒ 整个播种中止 ⇒ 时间轴 0 条。
-        // 这个 bug 从 7 月就潜伏着——resetToSeed 一直没人真点过（云端版本号停在 21），
-        // Rosie 9/18 第一次点「一键同步」当场全空。
+        // 这个 bug 从 7 月潜伏到 9/18——她第一次点「一键同步」当场全空。
         // upsert 语义＝复活软删的同 id 行并更新全部内容字段；updated_at 用当前时间，
         // 晚于 resetToSeed 刚写的删除时间戳 ⇒ 本地和同步都以复活为准。
         await db.execute(
@@ -207,16 +208,12 @@ async function setSeedVersion(v: number): Promise<void> {
   );
 }
 
-/** 当前代码里的模板版本（供 UI 比对） */
-export function latestSeedVersion(): number {
-  return SEED_VERSION;
-}
-
 /**
  * 增量补种：把模板里**新加的**条目补进库（ON CONFLICT DO NOTHING——
  * 已存在的行一个字段都不碰，她的编辑不会被模板覆盖），然后把版本号提上来。
  * ⚠️ 只对「纯新增」的模板升级正确（如 v25 加作息骨架）；改了已有条目的升级
- * 这里不会生效，得走横幅+resetToSeed。日程页每次加载都调它，幂等。
+ * 这里不会生效——而「一键同步」已删，所以那种升级就是**不落地**，这没关系：
+ * 她的作息现在在日程页直接改，模板只服务新装机。日程页每次加载都调它，幂等。
  */
 export async function ensureSeedAdditions(): Promise<void> {
   // ⚠️ 同 seedIfEmpty：没同步过就别往库里塞模板行，否则会在云端复活她删掉的条目。
@@ -225,7 +222,7 @@ export async function ensureSeedAdditions(): Promise<void> {
   const cur = await getSeedVersion();
   if (cur >= SEED_VERSION) return;
   // 库版本太老 ⇒ 中间隔着修改型升级（如 v26 晚间改版），增量补会造成新旧条目并存，
-  // 这里不动、让时间轴的「模板有更新」横幅引导她一键同步（resetToSeed 才能删旧的）
+  // 这里不动——宁可模板升级不落地，也不能新旧并存（她的作息以库里的为准）
   if (cur < SEED_RESET_BELOW) return;
   const db = await getDb();
   let order = 1;
@@ -242,30 +239,6 @@ export async function ensureSeedAdditions(): Promise<void> {
   await setSeedVersion(SEED_VERSION);
 }
 
-/** 清空现有条目并重新播种（用于同步最新计划模板；已打的勾会失效） */
-/**
- * ⚠️⚠️⚠️ **没同步成功的设备上禁止重播种**（2026-10-28 加，堵的是中午那次事故的第二条路）。
- * 当天她手机拉不到云端（14 张表全是 `TypeError: Failed to fetch`），本地 0 行，
- * 而时间轴顶上**正摆着「计划模板有更新 · 一键同步」那个按钮**——一按就是
- * `seedIfEmpty(true)` 绕过守卫播 36 条老模板，等网络恢复再推上云，
- * **完整重演中午那场覆盖**。`seedIfEmpty` 的守卫拦不住它，因为 `force=true` 就是用来绕过守卫的。
- * 所以这道闸必须单独加在这里。
- */
-export async function resetToSeed(): Promise<PlanItem[]> {
-  if (!hasSyncedTable("plan_items")) {
-    throw new Error("这台设备还没从云端同步成功，现在重置会把老模板推上去盖掉云端数据。先连上网等同步完成。");
-  }
-  const db = await getDb();
-  const ts = nowIso();
-  await db.execute(
-    "UPDATE plan_items SET deleted_at = $1, updated_at = $1 WHERE deleted_at IS NULL",
-    [ts],
-  );
-  seedPromise = null;
-  const items = await seedIfEmpty(true);
-  await setSeedVersion(SEED_VERSION);
-  return items;
-}
 
 export async function createItem(
   fields: Pick<PlanItem, "track" | "days" | "time_slot" | "title"> & { url?: string | null },

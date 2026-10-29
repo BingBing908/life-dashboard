@@ -240,7 +240,8 @@ function markTableSynced(table: string): void {
  *
  * 代价：全新设备**离线**首开不会播种，页面是空的 + 顶部同步失败横幅。
  * 这正是这套守卫一开始就定的取舍——**「看得见的空」远好过「看不见的脏」**。
- * `resetToSeed` 走 `seedIfEmpty(true)` 绕过本守卫，那是她亲手点的「一键同步」，不受影响。
+ * ⚠️ 曾经有个 `resetToSeed`（「一键同步」）用 `force` 绕过本守卫——2026-10-29 已整个删除。
+ * 它绕过守卫三次、三次都是事故。**别再给这道守卫开后门。**
  */
 export function hasSyncedTable(table: string): boolean {
   if (!syncEnabled()) return true;
