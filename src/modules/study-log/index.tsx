@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 // Film / Library / Star / Trash2 已随书影搬去 modules/bookshelf，这里不再需要
 import {
   ArrowLeft,
@@ -637,6 +637,15 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
   const [term, setTerm] = useState<string | null>(null);
   const [dict, setDict] = useState(false);
   const [noting, setNoting] = useState(false);
+  /**
+   * 术语释义框在卡片最底下（正文/作业/配图之后），长文里点一个靠上的 [[词]]
+   * 很可能弹在屏幕外 ⇒ 看起来像「点了没反应」。所以点开时把它滚进视野。
+   * ⚠️ 用 block:"nearest"：已经看得见就一动不动，只在真的看不见时滚最小距离。
+   */
+  const glossRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (term) glossRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [term]);
   let meta: Record<string, unknown> = {};
   try {
     meta = entry.meta ? JSON.parse(entry.meta) : {};
@@ -774,9 +783,9 @@ function EntryDoc({ entry, accent, onPatch }: { entry: Entry; accent: string; on
       {/* 复习曲线：只有会进复习队列的内容（古诗）才画，组件内部自己判断 */}
       <ReviewTrack entry={entry} accent={accent} />
       {term && glossary[term] && (
-        <div className={cn("mt-2 rounded-md border p-2.5", READ_BODY)} style={{ background: accent + "12", borderColor: accent + "44" }}>
-          <span className="font-medium" style={{ color: accent }}>{term}</span>
-          <span className="text-foreground/85">：{glossary[term]}</span>
+        <div ref={glossRef} className={cn("mt-2 rounded-md border p-2.5", READ_BODY)} style={{ background: accent + "12", borderColor: accent + "44" }}>
+          <p className="mb-1 font-medium" style={{ color: accent }}>{term}</p>
+          <p className="whitespace-pre-wrap text-foreground/85">{glossary[term]}</p>
         </div>
       )}
       {canDictate && (
