@@ -331,6 +331,24 @@ fn migrations() -> Vec<Migration> {
             ALTER TABLE plan_items ADD COLUMN valid_to TEXT;
         "#,
         },
+        Migration {
+            version: 16,
+            description: "notes",
+            kind: MigrationKind::Up,
+            // 备忘录（2026-11-09 Rosie：「放在待办一条一条加很麻烦，我觉得应该放在备忘录更方便」）。
+            // 刻意没有 title 列——标题取正文第一行，跟 iPad 备忘录一样（多一个标题框就是多一道摩擦）。
+            sql: r#"
+            CREATE TABLE IF NOT EXISTS notes (
+                id          TEXT PRIMARY KEY,
+                body        TEXT NOT NULL DEFAULT '',
+                pinned      INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL,
+                updated_at  TEXT NOT NULL,
+                device_id   TEXT,
+                deleted_at  TEXT
+            );
+        "#,
+        },
     ]
 }
 

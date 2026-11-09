@@ -64,7 +64,7 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
 
 ## 模块现状
 
-注册在 `registry.ts` 的有 5 个（**id 不变、显示名 2026-07-21 改了**）：`study-plan`（显示名**时间轴**，首位）、`todo`（待办）、`supplement`（饮食）、`study-log`（显示名**日日学**）、`mini-table`（小表格）。仪表盘壳子显示名=**今日总览**。（下文模块段落里出现的旧名"学练计划/学习记录"即时间轴/日日学。）
+注册在 `registry.ts` 的有 8 个（schedule 日程、bookshelf 书架、notes 备忘录是后加的）；下面这句「5 个」是 2026-07 的历史（**id 不变、显示名 2026-07-21 改了**）：`study-plan`（显示名**时间轴**，首位）、`todo`（待办）、`supplement`（饮食）、`study-log`（显示名**日日学**）、`mini-table`（小表格）。仪表盘壳子显示名=**今日总览**。（下文模块段落里出现的旧名"学练计划/学习记录"即时间轴/日日学。）
 
 （原独立的「此刻 `focus`」模块已于 2026-07-20 并入学练计划的「今天」页并删除；时间轴逻辑现直接写在 `study-plan/index.tsx`。计划表 planner 更早于 2026-07-19 移除，其 `plan_tasks` 表由迁移 v4 / 浏览器 `DROP TABLE` 清掉。）
 
@@ -132,6 +132,16 @@ Rosie 的个人工具：一个模块化仪表盘应用。工作日在电脑/网�
   - **下划线术语释义**（2026-07-20）：`EntryDoc` 把 body 里的 `[[术语]]` 渲染成**下划线可点**，点开显示 `meta.glossary`（`{术语: 释义}`）里的解释（浮层框）。用于 AI 新闻里给「多模态 / Sol·Terra·Luna / OpenAI / Z.ai / Meta / EU AI Act」等专业词和公司背景做即点即看的扩充。Claude 写内容时在 body 标 `[[词]]`、并把释义放进 meta.glossary。
   - ⚠️ **含输入的卡片组件全部模块顶层**（Landing/LearningBoard/EntryDoc/AddEntryForm/Stars/BookBoard/BookNotebook/MovieBoard/MovieCard/AddTitleForm），textarea 用非受控 defaultValue+onBlur、其余受控 state 在顶层组件内（避免父组件重渲染失焦）。`patchEntry` 用特殊键 `__body`→body 列、`status`→status 列、其余并进 meta。
   - **内容注入（关键）**：英语/AI 等每日内容 Rosie **不自己贴**——她晚上发 Claude"X 学完了换新的"，**Claude 用 publishable key 经 REST 直接写进她的 `study_entries` 云表**（curl 已验证可写，档位 A anon 全权限），她第二天打开 App 同步下来就有。**前提：Rosie 必须先在 Supabase 建 `study_entries` 表**（否则 404、存不了也同步不了）。生词划线、时间线可视化留 v3。
+- **备忘录 `notes`**（2026-11-09 加，Rosie：「我现在想把一批修改建议放进去，但是放在待办一条一条加很麻烦，我觉得应该放在备忘录更方便」）：iPad 备忘录那种——列表磁贴（标题＋时间＋预览）→ 点进去一个占满屏幕的输入框。
+  - ⚠️ **刻意没有 title 列**，标题＝正文第一行（`noteTitle()`，空的显示「新备忘录」）。**多一个必填字段就是多一道摩擦**，而这个模块存在的全部理由就是把摩擦降到零——她说待办"一条一条加很麻烦"，指的正是「每条都要想标题、选象限、定今天做不做」。想改标题＝改第一行。
+  - ⚠️⚠️ **自动存，刻意不用三餐那套「确认提交」**：三餐要按钮是怕实时同步把一个数字搞错（一次性的小数据），备忘录是连着打一大段的东西，每改一处点一次按钮就没法用了。做法＝**600ms 防抖 + `onBlur` + 组件卸载时各 flush 一次**（`pending` / `timer` 两个 ref；卸载那次走 `flushRef` 持最新闭包，否则 cleanup 抓到的是首渲染那个）。存失败把内容放回 `pending`，下次失焦还会再试。
+  - ⚠️⚠️ **非受控 textarea + `key={note.id}`，刻意不写 effect 跟 props 同步**——云同步每 30 秒拉一次，回灌进输入框就会冲掉她正在打的字（三餐框踩过）。**正因为草稿只取一次初值，调用方必须等库读完再渲染**：`Page` 只在 `notes !== null` 且找得到这条时才渲染编辑器，否则会出现「库里有字、框里是空的，一存就清空」。
+  - ⚠️ **置顶必须走父级**（我第一版写错过）：编辑器里内联调 `setNotePinned` 只写了库、本地 `note.pinned` 不变 ⇒ 星星不亮。改成 `onTogglePin` prop → `Page.handleTogglePin` → `setNotes(await listNotes())`（置顶要重排，这里整表重查是对的；存正文则只改本地那一条，别整表重查）。
+  - 路由 `#/notes/<id>`（铁律 3）；删掉打开着的那条要 `nav([])`，别停在死 id 上。删除带 `window.confirm`（触屏上垃圾桶是常驻的，而一条备忘录可能是一大段）。
+  - **不参与任何统计**：不进总览完成度、不进周表、不进复习队列。⚠️ 一旦给它加「今天写了几条」这种数字，它就变回待办了。
+  - **表 `notes`**（迁移 **v16**，四处同步已做：lib.rs + SCHEMA_SQL + supabase/schema.sql + sync.ts 的 `TABLES`）：`id / body / pinned / created_at / updated_at / device_id / deleted_at`。⚠️ **新表不需要进 `BROWSER_MIGRATIONS`**——`db.ts` 每次打开都 `db.exec(SCHEMA_SQL)`，`CREATE TABLE IF NOT EXISTS` 对新库旧库都生效；那个数组只管给**已存在的表补列**。
+  - ⚠️ **她必须去 Supabase SQL Editor 跑建表 + RLS 四句**（`supabase/schema.sql` 末尾有现成的），不跑则这张表同步一直失败、顶部挂琥珀横幅。**发版后照「云端 DDL 必须亲自验证」那条 curl 验一次，别信「她说跑了」。**
+  - **刻意没进底部标签栏**（`TAB_IDS` 是按真实使用频率定的，别顺手塞）：桌面在侧栏、手机在「更多」抽屉里。她要是天天用再提进去。
 - **小表格 `mini-table`**：自定义列的轻量表格；**Rosie 把它当周/月复盘中枢**。**版式（2026-07-28 Rosie 要求「表格做大、打开就全屏、外显太不均衡」）**：列表页 `mx-auto max-w-6xl p-6` + 磁贴 `TableTile`（顶层组件，size-11 图标块 + 表名 text-lg + 「N 行 · M 列」+ 绑了数据源的挂「⚡自动填」徽标，行数走 `rowCounts()` 一次聚合查询、别每张表各查一遍）；详情页 `TableDetail` **打开即占满整屏**——根节点 `flex h-full flex-col`，表格区 `min-h-0 flex-1` 自己滚，表头 `sticky top-0` 吸顶。**行要顶满、别留大片空白**（2026-07-28 Rosie 第二轮反馈「还是很空旷，顶满下面，每个框都加长」）：`<Table className="h-full">` 让浏览器把剩余高度按比例摊给各行；单元格里的框跟着长高靠 **`h-px` 老招**——td 给 `h-px`，表格摊完高度后 td 实际高度覆盖这 1px，子元素的 `h-full` 就有了可解析的参照（不加 `h-px` 时 `h-full` 在 td 里解析不出来、框不会长）；框自身再给 `min-h-14` 保底。`cells.tsx` 四种编辑器全部 `h-full min-h-14`（checkbox 那个包裹 div 也要）。行数多到超出高度时 `height:100%` 退化成下限，照旧滚动。⚠️ 吸顶要靠 `[&>[data-slot=table-container]]:h-full/overflow-auto` 把 shadcn `<Table>` 内层那个 `overflow-x-auto` 容器变成真正的滚动容器，否则 sticky 贴在一个永不滚动的盒子上、没效果。单元格 `max-w-72 whitespace-normal break-words`（覆盖 TableCell 默认的 nowrap，靠 twMerge 后写胜出）——否则一格长文本（如「工作」行）会把那一列撑得巨宽、其余六天挤扁。`cells.tsx` 四种编辑器统一 h-10 + text-base。已建表（直接写进云 mini_tables/rows）：**三餐表格**（`tbl-meals-week`，项目+周一~日；行 空腹体重/早餐/午餐/晚餐/总摄入卡路里/睡前体重）、**时间轴周表**（`tbl-plan-week`，2026-07-21；行 养生/英语/工作/学习/运动/阅读）。（原 `tbl-exercise-week` 运动表格 2026-07-21 已软删并入时间轴周表。）**数据源绑定（2026-07-20）**：`sources.ts` 的 `TABLE_SOURCES` 按**表 id**把某些行接到其它模块自动填（不靠行名、不复制数据、每次打开实时算、不改库/不用 SQL）：声明 `itemCol`(标签列)+`dayCols`(mon~sun)+`autoItems`(哪些行自动)+`compute(周日期)→{项目:{列id:值}}`；TableDetail 里自动格只读浅色、其余格手填存 `mini_table_rows`。已绑定：三餐表格（早/午/晚←meal_log 内容、**零食/饮品**←当天 treat_log 的摘要+合计热量（2026-07-28 加，行 id `mrow-meal-snack`、`sort_order=4.5` 插在晚餐与总摄入之间；总摄入那行本来就含它们，这行是拆开看）、总摄入卡路里←dayCalories；**空腹/睡前体重←体重库自动填**，2026-07-22 起不再手填周表——录入口在今日总览）、**时间轴周表**（养生/英语/学习/运动/阅读=当天时间轴里点了已完成的对应 track 条目标题；**日日学**=当天各板块「看完/总数」计数，2026-07-28 加，行 id `mrow-plan-7`、`sort_order=2.5` 排在英语与工作之间（`sort_order` 两侧 schema 都是 REAL，插队直接用小数、不用把后面几行重编号）——条目太多（一天可能十几条）列不下标题，所以给 `英语1/2 语文3/4 AI6/6` 这种紧凑计数，`LOG_BOARDS` 只数六个学习板块、不含书籍/电影；要改成标题就改 `sources.ts` 那一段；**工作**=当天 `done_at` 的 todos 标题；⚠️ **2026-10-19「运动」拆成「课程」+「运动」两行**（她点名：原来那行把周一声乐、周三太极和周二四的瑜伽混在一起，看不出是上课还是练身体）——两者同属 `track='sport'`，靠**开始时间**分：早于 19:50 的是课程、之后的是运动。**分界点是共用常量 `CLASS_SPORT_SPLIT`（在 `study-plan/data.ts`，连同 `slotStartOf()`），时间轴的 `class`/`sport` 两个域和这两行共用它——别在任一侧写死 1190**，否则改了课时间就会出现「周表说上了课、时间轴说做了运动」。新行 `mrow-plan-8`、`sort_order=4.5` 插在学习与运动之间（同日日学 2.5 的插队手法））。当前填**本周**（月度复盘待定）；将来「学习表格」加一条绑定即可。**动态卡路里工作流**（Rosie 认可）：她每晚称体重填进三餐表格，Claude 按**早晚体重+趋势**在安全区（约 1420–1550、不低于 BMR 1420）给次日 `app_settings.cal_target` + 饮食建议；运动消耗/摄入由 Claude 估算、Rosie 填表。⚠️ 支持性建议、非医疗处方（同金融红线）。
 
 ## 学习记录·每日内容喂养（Claude 每天做的事——换对话/换窗口都照这个走）
@@ -1332,6 +1342,11 @@ npm run build        # 类型检查 + 前端构建（提交前跑一遍）
 - ⚠️⚠️ **量到的事实：17,311 字 ≈ 50 分钟纯阅读**，已经超过午休那一小时（还没算复习队列和那道作业）。这是「她点名八个板块」和「午休只有 60 分钟」的直接冲突。
   **配方表（2026-10-28）把素养线全改成点名才更，正是为了避免一天全开。** 下次她再一口气点名三四个素养板块时，
   **先把字数摆给她看、让她挑两个，而不是闷头全写**——写出来她读不完，和没写是一样的，只是多了一份负疚感。
+
+**2026-11-09：新模块「备忘录 `notes`」**（她点名，详见上面模块现状那条）
+- [x] 新表 `notes`（迁移 v16，四处同步 + `sync.ts` 的 `TABLES`）；⚠️ **她要去 Supabase 跑建表 + RLS 四句**，`supabase/schema.sql` 末尾有现成的
+- [x] 列表磁贴 → 全屏输入框；标题取第一行、无 title 列；自动存（防抖 600ms + onBlur + 卸载 flush）；置顶 / 软删 + confirm；`#/notes/<id>` 进 hash
+- [ ] ⚠️ **本轮同样没跑过构建**（公司这台没有 Node）。已按自检清单扫过「导入 + 局部变量」无孤儿、无 JSX 注释、括号平衡；用的 lucide 图标（Pencil/Plus/Star/Trash2/ArrowLeft）和 Button 的 `variant`/`size`/`title` 全部是**代码里已有用法**，不是我猜的。**真实渲染没看过**，靠 CI + 她实测
 
 ## 工作习惯
 

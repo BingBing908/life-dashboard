@@ -66,6 +66,11 @@ create table if not exists public.study_entries (
   created_at text, updated_at text, device_id text, deleted_at text
 );
 
+create table if not exists public.notes (
+  id text primary key, body text, pinned integer,
+  created_at text, updated_at text, device_id text, deleted_at text
+);
+
 -- 档位 A：开启 RLS，给 anon（publishable key 对应的角色）全权限。
 do $$
 declare t text;
@@ -73,7 +78,7 @@ begin
   foreach t in array array[
     'mini_tables','mini_table_rows','study_subjects','study_sessions','habits',
     'habit_checkins','plan_items','plan_checks','plan_notes','treat_log',
-    'meal_log','todos','app_settings','study_entries'
+    'meal_log','todos','app_settings','study_entries','notes'
   ]
   loop
     execute format('alter table public.%I enable row level security;', t);
@@ -94,3 +99,14 @@ end $$;
 -- 2026-09-20 变更只影响当天及以后：plan_items 加生效区间。已有库在 SQL Editor 跑：
 -- alter table public.plan_items add column if not exists valid_from text;
 -- alter table public.plan_items add column if not exists valid_to text;
+
+-- 2026-11-09 备忘录模块：新表 notes。⚠️ **已有库必须在 SQL Editor 跑下面这四句**，
+-- 否则这张表同步会一直失败（App 顶部会挂琥珀横幅 + 诊断面板里写着 notes）：
+-- create table if not exists public.notes (
+--   id text primary key, body text, pinned integer,
+--   created_at text, updated_at text, device_id text, deleted_at text
+-- );
+-- alter table public.notes enable row level security;
+-- drop policy if exists anon_all on public.notes;
+-- create policy anon_all on public.notes for all to anon using (true) with check (true);
+-- grant all on public.notes to anon;

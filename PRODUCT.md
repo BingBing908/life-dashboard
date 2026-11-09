@@ -276,6 +276,24 @@ XBOW 定哪个北极星？」），那这条新闻就不再是「看」而是「
 
 ---
 
+### 备忘录（notes）
+
+**2026-11-09 加。起因是她自己的一句诊断**：「我现在想把一批修改建议放进去，
+但是放在待办一条一条加很麻烦，我觉得应该放在备忘录更方便」。
+
+- **它补的缺口是「一大段还没拆开的想法」。** 待办要求每条都是一个独立动作、还要选象限、
+  还要定今天做不做——**那是给"已经想清楚"的东西用的**。而一批修改建议在写下来的那一刻
+  还没想清楚，硬拆成十条待办等于逼她先做分类，于是干脆不写了。
+- **所以刻意没有标题框、没有象限、没有截止日期。** 标题取正文第一行（iPad 备忘录的做法）。
+  多一个必填字段就是多一道摩擦，而这个模块存在的全部理由就是把摩擦降到零。
+- **自动存，不要「确认提交」。** 三餐那边刻意要按钮（怕实时同步搞错一个数字），
+  备忘录反过来——连着打一大段的东西，每改一处点一次按钮就没法用。
+  做法是 600ms 防抖 + 失焦 + 离开页面各存一次。
+- **它不参与任何统计。** 不进总览完成度、不进周表、不进复习队列。
+  一旦给它加上「今天写了几条」这种数字，它就变回待办了。
+
+---
+
 ## 代码在哪（文件地图）
 
 一个模块自包含在 `src/modules/<名字>/`（`index.tsx` 页面 + `data.ts` 读写），
@@ -309,7 +327,7 @@ supabase/schema.sql            云端建表 + RLS（Rosie 在 SQL Editor 跑）
 .github/workflows/deploy-pages.yml  自动部署；build 失败会输出 annotation
 ```
 
-## 数据表（14 张，全部带 id/created_at/updated_at/device_id/deleted_at 软删除）
+## 数据表（15 张，全部带 id/created_at/updated_at/device_id/deleted_at 软删除）
 
 | 表 | 装什么 |
 |---|---|
@@ -319,6 +337,7 @@ supabase/schema.sql            云端建表 + RLS（Rosie 在 SQL Editor 跑）
 | `meal_log` / `treat_log` | 三餐（date+meal 唯一）/ 饮品**和零食**（`kind` 区分） |
 | `study_entries` | 日日学全部内容，一张通用表（board/kind/entry_date/title/body/meta JSON） |
 | `mini_tables` / `mini_table_rows` | 小表格定义 / 行数据 |
+| `notes` | 备忘录（只有 body + pinned；标题取正文第一行，**刻意没有 title 列**） |
 | `app_settings` | 键值杂物：卡路里目标、经期开关、体重库 `weight:<date>:am\|pm`、补剂打卡 `supp:<date>:<slot>:<名字>`、种子版本 |
 | `study_sessions` / `study_subjects` | 旧版学习记录遗留，日日学 v2 已不用 |
 

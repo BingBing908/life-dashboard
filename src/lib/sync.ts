@@ -25,6 +25,7 @@ const TABLES: { name: string; pk: string }[] = [
   { name: "meal_log", pk: "id" },
   { name: "todos", pk: "id" },
   { name: "study_entries", pk: "id" },
+  { name: "notes", pk: "id" },
   { name: "app_settings", pk: "key" },
 ];
 
